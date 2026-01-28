@@ -1,0 +1,81 @@
+
+name: Pytest
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - develop
+      - 'release/*'
+      - main
+
+env:
+  PIP_EXTRA_INDEX_URL: "https://nexus.fastit.dev/repository/fast-it/simple"
+
+
+jobs:
+  ruff_guardian:
+    runs-on: ubuntu-latest
+    if: ${{ vars.INITED == 'true' }}
+    steps:
+      - name: Clone the repository
+        uses: actions/checkout@v3
+      - name: Install ruff
+        run: pip install ruff
+      - name: Run ruff formatting check
+        run: |
+          if ! ruff format --check .; then ruff format .; false; fi
+
+  build:
+    runs-on: ubuntu-latest
+    needs: ruff_guardian
+    container:
+      image: python:${{ vars.PYTHON_VERSION }}-slim
+    steps:
+      - name: Clone the repository
+        uses: actions/checkout@v3
+      - name: Install build tool
+        run: |
+          pip install --upgrade pip setuptools wheel
+          pip install build
+      - name: Build package
+        run: |
+          rm -rf dist/* build *.egg-info
+          python -m build --sdist --wheel
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+  pytest:
+    runs-on: ubuntu-latest
+    container:
+      image: python:${{ vars.PYTHON_VERSION }}-slim
+    needs: build
+    steps:
+      - name: Clone the repository
+        uses: actions/checkout@v3
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+      - name: Install dependencies
+        run: |
+          apt-get update
+          pip install --upgrade pip
+          pip install pytest build pytest-cov
+          pip install dist/*.whl
+      - name: Run tests
+        run: |
+          pytest -s -o cache_dir=/tmp/.pytest_cache --junitxml="report.xml"
+          pytest -s -o cache_dir=/tmp/.pytest_cache --cov --cov-report term --cov-report xml:"coverage.xml" --cov-report html:"coverage.html"
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-artifacts
+          path: |
+            report.xml
+            coverage.xml
+            coverage.html

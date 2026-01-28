@@ -1,0 +1,66 @@
+[project]
+name = "ckanapi_harvesters"
+version = '0.0.0'
+authors = [
+]
+maintainers = [
+]
+description = "Adaptation of the template for github."
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "pytest == 8.0.1",
+    # ajouter les dépendances necessaires
+]
+
+license = { file = "LICENSE" }
+
+[tool.ckanapi_harvesters]
+version = "1.0.2"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+local_scheme = "dirty-tag"
+
+[tool.setuptools]
+py-modules = []
+license-files = []
+
+[tool.ruff]
+# Set the maximum line length to 140.
+line-length = 140
+exclude = [
+    "tests"
+]
+
+[tool.ruff.lint]
+# See documentation: https://docs.astral.sh/ruff/rules/
+extend-select = [
+  "UP",
+  "E501",
+  "I",
+  "B",
+  "F",
+  "E",
+  "N",
+  "A",
+  "PL",
+  "D"
+]
+
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+docstring-code-format = true

@@ -1,0 +1,128 @@
+
+name: Package Upload to PyPI
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  PIP_EXTRA_INDEX_URL: "https://nexus.fastit.dev/repository/fast-it/simple"
+
+jobs:
+  ruff_guardian:
+    runs-on: ubuntu-latest
+    if: ${{ vars.INITED == 'true' }}
+    steps:
+      - name: Clone the repository
+        uses: actions/checkout@v3
+      - name: Install ruff
+        run: pip install ruff
+      - name: Run ruff formatting check
+        run: |
+          if ! ruff format --check .; then ruff format .; false; fi
+
+  check-version:
+    runs-on: ubuntu-latest
+    if: ${{ vars.INITED == 'true' && vars.PUBLISH_TO_PYPI != 'false' }}
+    steps:
+      - name: Clone the repository
+        uses: actions/checkout@v3
+      - name: Check package version
+        run: |
+          PACKAGE_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          PACKAGE_NAME=$(cat pyproject.toml | grep '^name = ' | cut -d '=' -f 2 | xargs)
+          ALL_VERSION=$(curl -s https://pypi.org/pypi/$PACKAGE_NAME/json | jq -r '.releases | keys[]' 2>/dev/null || echo "")
+
+          for ver in $ALL_VERSION; do
+            if [ "$ver" = "$PACKAGE_VERSION" ]; then
+              echo "Version $PACKAGE_VERSION already exists on PyPI. Changing version."
+              exit 1
+            fi
+          done
+
+          echo "Updating version to $PACKAGE_VERSION in pyproject.toml"
+          sed -i "s/version = '.*'/version = '$PACKAGE_VERSION'/" pyproject.toml
+      - name: Save change
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-version
+          path: pyproject.toml
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [ruff_guardian, check-version]
+    container:
+      image: python:${{ vars.PYTHON_VERSION }}-slim
+    steps:
+      - name: Clone the repository
+        uses: actions/checkout@v3
+      - name: Download updated version file
+        uses: actions/download-artifact@v4
+        with:
+          name: project-version
+      - name: Install build tool
+        run: |
+          pip install --upgrade pip setuptools wheel
+          pip install build
+      - name: Build package
+        run: |
+          rm -rf dist/* build *.egg-info
+          python -m build --sdist --wheel
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+  pytest:
+    runs-on: ubuntu-latest
+    container:
+      image: python:${{ vars.PYTHON_VERSION }}-slim
+    needs: build
+    steps:
+      - name: Clone the repository
+        uses: actions/checkout@v3
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+      - name: Install dependencies
+        run: |
+          apt-get update
+          pip install --upgrade pip
+          pip install pytest build pytest-cov
+          pip install dist/*.whl
+      - name: Run tests
+        run: |
+          pytest -s -o cache_dir=/tmp/.pytest_cache --junitxml="report.xml"
+          pytest -s -o cache_dir=/tmp/.pytest_cache --cov --cov-report term --cov-report xml:"coverage.xml" --cov-report html:"coverage.html"
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-artifacts
+          path: |
+            report.xml
+            coverage.xml
+            coverage.html
+
+  upload-on-pipy:
+    runs-on: ubuntu-latest
+    needs: pytest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+      - name: Install twine
+        run: pip install twine
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          twine check dist/*
+          twine upload dist/*
