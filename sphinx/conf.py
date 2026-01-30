@@ -15,13 +15,14 @@ Configuration Options:
 Extensions:
 -----------
 - `sphinx_design`: Adds design-related functionality.
-- `myst_parser`: Enables the MyST markdown parser.
+- `myst_parser`: Enables the MyST markdown parser.  # included with myst_nb
 - `sphinx.ext.duration`: Measures the time taken to build the documentation.
 - `sphinx.ext.doctest`: Tests that docstrings are valid Python code.
 - `sphinx.ext.autodoc`: Automatically documents Python modules.
 - `sphinx.ext.autosummary`: Generates summary tables of documented modules.
 - `sphinx_autopackagesummary`: Automatically generates package summaries.
 - `sphinx.ext.napoleon`: Supports Google and NumPy style docstrings.
+- `myst_nb`: Supports including Jupyter notebooks.  [doc here](https://docs.readthedocs.com/platform/latest/guides/jupyter.html)
 
 Napoleon Settings:
 ------------------
@@ -41,7 +42,7 @@ Napoleon Settings:
 
 Internationalization:
 ----------------------
-- `language`: Sets the language for the documentation output (currently set to French).
+- `language`: Sets the language for the documentation output (set back to English).
 
 HTML Output Options:
 ---------------------
@@ -55,13 +56,13 @@ import sys
 
 sys.path.insert(0, os.path.abspath('../src'))
 
-project = 'ckanapi_harvesters'
+project = 'dev_update_sphinx'
 author = 'author'
 release = '0.0.0'
 
 extensions = [
     'sphinx_design',
-    'myst_parser',
+    # 'myst_parser',  # included with myst_nb
     'sphinx.ext.duration',
     'sphinx.ext.doctest',
     'sphinx.ext.autodoc',
@@ -69,6 +70,7 @@ extensions = [
     'sphinx_autopackagesummary',
     'sphinx.ext.napoleon',
     'sphinx_rtd_theme',
+    'myst_nb',
 ]
 
 napoleon_google_docstring = True
@@ -85,9 +87,11 @@ napoleon_use_rtype = True
 napoleon_use_keyword = True
 napoleon_custom_sections = None
 
+nb_execution_mode = "off"  # https://myst-nb.readthedocs.io/en/latest/computation/execute.html
+
 # autosummary_generate = True  # Turn on sphinx.ext.autosummary
 
-language = 'fr'
+language = 'en'
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output

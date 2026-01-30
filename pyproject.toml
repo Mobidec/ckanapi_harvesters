@@ -4,21 +4,47 @@ version = '0.0.0'
 authors = [
 ]
 maintainers = [
+	{ name = "ifpen-gp", email = "63413841+ifpen-gp@users.noreply.github.com" },
 ]
-description = "Adaptation of the template for github."
+description = "Package helping to upload local resources to a CKAN server using the CKAN API. Metadata and the list of resources can be defined in an Excel spreadsheet. The package includes requests to download resources and checks metadata against formatting rules."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 classifiers = [
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.10",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 dependencies = [
     "pytest == 8.0.1",
+    "myst-nb >= 1.3.0",
     # ajouter les dépendances necessaires
+	"requests >= 2.32.5",
+	"pandas >= 2.3.3",
+	"numpy >= 2.2.6",
+	"openpyxl >= 3.1.5",  # could be an optional extra
 ]
 
-license = { file = "LICENSE" }
+[project.optional-dependencies]
+harvesters = [
+    "pymongo >= 4.8.0",    # MongoDB harvester
+    "psycopg2 >= 2.9.11",  # Postgre harvester
+    "shapely >= 2.1.2",    # GeoJSON support
+    "pyproj == 3.6.1",     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
+]
+alt = [
+    "bson",  # bson implementation, independent of pymongo
+    "shapely >= 2.1.2",    # GeoJSON support
+    "pyproj == 3.6.1",     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
+    "geopandas >= 1.1.2",  # Shapefile reading functions
+]
+
+[tool.setuptools.package-data]
+# non-source files to include in the package
+"ckanapi_harvesters" = [
+    "builder/builder_package_example.xlsx",
+    "builder/example/package/*.*",
+    "builder/example/*.ipynb",
+]
 
 [tool.ckanapi_harvesters]
 version = "1.0.2"
@@ -32,13 +58,14 @@ local_scheme = "dirty-tag"
 
 [tool.setuptools]
 py-modules = []
-license-files = []
 
 [tool.ruff]
 # Set the maximum line length to 140.
 line-length = 140
 exclude = [
-    "tests"
+    "tests",
+    "sphinx",
+    "src",
 ]
 
 [tool.ruff.lint]
@@ -58,7 +85,7 @@ extend-select = [
 
 
 [tool.ruff.lint.pydocstyle]
-convention = "numpy"
+convention = "numpy"  # needs to be changed (rst docstrings)
 
 [tool.ruff.format]
 quote-style = "single"

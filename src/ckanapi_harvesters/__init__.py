@@ -1,15 +1,37 @@
+#!python3
+# -*- coding: utf-8 -*-
 """
-Module for demonstrating a simple 'Hello World' function.
-
-This module imports the hello_world function from the main module
-and makes it available for public use.
-
-Functions
----------
-hello_world()
-    Print 'Hello World!' to the console.
+Package with helper function for CKAN requests using pandas DataFrames.
 """
 
-from .main import hello_world
+# builder_file_format_version = "0.0.1"
+try:
+    from importlib.metadata import version, PackageNotFoundError
+except ImportError:  # Python <3.8
+    from importlib_metadata import version, PackageNotFoundError
 
-__all__ = ['hello_world']
+try:
+    __version__ = version("ckanapi_harvesters")
+except PackageNotFoundError:
+    __version__ = None
+
+
+import os
+self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
+
+
+from . import auxiliary
+from . import policies
+from . import harvesters
+from . import ckan_api
+from . import builder
+from . import reports
+
+# usage shortcuts
+from .auxiliary import CkanMap
+from .policies import CkanPackageDataFormatPolicy
+from .ckan_api import CkanApi, CKAN_API_VERSION
+from .builder import BUILDER_FILE_FORMAT_VERSION
+from .builder import BuilderPackage, BuilderDataStoreMultiABC, BuilderDataStoreFolder, RequestFileMapperIndexKeys
+
+
