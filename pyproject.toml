@@ -2,6 +2,7 @@
 name = "ckanapi_harvesters"
 version = '0.0.0'
 authors = [
+	{ name = "ifpen-gp", email = "63413841+ifpen-gp@users.noreply.github.com" },
 ]
 maintainers = [
 	{ name = "ifpen-gp", email = "63413841+ifpen-gp@users.noreply.github.com" },
@@ -26,14 +27,26 @@ dependencies = [
 
 license = { file = "LICENSE" }
 
+[project.urls]
+Documentation = "https://mobidec.github.io/ckanapi_harvesters/index.html"
+Repository = "https://github.com/Mobidec/ckanapi_harvesters.git"
+Issues = "https://github.com/Mobidec/ckanapi_harvesters/issues"
+
 [project.optional-dependencies]
-harvesters = [
+extras = [  # default extras
+    "pymongo >= 4.8.0",    # MongoDB harvester
+    "psycopg2 >= 2.9.11",  # Postgre harvester
+    "shapely >= 2.1.2",    # GeoJSON support
+    "pyproj == 3.6.1",     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
+    "geopandas >= 1.1.2",  # Shapefile reading functions
+]
+harvesters = [  # dependencies for database harvesters
     "pymongo >= 4.8.0",    # MongoDB harvester
     "psycopg2 >= 2.9.11",  # Postgre harvester
     "shapely >= 2.1.2",    # GeoJSON support
     "pyproj == 3.6.1",     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
 ]
-alt = [
+alt = [  # optional packages alternative
     "bson",  # bson implementation, independent of pymongo
     "shapely >= 2.1.2",    # GeoJSON support
     "pyproj == 3.6.1",     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
