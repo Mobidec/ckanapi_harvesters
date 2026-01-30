@@ -1,5 +1,6 @@
 #idea
 .idea/
+*.lnk
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -165,3 +166,8 @@ cython_debug/
 /dist/
 /sphinx/build/
 /public/
+/jupyter_execute/
+
+*.zip
+*.txt
+!requirements.txt
