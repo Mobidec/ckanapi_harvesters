@@ -24,6 +24,8 @@ dependencies = [
 	"openpyxl >= 3.1.5",  # could be an optional extra
 ]
 
+license = { file = "LICENSE" }
+
 [project.optional-dependencies]
 harvesters = [
     "pymongo >= 4.8.0",    # MongoDB harvester
@@ -58,6 +60,7 @@ local_scheme = "dirty-tag"
 
 [tool.setuptools]
 py-modules = []
+license-files = []
 
 [tool.ruff]
 # Set the maximum line length to 140.
