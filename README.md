@@ -97,14 +97,14 @@ Your automaticly generated documentation (with Sphinx) is [Here](https://mobidec
 ├── pyproject.toml
 │    └── Package configuration file
 └── tox.ini
-     └── Configuration file for `tox`, used to automate testing and linting tasks across multiple Python environments. This file is configured to use Python 3.12 and runs commands for the linter `ruff` as well as for tests with `pytest`. The specified commands check code style, format files according to defined standards, and run unit tests to ensure the code works as expected. This file is also used to facilitate version management tasks with `bump-my-version`.
+     └── Configuration file for `tox`, used to automate testing and linting tasks across multiple Python environments. This file is configured to use Python 3.10 and runs commands for the linter `ruff` as well as for tests with `pytest`. The specified commands check code style, format files according to defined standards, and run unit tests to ensure the code works as expected. This file is also used to facilitate version management tasks with `bump-my-version`.
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-This project requires **Python 3.12**. Python 3.12 introduces many new features and improvements that are essential for the proper functioning of this project. Ensure that Python is correctly installed on your system by running `python --version`.
+This project requires **Python 3.10**. Python 3.10 introduces many new features and improvements that are essential for the proper functioning of this project. Ensure that Python is correctly installed on your system by running `python --version`.
 
 ### About the `pyproject.toml` File
 
