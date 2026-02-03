@@ -280,7 +280,7 @@ class CkanApiReadOnly(CkanApiMap):
     ### Search method ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     def _api_datastore_search_raw(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
                                   distinct:bool=None, sort:str=None, limit:int=None, offset:int=0, format:str=None,
-                                  params:dict=None, compute_len:int=False) -> CkanActionResponse:
+                                  params:dict=None, compute_len:bool=False) -> CkanActionResponse:
         """
         API call to datastore_search. Performs queries on the DataStore.
 
@@ -338,7 +338,8 @@ class CkanApiReadOnly(CkanApiMap):
             raise response.default_error(self)
 
     def _api_datastore_search_df(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
-                                 distinct:bool=None, sort:str=None, limit:int=None, offset:int=0, format:str=None, params:dict=None) -> pd.DataFrame:
+                                 distinct:bool=None, sort:str=None, limit:int=None, offset:int=0, format:str=None,
+                                 params:dict=None, compute_len:bool=True) -> pd.DataFrame:
         """
         Convert output of _api_datastore_search_raw to pandas DataFrame.
         """
@@ -486,6 +487,10 @@ class CkanApiReadOnly(CkanApiMap):
             params["limit"] = limit
         response = self._api_action_request(f"datastore_search_sql", method=RequestType.Post, params=params)
         if response.success:
+            if response.dry_run:
+                return response
+            else:
+                response.len = len(response.result["records"])
             return response
         elif response.status_code == 400 and response.success_json_loads and response.response.text == '"Bad request - Action name not known: datastore_search_sql"':
             raise CkanSqlCapabilityError(self, response)
@@ -659,7 +664,7 @@ class CkanApiReadOnly(CkanApiMap):
 
     def datastore_search_cursor(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
                                    distinct:bool=None, sort:str=None, limit:int=None, offset:int=0, params:dict=None,
-                                   search_all:bool=False, search_method:bool=True, format:str=None, return_df:bool=True) \
+                                   search_all:bool=False, search_method:bool=True, format:str=None, return_df:bool=False) \
             -> Generator[Union[pd.Series, Tuple[dict,dict], Tuple[list,dict], Tuple[str,dict]], Any, None]:
         """
         Cursor on rows
@@ -752,7 +757,7 @@ class CkanApiReadOnly(CkanApiMap):
         return self._api_datastore_search_sql_all_generator(sql, params=params, limit=limit, offset=offset, search_all=search_all, return_df=return_df)
 
     def datastore_search_sql_cursor(self, sql:str, *, params:dict=None, search_all:bool=False,
-                                    limit:int=None, offset:int=0, return_df:bool=True) \
+                                    limit:int=None, offset:int=0, return_df:bool=False) \
             -> Generator[Union[pd.Series,Tuple[dict,dict]], Any, None]:
         generator = self.datastore_search_sql_generator(sql, params=params, search_all=search_all,
                                                         limit=limit, offset=offset, return_df=return_df)
