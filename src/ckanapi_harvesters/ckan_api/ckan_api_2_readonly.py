@@ -378,7 +378,7 @@ class CkanApiReadOnly(CkanApiMap):
     def _api_datastore_search_all(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
                                   distinct:bool=None, sort:str=None, limit:int=None, offset:int=0, format:str=None,
                                   search_all:bool=True, params:dict=None, return_df:bool=True, compute_len:bool=False) \
-            -> Union[pd.DataFrame, Tuple[ListRecords, OrderedDict], Any]:
+            -> Union[pd.DataFrame, ListRecords, Any]:
         """
         Successive calls to _api_datastore_search_df until an empty list is received.
 
@@ -410,7 +410,7 @@ class CkanApiReadOnly(CkanApiMap):
                                             search_all=search_all, resource_id=resource_id, filters=filters, q=q, fields=fields, distinct=distinct, sort=sort, format=format, compute_len=compute_len)
             # aggregate results, depending on the format
             if self.params.dry_run:
-                return [], {}
+                return []
             if format is not None:
                 format = format.lower()
             if len(responses) > 0:
@@ -421,12 +421,12 @@ class CkanApiReadOnly(CkanApiMap):
                 fields_type_dict = None
                 df_args = {}
             if format is None or format == "objects":
-                return ListRecords(sum([response.result["records"] for response in responses], [])), fields_type_dict
+                return ListRecords(sum([response.result["records"] for response in responses], []))
             else:
                 if format == "lists":
-                    return sum([response.result["records"] for response in responses], []), fields_type_dict
+                    return sum([response.result["records"] for response in responses], [])
                 else:
-                    return "\n".join([response.result["records"] for response in responses]), fields_type_dict
+                    return "\n".join([response.result["records"] for response in responses])
 
     def _api_datastore_search_all_generator(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
                                             distinct:bool=None, sort:str=None, limit:int=None, offset:int=0,
@@ -518,7 +518,7 @@ class CkanApiReadOnly(CkanApiMap):
 
     def _api_datastore_search_sql_all(self, sql:str, *, params:dict=None,
                                       search_all:bool=True, limit:int=None, offset:int=0, return_df:bool=True) \
-            -> Union[pd.DataFrame, Tuple[ListRecords, dict]]:
+            -> Union[pd.DataFrame, ListRecords]:
         """
         Successive calls to _api_datastore_search_sql until an empty list is received.
 
@@ -548,7 +548,7 @@ class CkanApiReadOnly(CkanApiMap):
                 fields_type_dict = CkanApiReadOnly.read_fields_type_dict(response.result["fields"])
             else:
                 fields_type_dict = None
-            return ListRecords(sum([response.result["records"] for response in responses], [])), fields_type_dict
+            return ListRecords(sum([response.result["records"] for response in responses], []))
 
     def _api_datastore_search_sql_all_generator(self, sql:str, *, params:dict=None,
                                                 search_all:bool=True, limit:int=None, offset:int=0, return_df:bool=True) \
@@ -665,7 +665,7 @@ class CkanApiReadOnly(CkanApiMap):
     def datastore_search_cursor(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
                                    distinct:bool=None, sort:str=None, limit:int=None, offset:int=0, params:dict=None,
                                    search_all:bool=False, search_method:bool=True, format:str=None, return_df:bool=False) \
-            -> Generator[Union[pd.Series, Tuple[dict,dict], Tuple[list,dict], Tuple[str,dict]], Any, None]:
+            -> Generator[Union[pd.Series, dict, list, str], Any, None]:
         """
         Cursor on rows
         """
@@ -687,12 +687,12 @@ class CkanApiReadOnly(CkanApiMap):
                 for response in generator:
                     fields_type_dict = CkanApiReadOnly.read_fields_type_dict(response.result["fields"])
                     for element in response.result["records"]:
-                        yield element, fields_type_dict
+                        yield element
             else:
                 for response in generator:
                     fields_type_dict = CkanApiReadOnly.read_fields_type_dict(response.result["fields"])
                     for element in response.result["records"]:
-                        yield element, fields_type_dict
+                        yield element
         else:
             raise TypeError("dumping datastore without parsing with a DataFrame does not return an iterable object")
 
@@ -758,7 +758,7 @@ class CkanApiReadOnly(CkanApiMap):
 
     def datastore_search_sql_cursor(self, sql:str, *, params:dict=None, search_all:bool=False,
                                     limit:int=None, offset:int=0, return_df:bool=False) \
-            -> Generator[Union[pd.Series,Tuple[dict,dict]], Any, None]:
+            -> Generator[Union[pd.Series,dict], Any, None]:
         generator = self.datastore_search_sql_generator(sql, params=params, search_all=search_all,
                                                         limit=limit, offset=offset, return_df=return_df)
         if return_df:
@@ -774,7 +774,7 @@ class CkanApiReadOnly(CkanApiMap):
             for response in generator:
                 fields_type_dict = CkanApiReadOnly.read_fields_type_dict(response.result["fields"])
                 for element in response.result["records"]:
-                    yield element, fields_type_dict
+                    yield element
 
     def datastore_search_sql_find_one(self, sql:str, *, params:dict=None,
                                       offset:int=0, return_df:bool=True) -> Union[pd.DataFrame, Tuple[ListRecords, dict]]:
@@ -917,7 +917,7 @@ class CkanApiReadOnly(CkanApiMap):
     ## Mapping of resource aliases from table
     def list_datastore_aliases(self) -> List[CkanAliasInfo]:
         alias_resource_id = "_table_metadata"  # resource name of table containing CKAN aliases
-        alias_list_dict, _ = self.datastore_search(alias_resource_id, search_all=True, return_df=False, format="objects", search_method=True)
+        alias_list_dict = self.datastore_search(alias_resource_id, search_all=True, return_df=False, format="objects", search_method=True)
         alias_list = [CkanAliasInfo(alias_dict) for alias_dict in alias_list_dict]
         for alias_info in alias_list:
             if alias_info.alias_of is not None:
