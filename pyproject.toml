@@ -57,7 +57,7 @@ alt = [  # optional packages alternative
 # non-source files to include in the package
 "ckanapi_harvesters" = [
     "builder/builder_package_example.xlsx",
-    "builder/example/package/*.*",
+    "builder/example/package/**/*.*",
     "builder/example/*.ipynb",
 ]
 

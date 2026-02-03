@@ -116,9 +116,9 @@ authors = [
 ]
 description = "DESCRIPTION"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 classifiers = [
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.10",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
@@ -190,7 +190,7 @@ To ensure the CI/CD pipelines function correctly, the following environment vari
 
 - `NEXUS_USERNAME`: Username for the Nexus repository.
 - `NEXUS_PASSWORD`: Password for the Nexus repository.
-- `PYTHON_VERSION`: Python version used for the package (e.g., 3.12).
+- `PYTHON_VERSION`: Python version used for the package (e.g., 3.10).
 - `UPLOAD_REPOSITORY`: Nexus repository to which the package is uploaded (e.g., `https://nexus.fastit.dev/repository/fast-it/`).
 
 > **⚠️ Warning:** It is crucial not to store passwords in plain text in the `.gitlab-ci.yml` file. These should be set as environment variables in the GitLab repository.
