@@ -2,11 +2,19 @@
 requests >= 2.32.5
 pandas >= 2.3.3
 numpy >= 2.2.6
-openpyxl[builder] >= 3.1.5      # optional requirement for builder (recommended)
+openpyxl >= 3.1.5      # requirement for builder
+# extras
+pymongo[extras] >= 4.8.0    # optional requirement for harvesters (MongoDB), includes a bson implementation
+psycopg2[extras] >= 2.9.11  # optional requirement for harvesters (PostgreSQL)
+shapely[extras] >= 2.1.2    # GeoJSON support
+pyproj[extras] == 3.6.1     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
+geopandas[extras] >= 1.1.2  # Shapefile reading functions
+# harvesters
 pymongo[harvesters] >= 4.8.0    # optional requirement for harvesters (MongoDB), includes a bson implementation
 psycopg2[harvesters] >= 2.9.11  # optional requirement for harvesters (PostgreSQL)
 shapely[harvesters] >= 2.1.2    # GeoJSON support
 pyproj[harvesters] == 3.6.1     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
+# alt
 shapely[alt] >= 2.1.2    # GeoJSON support
 pyproj[alt] == 3.6.1     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
 bson[alt]  # if you need bson but do not want to install pymongo
