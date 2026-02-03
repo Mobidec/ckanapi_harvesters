@@ -45,7 +45,7 @@ def run(ckan:CkanApi = None):
     cursor = ckan.datastore_search_cursor(users_table_id, limit=1)
     document = next(cursor)
     user_id = document["user_id"]
-    cursor = ckan.datastore_search_cursor(traces_table_id, filters={"user_id": float(user_id)}, limit=10)
+    cursor = ckan.datastore_search_cursor(traces_table_id, filters={"user_id": int(user_id)}, limit=10)
     for document in cursor:
         print(document)
 
