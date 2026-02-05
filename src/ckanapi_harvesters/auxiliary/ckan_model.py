@@ -807,7 +807,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC):
         self.private:Union[bool, None] = private
         self.state:Union[CkanState, None] = state
         self.version:Union[str, None] = version
-        self.custom_fields:Dict[str,str] = {}  # key, value pairs
+        self.custom_fields:OrderedDict[str,str] = OrderedDict()  # key, value pairs
         self.details:dict = {}
         self.package_resources:OrderedDict[str,CkanResourceInfo] = OrderedDict()  # resource id -> info
         self.resources_id_index:Dict[str,str] = {}  # resource name -> id
@@ -838,7 +838,9 @@ class CkanPackageInfo(CkanConfigurableObjectABC):
             if "state" in d.keys():
                 self.state = CkanState.from_str(d["state"])
             self.version = d["version"]
-            self.custom_fields = {field["key"]: field["value"] for field in d["extras"]}
+            self.custom_fields = OrderedDict()
+            for field in d["extras"]:
+                self.custom_fields[field["key"]] = field["value"]
             self.details = d
             self.package_resources = OrderedDict()
             for resource_info_dict in d["resources"]:
@@ -867,6 +869,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC):
             self.url = d["url"]
             self.tags_info = {tag_dict["name"]: CkanTagInfo(tag_dict) for tag_dict in d["tags"]} if d["tags"] is not None else None
             self.tags = list(self.tags_info.keys()) if self.tags_info is not None else None
+            self.updated:bool = False
 
     def __str__(self):
         return f"Package '{self.name}' ({self.id}) [{self.state}]"

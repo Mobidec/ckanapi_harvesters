@@ -3,6 +3,7 @@
 """
 Data format policy representation and enforcing
 """
+from collections import OrderedDict
 from typing import List, Set, Union, Tuple, Dict
 from warnings import warn
 import json
@@ -61,6 +62,8 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         self.resource_format:SingleValueListPolicy = resource_format
         self.file_format_version:Union[str,None] = None
         self.source_file: Union[str,None] = None
+        self.output_score_custom_field:Union[str,None] = None
+        self.output_report_custom_field:Union[str,None] = None
 
     def __copy__(self):
         return self.copy()
@@ -78,6 +81,8 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         dest.file_format_version = self.file_format_version
         dest.source_file = self.source_file
         dest.error_level = self.error_level
+        dest.output_score_custom_field = self.output_score_custom_field
+        dest.output_report_custom_field = self.output_report_custom_field
         return dest
 
     def to_dict(self, *, sets_as_lists:bool=True) -> dict:
@@ -106,6 +111,10 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
             d["datastore_fields_mandatory_attributes"] = set_object
         if self.resource_format is not None:
             d["resource_format_policy"] = self.resource_format.to_dict()
+        output_custom_field_config = OrderedDict()
+        output_custom_field_config["score"] = self.output_score_custom_field if self.output_score_custom_field else ""
+        output_custom_field_config["report"] = self.output_report_custom_field if self.output_report_custom_field else ""
+        d["output_custom_field"] = output_custom_field_config
         d.update(super().to_dict())
         return {"ckan_package_policy": d}
 
@@ -130,6 +139,10 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         self.resource_mandatory_attributes = set(d["resource_mandatory_attributes"]) if "resource_mandatory_attributes" in d.keys() else None
         self.datastore_fields_mandatory_attributes = set(d["datastore_fields_mandatory_attributes"]) if "datastore_fields_mandatory_attributes" in d.keys() else None
         self.resource_format = SingleValueListPolicy.from_dict(d["resource_format_policy"]) if "resource_format_policy" in d.keys() else None
+        output_custom_field_config = d.get("output_custom_field")
+        if output_custom_field_config:
+            self.output_score_custom_field = output_custom_field_config.get("score")
+            self.output_report_custom_field = output_custom_field_config.get("report")
 
     def to_json(self, json_file:str, reduced_size:bool=None) -> None:
         if reduced_size is None:
@@ -229,7 +242,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         return success
 
     def policy_check_package(self, package_info: CkanPackageInfo, *, package_buffer:List[DataPolicyError]=None,
-                             display_message:bool=True, raise_error:bool=False) -> bool:
+                             display_message:bool=True, raise_error:bool=False, ckan=None) -> bool:
         """
         Main entry-point to check the policy rules against the package.
 
@@ -245,6 +258,17 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         context = "Package " + package_info.name
         success = self.enforce(package_info, context=context, verbose=True, buffer=package_buffer)
         error_count = ErrorCount(package_buffer)
+        # update package metadata
+        package_update_needed = self.output_score_custom_field or self.output_report_custom_field
+        if package_update_needed and package_info.custom_fields is None:
+            package_info.custom_fields = OrderedDict()
+        if self.output_score_custom_field:
+            package_info.custom_fields[self.output_score_custom_field] = error_count.to_dict()
+        if self.output_report_custom_field:
+            package_info.custom_fields[self.output_report_custom_field] = '\n'.join([error_message.message for error_message in package_buffer])
+        package_info.updated = package_update_needed
+        if package_update_needed and ckan is not None:
+            ckan.package_patch(package_info.id, custom_fields=package_info.custom_fields)
         # consistency check
         if success:
             assert(error_count.total == 0)
