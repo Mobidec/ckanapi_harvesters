@@ -69,9 +69,7 @@ class CkanApiBase(CkanApiABC):
         """
         if identifier is None: identifier = ""
         if apikey is None or not isinstance(apikey, CkanApiKey):
-            apikey = CkanApiKey(apikey=apikey)
-        if apikey_file is not None:
-            apikey.apikey_file = apikey_file
+            apikey = CkanApiKey(apikey=apikey, apikey_file=apikey_file)
         if params is None:
             params = CkanApiParamsBasic()
         if proxies is not None:

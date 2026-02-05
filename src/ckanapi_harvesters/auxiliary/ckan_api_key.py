@@ -4,7 +4,7 @@
 Methods to load an API key
 """
 
-import os.path
+import os
 from warnings import warn
 from typing import Dict, Union, Iterable
 import getpass
@@ -20,9 +20,6 @@ class ApiKey:
     """
     API key storage class.
     """
-    CKAN_API_KEY_HEADER_NAME = {"Authorization", "X-CKAN-API-Key"}  # match apikey_header_name of your CKAN instance
-    CKAN_API_KEY_ENVIRON = "CKAN_API_KEY"  # not recommended to store sensitive information in environment variables
-    API_KEY_FILE_ENVIRON = "CKAN_API_KEY_FILE"
 
     def __init__(self, *, apikey:str=None, apikey_file:str=None,
                  api_key_header_name:Union[str, Iterable[str]]=None):
@@ -154,15 +151,34 @@ class CkanApiKey(ApiKey):
     """
     CKAN Database API key storage class.
     """
+    CKAN_API_KEY_HEADER_NAME = {"Authorization", "X-CKAN-API-Key"}  # match apikey_header_name of your CKAN instance
+    CKAN_API_KEY_ENVIRON = "CKAN_API_KEY"  # not recommended to store sensitive information in environment variables
+    API_KEY_FILE_ENVIRON = "CKAN_API_KEY_FILE"
+    API_KEY_FILE_DEFAULT = os.path.expanduser(r"~/.ckan/__CKAN_API_KEY__.txt")  # default API key file location for CKAN
 
-    def __init__(self, *, apikey:str=None, apikey_file:str=None):
+    def __init__(self, *, apikey:str=None, apikey_file:str=None, apikey_auto_load:bool=True):
         """
         CKAN Database API key storage class.
 
         :param apikey: way to provide the API key directly (optional)
         :param apikey_file: path to a file containing a valid API key in the first line of text (optional)
+        :param apikey_auto_load: option to automatically load the API key from file or envrionment variables
+
+        Order of priority:
+        ====
+        1. Value of `apikey`
+        2. Contents of file pointed by `apikey_file`
+        3. Value of environment variable `CKAN_API_KEY`
+        4. Contents of file pointed by the environment variable `CKAN_API_KEY_FILE`
+        5. Contents of the file at the default location: `~/.ckan/__CKAN_API_KEY__.txt`
         """
         super().__init__(apikey=apikey, apikey_file=apikey_file, api_key_header_name=self.CKAN_API_KEY_HEADER_NAME)
+        if apikey_auto_load:
+            if self.is_empty() and apikey_file is not None:
+                self.load_apikey(error_not_found=False)
+            if self.is_empty():
+                if self.load_from_environ(error_not_found=False, empty_warning=False):
+                    print(f"API key loaded from file: {self.apikey_file}")
 
     def copy(self, *, dest=None) -> "CkanApiKey":
         if dest is None:
@@ -170,7 +186,18 @@ class CkanApiKey(ApiKey):
         super().copy(dest=dest)
         return dest
 
-    def load_from_environ(self, *, error_not_found:bool=False) -> bool:
+    @staticmethod
+    def get_default_apikey_file() -> Union[str, None]:
+        env_apikey_file = os.environ.get(CkanApiKey.API_KEY_FILE_ENVIRON)   # "CKAN_API_KEY_FILE"
+        if env_apikey_file:
+            assert not env_apikey_file.strip().lower() == environ_keyword  # this value would create an infinite loop
+            return sanitize_path(env_apikey_file)
+        elif os.path.exists(CkanApiKey.API_KEY_FILE_DEFAULT):
+            return CkanApiKey.API_KEY_FILE_DEFAULT
+        else:
+            return None
+
+    def load_from_environ(self, *, error_not_found:bool=False, empty_warning:bool=True) -> bool:
         """
         Load CKAN API key from environment variables, by order of priority:
 
@@ -181,18 +208,18 @@ class CkanApiKey(ApiKey):
         :return:
         """
         apikey = os.environ.get(self.CKAN_API_KEY_ENVIRON)            # "CKAN_API_KEY"
-        apikey_file = sanitize_path(os.environ.get(self.API_KEY_FILE_ENVIRON))  # "CKAN_API_KEY_FILE"
+        default_apikey_file = CkanApiKey.get_default_apikey_file()
         if apikey is not None:
             msg = f"It is not recommended to store sensitive information in environment variables such as the API key ({self.CKAN_API_KEY_ENVIRON})"
             warn(msg)
             self.value = apikey
             return True
-        elif apikey_file is not None:
-            assert not apikey_file.strip().lower() == environ_keyword  # this value would create an infinite loop
-            return self.load_apikey(apikey_file, error_not_found=error_not_found)
+        elif default_apikey_file is not None:
+            return self.load_apikey(default_apikey_file, error_not_found=error_not_found)
         else:
-            msg = f"No API key was found in the environment variable {self.CKAN_API_KEY_ENVIRON}"
-            warn(msg)
+            if empty_warning:
+                msg = f"No API key was found in the environment variable {self.CKAN_API_KEY_ENVIRON}"
+                warn(msg)
             return False
 
     def input(self):
