@@ -94,6 +94,10 @@ class BuilderPackageBasic:
         self.package_attributes: CkanPackageInfo = CkanPackageInfo(package_name=package_name, package_id=package_id,
                                                                    title=title, description=description, private=private, state=state,
                                                                    version=version, url=url, tags=tags)
+        if state is None:
+            self.package_attributes.state = CkanState.Active  # activate by default - if the package was deleted, it reappears
+        # if private is None:
+        #     self.package_attributes.private = True  # package private by default
         self.organization_name: Union[str, None] = organization_name
         self.license_name: Union[str, None] = license_name
         # package resources

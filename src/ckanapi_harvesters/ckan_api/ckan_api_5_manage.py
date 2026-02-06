@@ -45,7 +45,7 @@ default_alias_hash_replace:bool = True  # True: replace with full hash / False: 
 default_alias_hash_len:int = 6
 default_alias_hash_sep:str = ":"
 
-table_name_subs_re = '[^\w-]|^(?=\d)'
+table_name_subs_re = r'[^\w-]|^(?=\d)'
 
 def clean_table_name(variable_name: str) -> str:
     """
@@ -56,7 +56,7 @@ def clean_table_name(variable_name: str) -> str:
 
 class CkanApiManageParams(CkanApiReadWriteParams):
     default_enable_admin: bool = False  # False: disable advanced admin operations by default such as resource/package deletion
-    default_alias_enforce: bool = True  # if True, always add the default alias when calling datastore_create
+    default_alias_enforce: bool = False  # if True, always add the default alias when calling datastore_create
 
     def __init__(self, *, proxies:Union[str,dict,ProxyConfig]=None,
                  ckan_headers:dict=None, http_headers:dict=None):

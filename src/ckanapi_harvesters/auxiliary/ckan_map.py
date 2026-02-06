@@ -56,6 +56,7 @@ class CkanMap(CkanMapABC):
         self.organizations_title_index:Dict[str, str] = {} # organization title -> id
         self.users:Dict[str,CkanUserInfo] = {}          # user id -> info
         self.users_id_index:Dict[str, str] = {}         # user name -> id
+        self.users_email_hash_index:Dict[str, str] = {} # user email_hash -> id
         self.groups:Dict[str,CkanGroupInfo] = {}        # group id -> info
         self.groups_id_index:Dict[str, str] = {}        # group name -> id
         self.groups_title_index:Dict[str, str] = {}     # group title -> id
@@ -85,6 +86,15 @@ class CkanMap(CkanMapABC):
         self.organizations_id_index:Dict[str, str] = {} # organization name -> id
         self.organizations_title_index:Dict[str, str] = {} # organization title -> id
         self.organizations_listed_all = False
+        self.organizations_listed_all_users:bool = False
+        self.users:Dict[str,CkanUserInfo] = {}          # user id -> info
+        self.users_id_index:Dict[str, str] = {}         # user name -> id
+        self.users_email_hash_index:Dict[str, str] = {} # user email_hash -> id
+        self.groups:Dict[str,CkanGroupInfo] = {}        # group id -> info
+        self.groups_id_index:Dict[str, str] = {}        # group name -> id
+        self.groups_title_index:Dict[str, str] = {}     # group title -> id
+        self.users_listed_all:bool = False
+        self.groups_listed_all:bool = False
 
     def copy(self) -> "CkanMap":
         return copy.deepcopy(self)
@@ -505,5 +515,6 @@ class CkanMap(CkanMapABC):
             user_info = [user_info]
         self.users.update({info.id: info for info in user_info})
         self.users_id_index.update({info.name: info.id for info in user_info})
+        self.users_email_hash_index.update({info.email_hash: info.id for info in user_info})
 
 

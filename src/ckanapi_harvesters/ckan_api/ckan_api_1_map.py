@@ -867,10 +867,19 @@ class CkanApiMap(CkanApiBase):
         return user_info
 
     def test_ckan_login(self, *, raise_error:bool=False, verbose:bool=None,
-                        empty_key_connected:bool=True) -> bool:
+                        empty_key_connected:bool=False) -> bool:
+        """
+        Test if your login leads to a user account.
+
+        :param raise_error: option to raise an error if no account was detected
+        :param verbose: option to display username in console
+        :param empty_key_connected: option to ignore the test if the API key is empty
+        """
         user_info = self.query_current_user(verbose=verbose, error_not_found=raise_error and not empty_key_connected)
         if user_info is None:
             if self.apikey.is_empty():
+                if raise_error and not empty_key_connected:
+                    raise ConnectionError("No API key loaded")
                 return empty_key_connected
             else:
                 if raise_error:
@@ -881,7 +890,8 @@ class CkanApiMap(CkanApiBase):
 
 
     ## List users and groups
-    def _api_user_list(self, *, params:dict=None) -> List[CkanUserInfo]:
+    def _api_user_list(self, *, q:str=None, email:str=None,
+                       params:dict=None) -> List[CkanUserInfo]:
         """
         API call to user_list.
 
@@ -889,17 +899,21 @@ class CkanApiMap(CkanApiBase):
         :return:
         """
         if params is None: params = {}
+        if q is not None:
+            params["q"] = q
+        if email is not None:
+            params["email"] = email
         response = self._api_action_request(f"user_list", method=RequestType.Post, json=params)
         if response.success:
             user_list = [CkanUserInfo(user_dict) for user_dict in response.result]
             # update map:
             self.map._update_user_info(user_list)
-            self.map.users_listed_all = True
             return copy.deepcopy(user_list)
         else:
             raise response.default_error(self)
 
-    def user_list(self, *, cancel_if_present:bool=False, params:dict=None) -> List[CkanUserInfo]:
+    def user_list(self, *, cancel_if_present:bool=False, q:str=None, email:str=None,
+                  params:dict=None) -> List[CkanUserInfo]:
         """
         API call to user_list. The call can be canceled if the list is already present.
 
@@ -907,10 +921,15 @@ class CkanApiMap(CkanApiBase):
         :param cancel_if_present: option to cancel when list is already present.
         :return:
         """
-        if self.map.users_listed_all > 0 and cancel_if_present:
-            return list(self.map.users.values())
+        if q is None and email is None and params is None:
+            if self.map.users_listed_all > 0 and cancel_if_present:
+                return list(self.map.users.values())
+            else:
+                result = self._api_user_list(params=params)
+                self.map.users_listed_all = True
+                return result
         else:
-            return self._api_user_list(params=params)
+            return self._api_user_list(q=q, email=email, params=params)
 
     def _api_package_collaborator_list(self, package_id:str, *, params:dict=None,
                                        cancel_if_present:bool=False) -> Dict[str,CkanCollaboration]:
@@ -942,7 +961,7 @@ class CkanApiMap(CkanApiBase):
         return self._api_package_collaborator_list(package_id=package_id, params=params,
                                                    cancel_if_present=cancel_if_present)
 
-    def _api_group_list(self, *, limit:int=None, offset:int=0,
+    def _api_group_list(self, *, limit:int=None, offset:int=0, groups:List[str]=None,
                         all_fields:bool=True, include_users:bool=True,
                         params:dict=None) -> Union[List[CkanGroupInfo], List[str]]:
         """
@@ -958,6 +977,8 @@ class CkanApiMap(CkanApiBase):
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
+        if groups is not None:
+            params["groups"] = groups
         params["include_users"] = include_users
         all_fields = all_fields or include_users
         params["all_fields"] = all_fields
@@ -977,6 +998,13 @@ class CkanApiMap(CkanApiBase):
                 return response.result  # list of names
         else:
             raise response.default_error(self)
+
+    def group_list(self, *, limit:int=None, offset:int=0, groups:List[str]=None,
+                        all_fields:bool=True, include_users:bool=True,
+                        params:dict=None) -> List[CkanGroupInfo]:
+        # function alias
+        return self._api_group_list(groups=groups, all_fields=all_fields, include_users=include_users,
+                                    limit=limit, offset=offset, params=params)
 
     def _api_group_list_all(self, *, all_fields:bool=True, include_users:bool=True, params:dict=None,
                             limit:int=None, offset:int=None) -> Union[List[CkanUserInfo], List[str]]:
