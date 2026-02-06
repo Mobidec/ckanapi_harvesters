@@ -132,8 +132,8 @@ class CkanApiReadWrite(CkanApiPolicy):
         """
         Set timeout for the datastore_wait method. This is called after datastore_submit.
 
-        :param submit_timeout: timeout after which a TimeoutError is raised
-        :param submit_delay: delay between requests to peer on DataStore initialization
+        :param submit_timeout: timeout after which a TimeoutError is raised (seconds)
+        :param submit_delay: delay between requests to peer on DataStore initialization (datastore_wait) (seconds)
         :return:
         """
         self.params.submit_timeout = submit_timeout

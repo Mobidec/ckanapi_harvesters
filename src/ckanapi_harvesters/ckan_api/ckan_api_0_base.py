@@ -259,6 +259,18 @@ class CkanApiBase(CkanApiABC):
         self.params._proxy_config = ProxyConfig.from_str_or_config(proxies,
                                                             default_proxies=default_proxies, proxy_headers=proxy_headers)
 
+    def set_requests_timeout(self, requests_timeout:float, multi_requests_timeout=None) -> None:
+        """
+        Set timeout for requests.
+
+        :param requests_timeout: timeout for each request (seconds)
+        :param multi_requests_timeout: timeout for grouped request (seconds)
+        :return:
+        """
+        self.params.requests_timeout = requests_timeout
+        if multi_requests_timeout is not None:
+            self.params.multi_requests_timeout = multi_requests_timeout
+
     def init_from_environ(self, *, init_api_key:bool=True, error_not_found:bool=False) -> None:
         """
         Initialize CKAN from environment variables.

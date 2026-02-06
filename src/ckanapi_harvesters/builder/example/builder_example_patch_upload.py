@@ -27,6 +27,7 @@ def run(ckan:CkanApi = None):
     ckan.set_limits(10000)  # reduce if server hangs up
     ckan.set_submit_timeout(5)
     ckan.set_verbosity(True)
+    ckan.test_ckan_login(raise_error=True, verbose=True)
     # ckan.set_default_map_mode(datastore_info=True)  # uncomment to query DataStore information
 
     # Test re-encoding the Excel file from the loaded model

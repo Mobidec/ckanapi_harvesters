@@ -36,6 +36,8 @@ class BuilderResourceABC(ABC):
         self.format: Union[str,None] = format
         self.description: Union[str,None] = description
         self.state:Union[CkanState,None] = state
+        if state is None:
+            self.state = CkanState.Active  # activate by default
         self.enable_download:bool = enable_download
         self.options_string: Union[str,None] = None
         # Map information, if present

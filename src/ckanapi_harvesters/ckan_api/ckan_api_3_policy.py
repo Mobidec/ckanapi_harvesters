@@ -65,7 +65,7 @@ class CkanApiPolicy(CkanApiReadOnly):
         self.policy_source: Union[str,None] = None
         if policy_file is not None:
             self.load_policy(policy_file, base_dir=None)
-        self.default_policy_load_on_map: bool = True
+        self.default_policy_load_on_map: bool = False
         if params is None:
             params = CkanApiPolicyParams()
         if proxies is not None:

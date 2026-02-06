@@ -431,6 +431,7 @@ class CkanUserInfo:
         self.about: str = d["about"]
         self.sysadmin: bool = d["sysadmin"]
         self.state: CkanState = CkanState.from_str(d["state"])
+        self.email_hash: Union[str,None] = d["email_hash"] if "email_hash" in d.keys() else None  # MD5 hash
         self.created: Union[datetime.datetime, None] = datetime.datetime.fromisoformat(
             d["created"]) if "created" in d.keys() else None
         self.last_active: Union[datetime.datetime, None] = datetime.datetime.fromisoformat(
