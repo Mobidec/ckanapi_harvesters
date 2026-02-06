@@ -154,7 +154,7 @@ class CkanApiKey(ApiKey):
     CKAN_API_KEY_HEADER_NAME = {"Authorization", "X-CKAN-API-Key"}  # match apikey_header_name of your CKAN instance
     CKAN_API_KEY_ENVIRON = "CKAN_API_KEY"  # not recommended to store sensitive information in environment variables
     API_KEY_FILE_ENVIRON = "CKAN_API_KEY_FILE"
-    API_KEY_FILE_DEFAULT = os.path.expanduser(r"~/.ckan/__CKAN_API_KEY__.txt")  # default API key file location for CKAN
+    API_KEY_FILE_DEFAULT = os.path.expanduser(os.path.join("~", ".ckan", "__CKAN_API_KEY__.txt"))  # default API key file location for CKAN
 
     def __init__(self, *, apikey:str=None, apikey_file:str=None, apikey_auto_load:bool=True):
         """
