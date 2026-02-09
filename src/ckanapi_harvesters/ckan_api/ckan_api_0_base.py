@@ -542,7 +542,8 @@ class CkanApiBase(CkanApiABC):
         return url_is_internal and auth_if_ckan, request_kwargs
 
     def download_url_proxy(self, url:str, *, method:str=None, auth_if_ckan:bool=None,
-                           proxies:dict=None, headers:dict=None, auth: Union[AuthBase, Tuple[str,str]]=None, verify:Union[bool,str,None]=None) -> requests.Response:
+                           proxies:dict=None, headers:dict=None, auth: Union[AuthBase, Tuple[str,str]]=None,
+                           verify:Union[bool,str,None]=None, timeout:float=None) -> requests.Response:
         """
         Download a URL using the CKAN parameters (proxy, authentication etc.)
 
@@ -560,16 +561,18 @@ class CkanApiBase(CkanApiABC):
                                                                                               headers=headers, verify=verify)
         response = None
         self._init_session(internal=url_is_internal_auth)
+        if timeout is None:
+            timeout = self.params.requests_timeout
         try:
             if self.params.dry_run:
                 response = requests.Response()
             elif url_is_internal_auth:
                 self.debug.ckan_request_counter += 1
-                response = self.ckan_session.request(method, url, timeout=self.params.requests_timeout,
+                response = self.ckan_session.request(method, url, timeout=timeout,
                                                      proxies=proxies, **request_kwargs, auth=auth)
             else:
                 self.debug.extern_request_counter += 1
-                response = self.extern_session.request(method, url, timeout=self.params.requests_timeout,
+                response = self.extern_session.request(method, url, timeout=timeout,
                                                        proxies=proxies, **request_kwargs, auth=auth)
         except Exception as e:
             self._error_print_debug_response(response, url=url, headers=headers, error=e)
@@ -581,7 +584,7 @@ class CkanApiBase(CkanApiABC):
 
     def download_url_proxy_test_head(self, url:str, *, raise_error:bool=False, auth_if_ckan:bool=None,
                                      proxies:dict=None, headers:dict=None, auth: Union[AuthBase, Tuple[str,str]]=None,
-                                     verify:Union[bool,str,None]=None, context:str=None) \
+                                     verify:Union[bool,str,None]=None, context:str=None, timeout:float=None) \
             -> Union[None,ContextErrorLevelMessage]:
         """
         This sends a HEAD request to the url using the CKAN connexion parameters via download_url_proxy.
@@ -592,7 +595,8 @@ class CkanApiBase(CkanApiABC):
         if context is None:
             context = "URL"
         try:
-            response = self.download_url_proxy(url, method="HEAD", auth_if_ckan=auth_if_ckan, proxies=proxies, headers=headers, auth=auth, verify=verify)
+            response = self.download_url_proxy(url, method="HEAD", auth_if_ckan=auth_if_ckan, proxies=proxies,
+                                               headers=headers, auth=auth, verify=verify, timeout=timeout)
         except Exception as e:
             if raise_error:
                 raise e from e
@@ -627,8 +631,8 @@ class CkanApiBase(CkanApiABC):
             return base
 
     def _api_action_request(self, action:str, *, method:RequestType, params:dict=None,
-                            headers:dict=None,
-                            data:Union[dict,str,bytes]=None, json:dict=None, files:List[tuple]=None) -> CkanActionResponse:
+                            headers:dict=None, data:Union[dict,str,bytes]=None, json:dict=None, files:List[tuple]=None,
+                            timeout:float=None) -> CkanActionResponse:
         """
         Send API action request and return response.
 
@@ -639,6 +643,7 @@ class CkanApiBase(CkanApiABC):
         :param json: information to encode as JSON in the request json (only for POST method)
         :param files: files to upload in the request (only for POST method)
         :param headers: headers for the request (authentication tokens are added by the function)
+        :param timeout: request timeout in seconds
         :return:
         """
         if params is None: params = {}
@@ -661,16 +666,18 @@ class CkanApiBase(CkanApiABC):
         self.debug.ckan_request_counter += 1
         response = None
         self._init_session(internal=True)
+        if timeout is None:
+            timeout = self.params.requests_timeout
         try:
             if self.params.dry_run:
                 response = requests.Response()
             elif method == RequestType.Get:
                 assert_or_raise(data is None, UnexpectedError("data"))
-                response = self.ckan_session.get(url, params=params, headers=headers, timeout=self.params.requests_timeout,
+                response = self.ckan_session.get(url, params=params, headers=headers, timeout=timeout,
                                                  proxies=self.params.proxies, verify=self.params.ckan_ca, auth=self.params.proxy_auth)
             else:
                 response = self.ckan_session.post(url, data=data, headers=headers, params=params, files=files, json=json,
-                                                  timeout=self.params.requests_timeout,
+                                                  timeout=timeout,
                                                   proxies=self.params.proxies, verify=self.params.ckan_ca, auth=self.params.proxy_auth)
         except Exception as e:
             self._error_print_debug_response(response, url=url, params=params, headers=headers, json=json, error=e)
@@ -692,7 +699,8 @@ class CkanApiBase(CkanApiABC):
         return self._api_action_request(action=action, method=method, params=params, headers=headers, data=data, json=json, files=files)
 
     def _url_request(self, path:str, *, method:RequestType, params:dict=None, headers:dict=None,
-                            data:dict=None, json:dict=None, files:List[tuple]=None) -> requests.Response:
+                     data:dict=None, json:dict=None, files:List[tuple]=None,
+                     timeout:float=None) -> requests.Response:
         """
         Send request to server and return response.
 
@@ -719,14 +727,16 @@ class CkanApiBase(CkanApiABC):
         self.debug.ckan_request_counter += 1
         response = None
         self._init_session(internal=True)
+        if timeout is None:
+            timeout = self.params.requests_timeout
         try:
             if self.params.dry_run:
                 response = requests.Response()
             elif method == RequestType.Get:
-                response = self.ckan_session.get(url, params=params, headers=headers, timeout=self.params.requests_timeout,
+                response = self.ckan_session.get(url, params=params, headers=headers, timeout=timeout,
                                                  proxies=self.params.proxies, verify=self.params.ckan_ca, auth=self.params.proxy_auth)
             else:
-                response = self.ckan_session.post(url, data=data, headers=headers, params=params, timeout=self.params.requests_timeout,
+                response = self.ckan_session.post(url, data=data, headers=headers, params=params, timeout=timeout,
                                                   json=json, files=files,
                                                   proxies=self.params.proxies, verify=self.params.ckan_ca, auth=self.params.proxy_auth)
         except Exception as e:
@@ -901,6 +911,6 @@ class CkanApiBase(CkanApiABC):
         Test if the CKAN URL is reachable with a HEAD request.
         This does not check it is really a CKAN server and does not check authentication.
         """
-        error_message = self.download_url_proxy_test_head(self.url, raise_error=raise_error, context="CKAN URL test")
+        error_message = self.download_url_proxy_test_head(self.url, raise_error=raise_error, context="CKAN URL test", timeout=5)
         return error_message is None
 

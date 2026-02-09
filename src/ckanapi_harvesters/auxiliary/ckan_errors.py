@@ -122,6 +122,9 @@ class FileFormatRequirementError(RequirementError):
     def __init__(self, requirement:str, file_format:str):
         super().__init__(f"The package {requirement} is required to support this file format ({file_format}).")
 
+class NameFormatError(Exception):
+    pass
+
 # PostGIS
 class UnknownTargetCRSError(RequirementError):
     def __init__(self, source_crs, context:str):

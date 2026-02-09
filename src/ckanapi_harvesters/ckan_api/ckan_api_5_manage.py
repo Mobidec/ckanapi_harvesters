@@ -26,7 +26,7 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_
 from ckanapi_harvesters.auxiliary.ckan_action import CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import (ReadOnlyError, AdminFeatureLockedError, NoDefaultView,
                                                       InvalidParameterError, CkanMandatoryArgumentError,
-                                                      IntegrityError)
+                                                      IntegrityError, NameFormatError)
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.ckan_api.ckan_api_1_map import use_ckan_owner_org_as_default
@@ -941,7 +941,14 @@ class CkanApiManage(CkanApiReadWrite):
         if owner_org is not None:
             params["owner_org"] = owner_org
         if package_name is not None:
-            assert (2 <= len(package_name) <= 100 and re.match(ckan_package_name_re, package_name))
+            assert_or_raise(2 <= len(package_name) <= 100, NameFormatError(f"Package name must be between 2 and 100 characters: 'package_name'"))
+            if not re.match(ckan_package_name_re, package_name):
+                if ' ' in package_name:
+                    raise(NameFormatError(f"Package name cannot contain spaces: '{package_name}'"))
+                elif not package_name.lower() == package_name:
+                    raise(NameFormatError(f"Package name must be lower case: '{package_name}'"))
+                else:
+                    raise(NameFormatError(f"Package name badly formatted. Only the following characters are allowed: a-z, 0-9, -, _: '{package_name}'"))
             params["name"] = package_name
         if title is not None:
             params["title"] = title
