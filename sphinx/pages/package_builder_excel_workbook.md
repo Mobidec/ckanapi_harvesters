@@ -78,7 +78,7 @@ The `proxy_auth` argument can be also used in your script. Additional headers ca
 This sheet contains the definition of the package. Help for each field is given in the sheet.
 
 Field specification:
-- __Name__: Name of the resource appearing in the CKAN urls (_mandatory_)
+- __Name__: Name of the resource appearing in the CKAN urls (_mandatory_). Must be written in lowercase.
 - __Description__: Some text describing the package. Markdown features are allowed. 
 - __Version__: Packages can be versioned, which enables tracking of data updates. 
 - __Visibility__: The package can be exposed to all users (Public) or a subset of authentified users, defined by CKAN groups (Private). Values accepted:
