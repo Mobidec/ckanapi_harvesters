@@ -839,7 +839,7 @@ class CkanApiMap(CkanApiBase):
         :return: dict with information on the current user
         """
         if params is None: params = {}
-        response = self._api_action_request("user_show", method=RequestType.Get, params=params)
+        response = self._api_action_request("user_show", method=RequestType.Get, params=params, timeout=5)
         if response.success:
             user_info = CkanUserInfo(response.result)
             self.map._update_user_info(user_info)
