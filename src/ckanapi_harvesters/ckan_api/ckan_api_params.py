@@ -45,9 +45,9 @@ class CkanApiParamsBasic:
         # limits
         self.default_limit_list:Union[int,None] = 100   # limit the number of entries per list response (used as default value)
         self.default_limit_read:Union[int,None] = 5000  # limit the number of entries per response (used as default value)
-        self.max_requests_count:int = 1000  # when automating multiple requests, the number of requests is limited by this parameter
+        self.max_requests_count:int = 1000000  # when automating multiple requests, the number of requests is limited by this parameter
         # timeouts
-        self.multi_requests_timeout:float = 60  # when automating multiple requests, the total time elapsed is limited by this parameter (evaluated between each request)
+        self.multi_requests_timeout:float = 3600*10  # when automating multiple requests, the total time elapsed is limited by this parameter (evaluated between each request)
         self.multi_requests_time_between_requests:float = 0  # when automating multiple requests, wait this additional time (in seconds) between each request
         self.requests_timeout:Union[float,None] = 100  # timeout per request sent to the requests module
         # verbosity

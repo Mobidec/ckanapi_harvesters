@@ -78,7 +78,7 @@ The `proxy_auth` argument can be also used in your script. Additional headers ca
 This sheet contains the definition of the package. Help for each field is given in the sheet.
 
 Field specification:
-- __Name__: Name of the package used in the CKAN urls to refer to the package (_mandatory_). e Characters allowed are lowercase letters (no accents), digits, `-` and `_`.
+- __Name__: Name of the package used in the urls to refer to the package (_mandatory_). The package name should be specific. Characters allowed are lowercase letters (a-z, no accents, no spaces), digits, `-` and `_`.
 - __Title__: Title appearing in the CKAN interface. 
 - __Description__: Some text describing the package. Markdown features are allowed. 
 - __Version__: Packages can be versioned, which enables tracking of data updates. 
