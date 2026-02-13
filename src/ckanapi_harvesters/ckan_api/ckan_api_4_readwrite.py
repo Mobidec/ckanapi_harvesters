@@ -318,7 +318,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         current = start
         timeout = False
         n_cum = 0
-        while offset < n and requests_count < self.params.max_requests_count and not timeout:
+        while offset < n and (requests_count < self.params.max_requests_count or self.params.max_requests_count == 0) and not timeout:
             last_insertion = offset+limit >= n
             i_end_add = min(n, offset+limit)
             n_add = i_end_add-1 - offset + 1
@@ -352,7 +352,7 @@ class CkanApiReadWrite(CkanApiPolicy):
             offset += limit
             requests_count += 1
             current = time.time()
-            timeout = current - start > self.params.multi_requests_timeout
+            timeout = current - start > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
         if return_df:
             if df is None:
                 df = pd.DataFrame()  # always return a DataFrame object and not None
@@ -363,7 +363,7 @@ class CkanApiReadWrite(CkanApiPolicy):
             print(f"{self.identifier} Multi-requests upsert done to add {n_cum} records done in {requests_count} requests and {round(current - start, 2)} seconds.")
         if timeout:
             raise TimeoutError()
-        if requests_count >= self.params.max_requests_count:
+        if requests_count >= self.params.max_requests_count and not self.params.max_requests_count == 0:
             raise MaxRequestsCountError()
         assert_or_raise(last_insertion, UnexpectedError("last_insertion should be True at last iteration"))
         if mode_df:
