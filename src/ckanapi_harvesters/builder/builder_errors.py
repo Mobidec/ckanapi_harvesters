@@ -11,6 +11,10 @@ class EmptyPackageNameException(RuntimeError):
     def __init__(self):
         super().__init__("Run-time error: the attribute package_name cannot be empty")
 
+class MissingDataStoreColumnsSheet(Exception):
+    def __init__(self, resource_name: str, columns_sheet_name: str):
+        super().__init__(f"DataStore {resource_name} specifies a DataStore Columns Sheet '{columns_sheet_name}' but it was not found in the spreadsheet.")
+
 class MissingDataStoreInfoError(Exception):
     def __init__(self):
         super().__init__("DataStore info must be requested to initiate resource builder. Use option datastore_info=True for the map_resources function.")
