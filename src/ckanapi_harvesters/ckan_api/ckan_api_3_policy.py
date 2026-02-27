@@ -171,7 +171,7 @@ class CkanApiPolicy(CkanApiReadOnly):
 
     def policy_check(self, package_list:Union[str,List[str]]=None, policy: CkanPackageDataFormatPolicy=None,
                      *, buffer:Dict[str, List[DataPolicyError]]=None, raise_error:bool=False,
-                     verbose:bool=None) -> bool:
+                     verbose:bool=None, auto_update:bool=True) -> bool:
         """
         Enforce policy on mapped packages
 
@@ -197,6 +197,8 @@ class CkanApiPolicy(CkanApiReadOnly):
             package_buffer: List[DataPolicyError] = []
             success &= policy.policy_check_package(package_info, display_message=verbose,
                                                    package_buffer=package_buffer, raise_error=raise_error)
+            if auto_update:
+                policy.package_update_scores(self, package_info, package_buffer)
             if buffer is not None:
                 buffer[package_info.name] = package_buffer
         if verbose:
