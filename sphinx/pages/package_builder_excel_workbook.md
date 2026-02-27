@@ -108,6 +108,13 @@ This sheet lists the resources of the package with their metadata. There are sev
 
 Field specification:
 - __Name__: Name of the resource appearing in the CKAN list.
+- __DataStore Columns Sheet__: Name of the sheet specifying the metadata for fields (only for DataStores). 
+By default, the resource name is used. Because of Excel limitations concerning the naming of sheets, 
+the user can specify the sheet used for a given DataStore in this column. 
+When given, the specified sheet must be present. If omitted, the load function looks for a sheet named after the resource (default sheet name). 
+Indeed, Excel sheet names cannot exceed 31 characters, contain the following characters: `/ \ ? * : [ ]`,
+begin or end with an apostrophe (`'`) or be named "History". 
+When using the resource name, the default sheet name replaces the forbidden characters with `#`. 
 - __Description__: Description of the resource, appearing in the CKAN package home page. Markdown features are allowed. 
 - __Format__: Format used to read/write files. Formats are defined in `ckanapi_harvesters.builder.file_formats`. 
 Default format is CSV for DataStores.

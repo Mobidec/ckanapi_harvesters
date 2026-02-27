@@ -28,7 +28,8 @@ from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_errors import (UnexpectedError, DuplicateNameError, ForbiddenNameError, MissingIdError,
                                                       MandatoryAttributeError, FileOrDirNotExistError)
 from ckanapi_harvesters.auxiliary.ckan_configuration import unlock_external_url_resource_download, unlock_no_ca
-from ckanapi_harvesters.builder.builder_errors import MissingDataStoreInfoError, UnsupportedBuilderVersionError
+from ckanapi_harvesters.builder.builder_errors import (MissingDataStoreInfoError, UnsupportedBuilderVersionError,
+                                                       MissingDataStoreColumnsSheet)
 from ckanapi_harvesters.builder import BUILDER_FILE_FORMAT_VERSION as BUILDER_VER
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiFile, multi_file_exclude_other_files
@@ -44,7 +45,7 @@ self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 example_package_xls = os.path.join(self_dir, "builder_package_example.xlsx")
 
 forbidden_resource_names = {"ckan", "info", "package", "resources", "validation", "help"}
-excel_subs_characters_re = r"[\*\?\[\]\+]"  # characters used in wildcards (MultiFile & MultiDataStore), forbidden in Excel sheet names
+excel_subs_characters_re = r"[:\*\?\/\[\]\\]"  # characters used in wildcards (MultiFile & MultiDataStore), forbidden in Excel sheet names
 excel_subs_dest_character = '#'
 
 
@@ -390,13 +391,13 @@ class BuilderPackageBasic:
         :see: to_xls
         :return:
         """
-        info_dict = dict()
+        info_dict = OrderedDict()
         info_dict["Builder format version"] = BUILDER_VER
         info_dict["Auxiliary functions file"] = make_path_relative(self.external_python_code.python_file, to_base_dir=base_dir) if self.external_python_code is not None else ""
         info_dict["Resources local directory"] = self._get_resources_base_dir_src(base_dir=base_dir)
         info_dict["Download directory"] = self._get_out_dir_src(base_dir=base_dir)
         info_dict["Comment"] = self.comment
-        package_dict = dict()
+        package_dict = OrderedDict()
         package_dict["Name"] = self.package_name
         package_dict["Title"] = self.package_attributes.title
         if include_id and self.package_attributes.id:
@@ -548,7 +549,9 @@ class BuilderPackageBasic:
             package_df.to_excel(writer, sheet_name="package", index=True)
             resources_df.to_excel(writer, sheet_name="resources", index=False)
             for name, df in datastores_df.items():
-                df.to_excel(writer, sheet_name=excel_name_of_sheet(name), index=False)
+                resource_builder = self.resource_builders[name]
+                sheet_name = resource_builder.columns_sheet_name if resource_builder.columns_sheet_name is not None else excel_name_of_sheet(name)
+                df.to_excel(writer, sheet_name=sheet_name, index=False)
             if include_help:
                 with pd.ExcelFile(example_package_xls, engine=engine) as help_file:
                     help_df = pd.read_excel(help_file, sheet_name="help", header=None)
@@ -556,19 +559,25 @@ class BuilderPackageBasic:
                 help_df.to_excel(writer, sheet_name="help", index=False, header=False)
             # writer.close()
 
-    def to_dict(self, base_dir:str=None, include_id:bool=True) -> dict:
+    def to_dict(self, base_dir:str=None, include_id:bool=True, separate_field_builders:bool=False) -> dict:
         """
         Call this function to export the builder parameters to an Excel worksheet
 
         :return:
         """
-        d = dict()
+        d = OrderedDict()
         d["Info"], d["Package"] = self._to_dict(base_dir=base_dir, include_id=include_id)
         d["CKAN"] = self.ckan_builder._to_dict(base_dir=base_dir)
-        resources_dict = self._get_resources_dict(include_id=include_id)
+        resources_dict: dict = self._get_resources_dict(include_id=include_id)
         datastores_dict = self._get_datastores_dict()
-        for name, fields_dict in datastores_dict.items():
-            resources_dict[name]["fields"] = list(fields_dict.values())
+        if separate_field_builders:
+            for name, fields_dict in datastores_dict.items():
+                resource_builder = self.resource_builders[name]
+                sheet_name = resource_builder.columns_sheet_name if resource_builder.columns_sheet_name is not None else excel_name_of_sheet(name)
+                resources_dict[sheet_name] = list(fields_dict.values())
+        else:
+            for name, fields_dict in datastores_dict.items():
+                resources_dict[name]["fields"] = list(fields_dict.values())
         d["Resources"] = list(resources_dict.values())
         return d
 
@@ -743,10 +752,14 @@ class BuilderPackageBasic:
             resources_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["resources"])
             mdl._load_package_resources_list_df(resources_df, base_dir=base_dir)
             resource_sheets = sheet_names - {sheet_names_lower_index[name] for name in forbidden_resource_names if name in sheet_names_lower_index.keys()}
+            used_resource_sheets = set()
             for resource_builder in mdl.resource_builders.values():
                 resource_sheet = None
                 equiv_name = excel_name_of_builder(resource_builder)
-                if resource_builder.name in resource_sheets:
+                if resource_builder.columns_sheet_name is not None:
+                    resource_sheet = resource_builder.columns_sheet_name.strip()
+                    assert_or_raise(resource_sheet in resource_sheets, MissingDataStoreColumnsSheet(resource_builder.name, resource_sheet))
+                elif resource_builder.name in resource_sheets:
                     resource_sheet = resource_builder.name
                 elif equiv_name in resource_sheets:
                     resource_sheet = equiv_name
@@ -754,10 +767,12 @@ class BuilderPackageBasic:
                     fields_df = pd.read_excel(xls, sheet_name=resource_sheet)
                     assert(isinstance(resource_builder, BuilderDataStoreABC) or isinstance(resource_builder, BuilderMultiDataStore))
                     resource_builder._load_fields_df(fields_df)
-                    resource_sheets.remove(resource_sheet)
+                    used_resource_sheets.add(resource_sheet)
+                    # resource_builder.columns_sheet_name = resource_sheet
             mdl.update_package_name_in_resources()
-            if len(resource_sheets) > 0:
-                msg = f"Sheets present but not used: {', '.join(resource_sheets)}"
+            unused_resource_sheets = resource_sheets - used_resource_sheets
+            if len(unused_resource_sheets) > 0:
+                msg = f"Sheets present but not used: {', '.join(unused_resource_sheets)}"
                 warn(msg)
             xls.close()
         return mdl
@@ -790,6 +805,7 @@ class BuilderPackageBasic:
         resources_df = pd.DataFrame(list(resources_dict.values()))
         mdl._load_package_resources_list_df(resources_df, base_dir=base_dir)
         resource_sheets = sheet_names - {sheet_names_lower_index[name] for name in forbidden_resource_names if name in sheet_names_lower_index.keys()}
+        used_resource_sheets = set()
         for resource_builder in mdl.resource_builders.values():
             if "fields" in resources_dict[resource_builder.name]:
                 assert(isinstance(resource_builder, BuilderDataStoreABC) or isinstance(resource_builder, BuilderMultiDataStore))
@@ -798,7 +814,10 @@ class BuilderPackageBasic:
             else:
                 resource_sheet = None
                 equiv_name = excel_name_of_builder(resource_builder)
-                if resource_builder.name in resource_sheets:
+                if resource_builder.columns_sheet_name is not None:
+                    resource_sheet = resource_builder.columns_sheet_name.strip()
+                    assert_or_raise(resource_sheet in resource_sheets, MissingDataStoreColumnsSheet(resource_builder.name, resource_sheet))
+                elif resource_builder.name in resource_sheets:
                     resource_sheet = resource_builder.name
                 elif equiv_name in resource_sheets:
                     resource_sheet = equiv_name
@@ -806,10 +825,12 @@ class BuilderPackageBasic:
                     assert(isinstance(resource_builder, BuilderDataStoreABC) or isinstance(resource_builder, BuilderMultiDataStore))
                     fields_df = pd.DataFrame(list(d[resource_sheet].values()))
                     resource_builder._load_fields_df(fields_df)
-                    resource_sheets.remove(resource_sheet)
+                    used_resource_sheets.add(resource_sheet)
+                    # resource_builder.columns_sheet_name = resource_sheet
         mdl.update_package_name_in_resources()
-        if len(resource_sheets) > 0:
-            msg = f"Sheets present but not used: {', '.join(resource_sheets)}"
+        unused_resource_sheets = resource_sheets - used_resource_sheets
+        if len(unused_resource_sheets) > 0:
+            msg = f"Sheets present but not used: {', '.join(unused_resource_sheets)}"
             warn(msg)
         return mdl
 
