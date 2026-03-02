@@ -3,7 +3,7 @@
 """
 
 """
-from typing import List, Union, Tuple
+from typing import List, Union, Tuple, Generator
 import time
 from warnings import warn
 import io
@@ -15,6 +15,7 @@ from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanState
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 # from ckanapi_harvesters.auxiliary.list_records import records_to_df
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_files_arg, RequestType, json_encode_params
 from ckanapi_harvesters.auxiliary.ckan_errors import (ReadOnlyError, IntegrityError, MaxRequestsCountError,
@@ -370,6 +371,38 @@ class CkanApiReadWrite(CkanApiPolicy):
             return df
         else:
             return returned_rows
+
+    def datastore_upsert_generator(self, records_generator:Generator[GeneralDataFrame], resource_id:str, *,
+                                   dry_run:bool=False, limit:int=None, offset:int=0, force:bool=None,
+                                   method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
+                                   always_last_condition:bool=None, return_df:bool=None,
+                                   data_cleaner:CkanDataCleanerABC=None, params:dict=None) -> int:
+        """
+        Encapsulation of datastore_upsert to send the rows by chunks defined by the records_generator.
+
+        :see: _api_datastore_upsert()
+        :param records_generator: generator of records, e.g. chunks from a CSV file generated with pandas.read_csv(.., chunksize=1000)
+        :param resource_id: destination resource id
+        :param method: by default, set to Upsert
+        :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
+        :param limit: number of records per transaction
+        :param offset: number of records to skip - use to restart the transfer
+        :param params: additional parameters
+        :param dry_run: set to True to abort transaction instead of committing, e.g. to check for validation or type errors
+        :param apply_last_condition: if True, the last upsert request applies the last insert operations (calculate_record_count and force_indexing).
+        :param always_last_condition: if True, each request applies the last insert operations - default is False
+        :return: the number of records inserted
+        """
+        line_count = 0
+        for chunk_index, records in enumerate(records_generator):
+            current_line_count = len(records)
+            current_offset = max(0, offset - line_count)
+            self.datastore_upsert(records, resource_id=resource_id, dry_run=dry_run, limit=limit, offset=current_offset, force=force, method=method, params=params,
+                                  apply_last_condition=False, always_last_condition=always_last_condition, return_df=return_df, data_cleaner=data_cleaner)
+            line_count += current_line_count
+        if apply_last_condition:
+            self.datastore_upsert_last_line(resource_id)
+        return line_count
 
     def datastore_insert(self, records:Union[dict, List[dict], pd.DataFrame], resource_id:str, *,
                          dry_run:bool=False, limit:int=None, offset:int=0, apply_last_condition:bool=True,
