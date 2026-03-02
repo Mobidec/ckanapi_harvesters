@@ -372,7 +372,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         else:
             return returned_rows
 
-    def datastore_upsert_generator(self, records_generator:Generator[GeneralDataFrame], resource_id:str, *,
+    def datastore_upsert_generator(self, records_generator:Generator[GeneralDataFrame, None, None], resource_id:str, *,
                                    dry_run:bool=False, limit:int=None, offset:int=0, force:bool=None,
                                    method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                                    always_last_condition:bool=None, return_df:bool=None,
