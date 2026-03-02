@@ -39,7 +39,7 @@ def run(ckan:CkanApi = None):
     mdl.patch_request_full(ckan, reupload=reupload)
 
     # Upload large datasets
-    threads = 3  # > 1: multi-threading mode - reduce if HTTP 502 errors
+    threads = 1  # > 1: multi-threading mode - reduce if HTTP 502 errors
     mdl.upload_large_datasets(ckan, threads=threads)
 
     print("Update done.")

@@ -13,9 +13,11 @@ from ckanapi_harvesters.auxiliary.list_records import ListRecords
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import df_download_to_csv_kwargs
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 
+default_read_chunk_size:int = 50
+
 
 class CsvFileFormat(FileFormatABC):
-    default_csv_file_upload_read_csv_kwargs = dict(dtype=str, keep_default_na=False, sep=None, engine='python')
+    default_csv_file_upload_read_csv_kwargs = dict(dtype=str, keep_default_na=False, sep=None, engine='python', chunksize=default_read_chunk_size)
 
     def __init__(self, read_csv_kwargs: dict=None, to_csv_kwargs: dict=None) -> None:
         if read_csv_kwargs is None: read_csv_kwargs = CsvFileFormat.default_csv_file_upload_read_csv_kwargs

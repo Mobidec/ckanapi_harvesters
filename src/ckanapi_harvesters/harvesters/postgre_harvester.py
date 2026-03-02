@@ -466,7 +466,7 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
         data_cleaner = CkanDataCleanerUploadGeom()
         return data_cleaner
 
-    def list_queries(self, *, new_connection:bool=False) -> List[str]:
+    def list_queries(self, *, new_connection:bool=False) -> OrderedDict[Any, int]:
         self.connect(cancel_if_connected=not new_connection)
         postgre_schema_name = self.params.dataset
         postgre_table_name = self.params.table
@@ -483,11 +483,12 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
             request_query_base += " " + self.params.query_string
         num_queries = num_rows // self.params.limit + 1
         if self.params.single_request:
-            return [f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}" for i in range(1)]
+            return OrderedDict([(f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}", self.params.limit) for i in range(1)])
         else:
-            queries_exact = [f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}" for i in range(num_queries)]
+            queries_exact = OrderedDict([(f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}", self.params.limit) for i in range(num_queries)])
             query_extra = f"{request_query_base} LIMIT {self.params.limit} OFFSET {num_queries * self.params.limit}"
-            return queries_exact + [query_extra]
+            queries_exact[query_extra] = self.params.limit
+            return queries_exact
 
     def query_data(self, query:Dict[str,Any]) -> pd.DataFrame:
         df = pd.read_sql(query, self.alchemy_engine)

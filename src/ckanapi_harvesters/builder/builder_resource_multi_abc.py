@@ -26,6 +26,7 @@ from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanResourceInfo
 from ckanapi_harvesters.builder.builder_aux import positive_end_index
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
 from ckanapi_harvesters.builder.builder_field import BuilderField
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC
@@ -33,14 +34,15 @@ from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC
 multi_file_exclude_other_files:bool = True
 
 
-def default_progress_callback(index:int, total:int, info:Any, *, context:str=None, **kwargs) -> None:
+def default_progress_callback(position:int, total:int, info:Any, *, context:str=None,
+                              file_index:int, file_count:int, end_message:bool=False, **kwargs) -> None:
     if context is None:
         context = ""
-    if index == total:
+    if position == total and end_message:
         # info is None
-        print(f"{context} Finished {index}/{total} (100%)")
+        print(f"{context} Finished {file_index}/{file_count} (100%)")
     elif info is None:
-        print(f"{context} Request {index}/{total} ({index/total*100.0:.2f}%)")
+        print(f"{context} Request {file_index}/{file_count} ({position/total*100.0:.2f}%)")
     else:
         if isinstance(info, str):
             info_str = info
@@ -53,7 +55,27 @@ def default_progress_callback(index:int, total:int, info:Any, *, context:str=Non
             info_str = "<records>"
         else:
             info_str = str(info)
-        print(f"{context} Request {index}/{total} ({index/total*100.0:.2f}%): " + info_str)
+        print(f"{context} Request {file_index}/{file_count} ({position/total*100.0:.2f}%): " + info_str)
+
+
+class FileChunkDataFrame:
+    """
+    Class to hold a chunk of a DataFrame of a file (only for DataStores), with the file name, index and an indication of the position in the file
+    """
+    def __init__(self, df: Union[GeneralDataFrame,None], file_path: str, file_index: int, chunk_index: int, file_position: int) -> None:
+        """
+        :param df: the data of the file chunk (leave None if not loaded)
+        :param file_path: the path to the source
+        :param file_index: the index of the file in the list
+        :param chunk_index: counter of chunks read within the file
+        :param file_position: the position within the file itself (approximation)
+        """
+        self.df: Union[GeneralDataFrame,None] = df
+        self.file_path: str = file_path
+        self.file_index: int = file_index
+        self.chunk_index: int = chunk_index
+        self.file_position: int = file_position
+        self.is_first_chunk: bool = chunk_index == 0  # boolean indicating if the chunk is the first chunk of the file or not
 
 
 class BuilderMultiABC(ABC):
@@ -76,9 +98,15 @@ class BuilderMultiABC(ABC):
         # do not copy stop_event
         return dest
 
-    def _call_progress_callback(self, index:int, total:int, *, info:Any=None, context:str=None) -> None:
+    def _call_progress_callback(self, position:int, total:int, *, info:Any=None, context:str=None,
+                                file_index:int=0, file_count:int=None, end_message: bool=False) -> None:
         if self.progress_callback is not None:
-            self.progress_callback(index, total, info=info, context=context, **self.progress_callback_kwargs)
+            if end_message:
+                position = total
+                file_index = file_count
+            self.progress_callback(position, total, info=info, context=context,
+                                   file_index=file_index, file_count=file_count, end_message=end_message,
+                                   **self.progress_callback_kwargs)
 
     def _prepare_for_multithreading(self, ckan: CkanApi):
         self.stop_event.clear()
@@ -105,16 +133,30 @@ class BuilderMultiABC(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def get_local_file_len(self) -> int:
+    def get_local_file_offset(self, file_chunk: FileChunkDataFrame) -> int:
+        """
+        Get the position of the current data in the overall upload.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_local_file_total_size(self) -> int:
+        """
+        Get the overall size of the upload, normally in bytes or line count.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_local_file_count(self) -> int:
         """
         Get the number of parts of the upload.
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def get_local_file_generator(self, resources_base_dir:str, **kwargs) -> Generator[Any, None, None]:
+    def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         """
-        Returns an iterator over the parts of the upload.
+        Returns an iterator over the data to upload and a position in the current file.
         """
         raise NotImplementedError()
 
@@ -123,8 +165,8 @@ class BuilderMultiABC(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def _unit_upload_apply(self, *, ckan:CkanApi, file:Any,
-                           index:int, start_index:int, end_index:int, total:int, **kwargs) -> Any:
+    def _unit_upload_apply(self, *, ckan:CkanApi, file_chunk: FileChunkDataFrame,
+                           upload_alter:bool=True, overall_chunk_index:int, file_count: int, start_index:int, end_index:int, **kwargs) -> Any:
         """
         Unitary function deciding whether to perform upload and making the steps for the upload.
         """
@@ -156,19 +198,20 @@ class BuilderMultiABC(ABC):
             self.init_local_files_list(resources_base_dir=resources_base_dir, cancel_if_present=True, **kwargs)
             if ckan.params.verbose_extra:
                 print(f"Launching single-threaded upload of multi-file resource {self.name}")
-            total = self.get_local_file_len()
+            total = self.get_local_file_count()
             end_index = positive_end_index(end_index, total)
-            for index, file_path in enumerate(self.get_local_file_generator(resources_base_dir=resources_base_dir, **kwargs)):
+            for overall_chunk_index, file_chunk in enumerate(self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, **kwargs)):
                 if external_stop_event is not None and external_stop_event.is_set():
                     print(f"{ckan.identifier} Interrupted")
                     return
-                self._unit_upload_apply(ckan=ckan, file=file_path, index=index,
-                                        start_index=start_index, end_index=end_index, total=total, **kwargs)
-            self._call_progress_callback(total, total, context=f"{ckan.identifier} single-thread upload")
+                self._unit_upload_apply(ckan=ckan, file_chunk=file_chunk, overall_chunk_index=overall_chunk_index,
+                                        start_index=start_index, end_index=end_index, file_count=total, **kwargs)
+            self._call_progress_callback(self.get_local_file_total_size(), self.get_local_file_total_size(), file_count=total,
+                                         context=f"{ckan.identifier} single-thread upload", end_message=True)
             # at last, apply final actions:
             self.upload_request_final(ckan)
 
-    def upload_request_graceful(self, ckan:CkanApi, file_path: str, *, index:int,
+    def upload_request_graceful(self, ckan:CkanApi, file_chunk: FileChunkDataFrame, *, overall_chunk_index:int,
                                 external_stop_event=None,
                                 start_index:int=0, end_index:int=None, **kwargs) -> None:
         """
@@ -179,7 +222,7 @@ class BuilderMultiABC(ABC):
         # ckan.session_reset()
         # ckan.identifier = current_thread().name
         ckan = self.thread_ckan[current_thread().name]
-        total = self.get_local_file_len()
+        total = self.get_local_file_count()
         end_index = positive_end_index(end_index, total)
         if self.stop_event.is_set():
             return
@@ -187,8 +230,8 @@ class BuilderMultiABC(ABC):
             print(f"{ckan.identifier} Interrupted")
             return
         try:
-            self._unit_upload_apply(ckan=ckan, file=file_path, index=index,
-                                    start_index=start_index, end_index=end_index, total=total, **kwargs)
+            self._unit_upload_apply(ckan=ckan, file_chunk=file_chunk, overall_chunk_index=overall_chunk_index,
+                                    start_index=start_index, end_index=end_index, file_count=total, **kwargs)
         except Exception as e:
             self.stop_event.set()  # Ensure all threads stop
             if ckan.params.verbose_extra:
@@ -207,14 +250,14 @@ class BuilderMultiABC(ABC):
             with ThreadPoolExecutor(max_workers=threads, initializer=self._init_thread, initargs=(ckan,)) as executor:
                 if ckan.params.verbose_extra:
                     print(f"Launching multi-threaded upload of multi-file resource {self.name}")
-                futures = [executor.submit(self.upload_request_graceful, ckan=ckan, file_path=file_path, index=index,
+                futures = [executor.submit(self.upload_request_graceful, ckan=ckan, file_chunk=file_chunk, overall_chunk_index=overall_chunk_index,
                                            start_index=start_index, end_index=end_index, external_stop_event=external_stop_event,
                                            **kwargs)
-                           for index, file_path in enumerate(self.get_local_file_generator(resources_base_dir=resources_base_dir, **kwargs))]
+                           for overall_chunk_index, file_chunk in enumerate(self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, **kwargs))]
                 for future in futures:
                     future.result()  # This will propagate the exception
-            total = self.get_local_file_len()
-            self._call_progress_callback(total, total, context=f"{ckan.identifier} multi-thread upload")
+            self._call_progress_callback(self.get_local_file_total_size(), self.get_local_file_total_size(), file_count=self.get_local_file_count(),
+                                         context=f"{ckan.identifier} multi-thread upload", end_message=True)
         except Exception as e:
             self.stop_event.set()  # Ensure all threads stop
             if ckan.params.verbose_extra:
@@ -245,7 +288,7 @@ class BuilderMultiABC(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def get_file_query_len(self) -> int:
+    def get_file_query_count(self) -> int:
         """
         Returns the total number of file_queries.
         """
@@ -295,7 +338,7 @@ class BuilderMultiABC(ABC):
             self.init_download_file_query_list(ckan=ckan, out_dir=out_dir, cancel_if_present=True, **kwargs)
             if ckan.params.verbose_extra:
                 print(f"Launching single-threaded download of multi-file resource {self.name}")
-            total = self.get_file_query_len()
+            total = self.get_file_query_count()
             end_index = positive_end_index(end_index, total)
             for index, file_query_item in enumerate(self.get_file_query_generator()):
                 if external_stop_event is not None and external_stop_event.is_set():
@@ -303,7 +346,7 @@ class BuilderMultiABC(ABC):
                     return
                 self._unit_download_apply(ckan=ckan, file_query_item=file_query_item, out_dir=out_dir,
                                           index=index, start_index=start_index, end_index=end_index, total=total, **kwargs)
-            self._call_progress_callback(total, total, context=f"{ckan.identifier} single-thread download")
+            self._call_progress_callback(total, total, context=f"{ckan.identifier} single-thread download", end_message=True)
 
     def download_file_query_item_graceful(self, ckan: CkanApi, out_dir: str, file_query_item: Any, index:int,
                                           external_stop_event=None, start_index:int=0, end_index:int=None, **kwargs) -> None:
@@ -313,7 +356,7 @@ class BuilderMultiABC(ABC):
         # ckan.session_reset()
         # ckan.identifier = current_thread().name
         ckan = self.thread_ckan[current_thread().name]
-        total = self.get_file_query_len()
+        total = self.get_file_query_count()
         end_index = positive_end_index(end_index, total)
         if self.stop_event.is_set():
             return
@@ -341,13 +384,13 @@ class BuilderMultiABC(ABC):
             with ThreadPoolExecutor(max_workers=threads, initializer=self._init_thread, initargs=(ckan,)) as executor:
                 if ckan.params.verbose_extra:
                     print(f"Launching multi-threaded download of multi-file resource {self.name}")
-                futures = [executor.submit(self.download_file_query_item_graceful, ckan=ckan, out_dir=out_dir, file_query_item=file_query_item,
+                futures = [executor.submit(self.download_file_query_item_graceful, ckan=ckan, out_dir=out_dir, file_query_item=file_chunk,
                                            index=index, external_stop_event=external_stop_event, start_index=start_index, end_index=end_index, **kwargs)
-                           for index, file_query_item in enumerate(self.get_file_query_generator())]
+                           for index, file_chunk in enumerate(self.get_file_query_generator())]
                 for future in futures:
                     future.result()  # This will propagate the exception
-            total = self.get_file_query_len()
-            self._call_progress_callback(total, total, context=f"multi-thread download")
+            total = self.get_file_query_count()
+            self._call_progress_callback(total, total, context=f"multi-thread download", end_message=True)
         except Exception as e:
             self.stop_event.set()  # Ensure all threads stop
             if ckan.params.verbose_extra:

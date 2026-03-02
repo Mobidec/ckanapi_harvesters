@@ -27,20 +27,21 @@ from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path, glob_rm_glob, glob_name
 from ckanapi_harvesters.builder.builder_aux import positive_end_index
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
-from ckanapi_harvesters.builder.builder_resource_multi_abc import BuilderMultiABC
+from ckanapi_harvesters.builder.builder_resource_multi_abc import BuilderMultiABC, FileChunkDataFrame
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC
 
 multi_file_exclude_other_files:bool = True
 
 
-def default_progress_callback(index:int, total:int, info:Any, *, context:str=None, **kwargs) -> None:
+def default_progress_callback(position:int, total:int, info:Any, *, context:str=None,
+                              file_index:int, file_count:int, end_message:bool=False, **kwargs) -> None:
     if context is None:
         context = ""
-    if index == total:
+    if position == total and end_message:
         # info is None
-        print(f"{context} Finished {index}/{total} (100%)")
+        print(f"{context} Finished {file_index}/{file_count} (100%)")
     elif info is None:
-        print(f"{context} Request {index}/{total} ({index/total*100.0:.2f}%)")
+        print(f"{context} Request {file_index}/{file_count} ({position/total*100.0:.2f}%)")
     else:
         if isinstance(info, str):
             info_str = info
@@ -49,9 +50,11 @@ def default_progress_callback(index:int, total:int, info:Any, *, context:str=Non
                 info_str = str(info.attrs["source"])
             else:
                 info_str = "<DataFrame>"
+        elif isinstance(info, list):
+            info_str = "<records>"
         else:
             info_str = str(info)
-        print(f"{context} Request {index}/{total} ({index/total*100.0:.2f}%): " + info_str)
+        print(f"{context} Request {file_index}/{file_count} ({position/total*100.0:.2f}%): " + info_str)
 
 
 class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
@@ -64,6 +67,8 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         self.dir_name: str = dir_name
         self.local_file_list_base_dir: str = ""
         self.local_file_list: Union[List[str], None] = None
+        self.local_file_size: Union[List[int], None] = None
+        self.local_file_size_sum: Union[int, None] = None
         self.excluded_files: Set[str] = set()
         self.remote_resource_names: Union[List[str], None] = None
         self.excluded_resource_names: Set[str] = set()
@@ -149,6 +154,10 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         file_list = list(file_set)
         file_list.sort()
         self.local_file_list = file_list
+        self.local_file_size = [0] * len(file_list)
+        for index, file_name in enumerate(file_list):
+            self.local_file_size[index] = os.path.getsize(file_name)
+        self.local_file_size_sum = sum(self.local_file_size, 0)
         self.local_file_list_base_dir = resources_base_dir
         self.excluded_files = excluded_files
         return file_list
@@ -157,7 +166,13 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         return self.list_local_files(resources_base_dir=resources_base_dir, cancel_if_present=cancel_if_present,
                                      excluded_files=excluded_files)
 
-    def get_local_file_len(self) -> int:
+    def get_local_file_total_size(self) -> int:
+        return self.local_file_size_sum
+
+    def get_local_file_offset(self, file_chunk: FileChunkDataFrame) -> int:
+        return sum(self.local_file_size[:file_chunk.file_index]) + file_chunk.file_position
+
+    def get_local_file_count(self) -> int:
         if self.local_file_list is None:
             raise RuntimeError("You must call list_local_files first")
         return len(self.local_file_list)
@@ -166,6 +181,10 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         self.list_local_files(resources_base_dir=resources_base_dir, excluded_files=excluded_files)
         for file_name in self.local_file_list:
             yield file_name
+
+    def get_local_df_chunk_generator(self, resources_base_dir:str, excluded_files:Set[str]=None, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
+        for file_index, file_name in enumerate(self.get_local_file_generator(resources_base_dir=resources_base_dir)):
+            yield FileChunkDataFrame(None, file_name, file_index, 0, 0)
 
     def upload_file_checks(self, *, resources_base_dir: str = None, ckan: CkanApi = None, excluded_files:Set[str]=None, **kwargs) \
             -> Union[None, ContextErrorLevelMessage]:
@@ -179,11 +198,13 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
             return ResourceFileNotExistMessage(self.name, ErrorLevel.Error,
                 f"Missing directory for multi-file resource {self.name}: {os.path.join(resources_base_dir, self.dir_name)}")
 
-    def upload_file(self, ckan:CkanApi, package_id:str, file_path:str, *,
-                    reupload:bool=False, cancel_if_present:bool=True) -> CkanResourceInfo:
+    def upload_file_chunk(self, ckan:CkanApi, package_id:str, file_chunk:FileChunkDataFrame, *,
+                          reupload:bool=False, cancel_if_present:bool=True) -> CkanResourceInfo:
         """
         Upload a file, using its name as resource name
         """
+        # The FileStore implementation uploads each file as a new resource. Files are not read by chunks but are fully loaded in memory in binary mode.
+        file_path = file_chunk.file_path
         _, resource_name = os.path.split(file_path)
         resource_info = ckan.map.get_resource_info(resource_name, package_name=package_id, error_not_mapped=False)
         if resource_info is not None and cancel_if_present and not reupload:
@@ -194,17 +215,19 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
                                     state=self.state, file_path=file_path, reupload=reupload, cancel_if_exists=True, update_if_exists=True,
                                     create_default_view=True, auto_submit=False)
 
-    def _unit_upload_apply(self, *, ckan:CkanApi, file:str,
-                           index:int, start_index:int, end_index:int, total:int,
+    def _unit_upload_apply(self, *, ckan:CkanApi, file_chunk:FileChunkDataFrame,
+                           overall_chunk_index:int, start_index:int, end_index:int, file_count:int,
                            package_id:str, reupload:bool, only_missing:bool, excluded_files:Set[str]) -> None:
         # For each file, this function initiates its own FileStore.
-        file_path = file
+        file_path = file_chunk.file_path
         _, file_name = os.path.split(file_path)
+        index = file_chunk.file_index
         if start_index <= index and index < end_index and file_path not in excluded_files:
-            self._call_progress_callback(index, total, info=file_path,
+            self._call_progress_callback(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(), info=file_path,
+                                         file_index=file_chunk.file_index, file_count=self.get_local_file_count(),
                                          context=f"{ckan.identifier} single-thread upload")
-            self.upload_file(ckan=ckan, package_id=package_id, file_path=file_path,
-                             reupload=reupload, cancel_if_present=only_missing)
+            self.upload_file_chunk(ckan=ckan, package_id=package_id, file_chunk=file_chunk,
+                                   reupload=reupload, cancel_if_present=only_missing)
         else:
             # self._call_progress_callback(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip")
             pass
@@ -357,7 +380,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         for resource_name in self.remote_resource_names:
             yield resource_name
 
-    def get_file_query_len(self) -> int:
+    def get_file_query_count(self) -> int:
         if self.remote_resource_names is None:
             raise RuntimeError("init_download_file_query_list must be called first")
         return len(self.remote_resource_names)

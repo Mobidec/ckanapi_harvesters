@@ -93,6 +93,10 @@ class RequestMapperABC(DataSchemeConversion, ABC):
     def download_file_query(self, ckan: CkanApi, resource_id: str, file_query:dict) -> pd.DataFrame:
         return ckan.datastore_search(resource_id=resource_id, **file_query, search_all=True)
 
+    # TODO: expose generator to enable writing to files in append mode:
+    # def download_file_query(self, ckan: CkanApi, resource_id: str, file_query:dict) -> Generator[pd.DataFrame, Any, None]:
+    #     return ckan.datastore_search_generator(resource_id=resource_id, **file_query, search_all=True)
+
 
 class RequestFileMapperABC(RequestMapperABC, ABC):
     """

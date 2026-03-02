@@ -14,11 +14,13 @@ import copy
 import pandas as pd
 
 from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 from ckanapi_harvesters.builder.builder_aux import positive_end_index
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanResourceInfo
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestFileMapperABC, default_file_mapper_from_primary_key
+from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiABC, default_progress_callback
 
 # apply last_condition for each upsert request when in a multi-threaded upload on a same DataStore:
@@ -60,20 +62,6 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         return dest
 
     ## upload ---------
-    @abstractmethod
-    def get_local_df_generator(self, resources_base_dir:str) -> Generator[pd.DataFrame, None, None]:
-        """
-        Returns an iterator over the parts of the upload, loaded as DataFrames (not recommended in a multi-threaded context).
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def load_local_df(self, file: Any, **kwargs) -> pd.DataFrame:
-        """
-        Load the DataFrame pointed by the upload part "file"
-        """
-        raise NotImplementedError()
-
     # do not change default argument apply_last_condition=True
     # def upsert_request_df(self, ckan: CkanApi, df_upload:pd.DataFrame,
     #                       method:UpsertChoice=UpsertChoice.Upsert,
@@ -129,16 +117,20 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
                                apply_last_condition=apply_last_condition, always_last_condition=always_last_condition)
         return None
 
-    def _unit_upload_apply(self, *, ckan: CkanApi, file: str,
-                           index: int, start_index: int, end_index: int, total: int,
+    def _unit_upload_apply(self, *, ckan: CkanApi, file_chunk: FileChunkDataFrame,
+                           upload_alter:bool=True, overall_chunk_index: int, file_count: int, start_index: int, end_index: int,
                            method: UpsertChoice, **kwargs) -> None:
+        index = file_chunk.file_index
         if index == 0 and self.upsert_method == UpsertChoice.Insert:
             return  # do not reupload the first document, which was used for the initialization of the dataset
         if start_index <= index and index < end_index:
-            df_upload_local = self.load_local_df(file, **kwargs)
-            self._call_progress_callback(index, total, info=df_upload_local,
+            if upload_alter:
+                file_chunk.df = self.df_mapper.df_upload_alter(file_chunk.df, self.sample_data_source, fields=self._get_fields_info(), **kwargs)
+            self._call_progress_callback(self.get_local_file_offset(file_chunk),
+                                         self.get_local_file_total_size(), info=file_chunk,
+                                         file_index=index, file_count=file_count,
                                          context=f"{ckan.identifier} single-thread upload")
-            self.upsert_request_df_no_return(ckan=ckan, df_upload=df_upload_local, method=method,
+            self.upsert_request_df_no_return(ckan=ckan, df_upload=file_chunk.df, method=method,
                                              apply_last_condition=datastore_multi_apply_last_condition_intermediary)
         else:
             # self._call_progress_callback(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip")
@@ -256,7 +248,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         return df
 
     def _unit_download_apply(self, ckan:CkanApi, file_query_item:Any, out_dir:str,
-                           index:int, start_index:int, end_index:int, total:int) -> Any:
+                           index:int, start_index:int, end_index:int, total:int, **kwargs) -> Any:
         if start_index <= index and index < end_index:
             self._call_progress_callback(index, total, info=file_query_item,
                                          context=f"{ckan.identifier} single-thread download")

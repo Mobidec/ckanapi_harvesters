@@ -6,7 +6,7 @@ The metadata is defined by the user in an Excel worksheet
 This file implements functions to initiate a DataStore.
 """
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Union, Set, Any
+from typing import Dict, List, Tuple, Union, Set, Any, Generator
 import os
 import io
 from warnings import warn
@@ -16,6 +16,7 @@ import copy
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
+from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.builder.builder_field import BuilderField
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 from ckanapi_harvesters.harvesters.file_formats.file_format_init import init_file_format_datastore
@@ -171,7 +172,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         return resource_info
 
     @abstractmethod
-    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True) -> pd.DataFrame:
+    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True) -> GeneralDataFrame:
         """
         Function returning the data from the indicated resources as a pandas DataFrame.
         This is the DataFrame equivalent for load_sample_data.
@@ -460,11 +461,20 @@ class BuilderDataStoreFile(BuilderDataStoreABC):
     def get_sample_file_path(self, resources_base_dir:str) -> str:
         return resolve_rel_path(resources_base_dir, self.file_name, field=f"File/URL of resource {self.name}")
 
-    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True) -> pd.DataFrame:
+    def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[Tuple[GeneralDataFrame,int], None, None]:
         self.sample_data_source = self.get_sample_file_path(resources_base_dir)
-        df_local = self.local_file_format.read_file(self.sample_data_source, fields=self._get_fields_info())
-        if isinstance(df_local, pd.DataFrame):
-            df_local.attrs["source"] = self.sample_data_source
+        with self.local_file_format.read_file(self.sample_data_source, self.field_builders) as df_file:
+            if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
+                yield df_file, 0
+            else:  # iterator
+                file_handle = df_file.handles.handle
+                for df in df_file:
+                    yield df, file_handle.tell()
+
+    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True) -> GeneralDataFrame:
+        generator = self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir)
+        df_local, _ = next(generator)
+        generator.close()
         if upload_alter:
             df_upload = self.df_mapper.df_upload_alter(df_local, self.sample_data_source, fields=self._get_fields_info())
             return df_upload

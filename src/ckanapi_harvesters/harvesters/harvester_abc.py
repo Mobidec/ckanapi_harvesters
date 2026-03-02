@@ -179,7 +179,7 @@ class TableHarvesterABC(DatasetHarvesterABC, ABC):
 
     ## query methods interface ---------------
     @abstractmethod
-    def list_queries(self, *, new_connection:bool=False) -> List[Any]:
+    def list_queries(self, *, new_connection:bool=False) -> OrderedDict[Any, int]:
         self.connect(cancel_if_connected=not new_connection)
         raise NotImplementedError()
 

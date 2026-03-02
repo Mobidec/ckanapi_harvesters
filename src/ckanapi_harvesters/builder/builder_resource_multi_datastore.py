@@ -16,11 +16,13 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, fi
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_errors import DuplicateNameError
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path, glob_rm_glob
+from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.builder.builder_field import BuilderField
 from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreFile
+from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiFile
 
 
@@ -118,11 +120,30 @@ class BuilderMultiDataStore(BuilderMultiFile):
 
 
     ## Upload ----------------
-    def upload_file(self, ckan:CkanApi, package_id:str, file_path:str, *,
-                    reupload:bool=False, cancel_if_present:bool=True) -> CkanResourceInfo:
+    def get_local_df_chunk_generator(self, resources_base_dir:str, excluded_files:Set[str]=None, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
+        self.list_local_files(resources_base_dir=resources_base_dir)
+        for file_index, file_name in enumerate(self.local_file_list):
+            with self.local_file_format.read_file(file_name, self.field_builders) as df_file:
+                if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
+                    yield FileChunkDataFrame(df_file, file_name, file_index, 0, 0)
+                else:  # iterator
+                    file_handle = df_file.handles.handle
+                    previous_file_position = 0
+                    for chunk_index, df in enumerate(df_file):
+                        file_position = file_handle.buffer.tell()  # approximative position in file
+                        yield FileChunkDataFrame(df, file_name, file_index, chunk_index, previous_file_position)
+                        previous_file_position = file_position
+
+    def upload_file_chunk(self, ckan:CkanApi, package_id:str, file_chunk:FileChunkDataFrame, *,
+                          reupload:bool=False, cancel_if_present:bool=True) -> CkanResourceInfo:
+        file_path = file_chunk.file_path
         ds_builder, file_dir = self._data_store_builder_of_file(file_path=file_path)
-        return ds_builder.patch_request(ckan=ckan, package_id=package_id, reupload=reupload,
-                                        resources_base_dir=file_dir)
+        if file_chunk.is_first_chunk:
+            return ds_builder.patch_request(ckan=ckan, package_id=package_id, reupload=reupload,
+                                            resources_base_dir=file_dir)
+        else:
+            ds_builder.upsert_request_df(ckan, file_chunk.df)
+            return ckan.map.get_resource_info(resource_name=ds_builder.name, package_name=package_id)
 
 
     ## Download --------------

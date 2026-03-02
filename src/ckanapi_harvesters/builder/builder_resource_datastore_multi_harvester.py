@@ -14,6 +14,7 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
+from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
 # from ckanapi_harvesters.auxiliary.path import list_files_scandir
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
@@ -25,6 +26,7 @@ from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestMapperABC, RequestFileMapperABC
 from ckanapi_harvesters.builder.mapper_datastore_multi import default_file_mapper_from_primary_key
+from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
 from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreFile
 from ckanapi_harvesters.harvesters.harvester_abc import TableHarvesterABC
 from ckanapi_harvesters.harvesters.harvester_init import init_table_harvester_from_options_string
@@ -162,34 +164,30 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
         self.list_local_files(resources_base_dir=resources_base_dir)
         return self.local_file_list[file_index]
 
-    def load_local_df(self, file: str, *, upload_alter:bool=True, fields:OrderedDict[str,CkanField]=None) -> pd.DataFrame:
-        # self.sample_data_source = resolve_rel_path(resources_base_dir, self.dir_name, file, field=f"File/URL of resource {self.name}")
-        self.sample_data_source = file
-        data_local = self.harvester.query_data(query=file)
-        if upload_alter:
-            df_upload = self.df_mapper.df_upload_alter(data_local, self.sample_data_source, fields=self._get_fields_info())
-            return df_upload
-        else:
-            raise RuntimeError("upload_alter must be True for a DataStore from Harvester.")
-
-    def get_local_file_generator(self, resources_base_dir:str, **kwargs) -> Generator[Any, None, None]:
+    def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         self.list_local_files(resources_base_dir=resources_base_dir)
-        for query in self.local_file_list:
-            yield query
+        for query_index, query in enumerate(self.local_file_list):
+            data_local = self.harvester.query_data(query=query)
+            if isinstance(data_local, pd.DataFrame) or isinstance(data_local, ListRecords):
+                yield FileChunkDataFrame(data_local, query, query_index, 0, 0)
+            else:
+                for chunk_index, df in enumerate(data_local):
+                    # TODO: no file position in query result generator
+                    yield FileChunkDataFrame(df, query, query_index, chunk_index, 0)
 
     def list_local_files(self, resources_base_dir:str, cancel_if_present:bool=True) -> List[Any]:
         if cancel_if_present and self.local_file_list is not None:
             return self.local_file_list
-        self.local_file_list = self.harvester.list_queries(new_connection=not cancel_if_present)
+        query_list = self.harvester.list_queries(new_connection=not cancel_if_present)
+        self.local_file_list = list(query_list.keys())
+        self.local_file_size = list(query_list.values())
+        self.local_file_size_sum = sum(self.local_file_size)
         return self.local_file_list
 
     def init_local_files_list(self, resources_base_dir:str, cancel_if_present:bool=True, **kwargs) -> List[str]:
         return self.list_local_files(resources_base_dir=resources_base_dir, cancel_if_present=cancel_if_present)
 
-    def get_local_df_generator(self, resources_base_dir:str, *, fields:OrderedDict[str,CkanField], **kwargs) -> Generator[pd.DataFrame, None, None]:
-        return super().get_local_df_generator(resources_base_dir=resources_base_dir, fields=fields, **kwargs)
-
-    def get_local_file_len(self) -> int:
+    def get_local_file_count(self) -> int:
         if self.local_file_list is None:
             raise RuntimeError("You must call list_local_files first")
         return len(self.local_file_list)
