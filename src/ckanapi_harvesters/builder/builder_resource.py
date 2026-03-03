@@ -11,6 +11,7 @@ import os
 from warnings import warn
 import copy
 import io
+from collections import OrderedDict
 
 import pandas as pd
 
@@ -33,6 +34,7 @@ class BuilderResourceABC(ABC):
                  state:CkanState=None, enable_download:bool=True,
                  resource_id:str=None, download_url:str=None):
         self.name: Union[str,None] = name
+        self.columns_sheet_name: Union[str, None] = None
         self.format: Union[str,None] = format
         self.description: Union[str,None] = description
         self.state:Union[CkanState,None] = state
@@ -59,6 +61,7 @@ class BuilderResourceABC(ABC):
     @abstractmethod
     def copy(self, *, dest=None):
         dest.name = self.name
+        dest.columns_sheet_name = self.columns_sheet_name
         dest.format = self.format
         dest.description = self.description
         dest.state = self.state
@@ -90,6 +93,9 @@ class BuilderResourceABC(ABC):
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         # abstract method because does not take into account file/url field
         self.name = _string_from_element(row["name"]).strip()
+        self.columns_sheet_name = None
+        if "datastore columns sheet" in row.keys():
+            self.columns_sheet_name = _string_from_element(row["datastore columns sheet"])
         self.format = _string_from_element(row["format"]).upper().strip()
         self.description = None
         if "description" in row.keys():
@@ -147,22 +153,23 @@ class BuilderResourceABC(ABC):
 
     @abstractmethod
     def _to_dict(self, include_id:bool=True) -> dict:
-        d = {
-            "Name": self.name,
-            "Format": self.format if self.format else "",
-            "State": self.state.name if self.state is not None else "",
-            "Mode": self.resource_mode_str(),
-            "File/URL": None,  # concrete implementations must fill this field
-            "Options": self.options_string,
-            "Download": str(self.enable_download),
-            "Description": self.description if self.description else "",
-            "Primary key": "",
-            "Indexes": "",
-            "Upload function": "",
-            "Download function": "",
-            "Aliases": "",
-            "Comment": self.comment if self.comment else "",
-        }
+        d = OrderedDict([
+            ("Name", self.name),
+            ("DataStore Columns Sheet", self.columns_sheet_name),
+            ("Format", self.format if self.format else ""),
+            ("State", self.state.name if self.state is not None else ""),
+            ("Mode", self.resource_mode_str()),
+            ("File/URL", None),  # concrete implementations must fill this field
+            ("Options", self.options_string),
+            ("Download", str(self.enable_download)),
+            ("Description", self.description if self.description else ""),
+            ("Primary key", ""),
+            ("Indexes", ""),
+            ("Upload function", ""),
+            ("Download function", ""),
+            ("Aliases", ""),
+            ("Comment", self.comment if self.comment else ""),
+        ])
         if include_id and self.known_id is not None:
             d["Known ID"] = self.known_id
         if include_id and self.download_url is not None:

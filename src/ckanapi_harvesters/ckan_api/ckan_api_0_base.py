@@ -815,8 +815,8 @@ class CkanApiBase(CkanApiABC):
         n_received += len(result_add)
         yield result_add
         current = time.time()
-        timeout = (current - start) > self.params.multi_requests_timeout
-        flag = search_all and len(result_add) > 0 and requests_count < self.params.max_requests_count and not timeout
+        timeout = (current - start) > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
+        flag = search_all and len(result_add) > 0 and (requests_count < self.params.max_requests_count or self.params.max_requests_count == 0) and not timeout
         while flag:
             if self.params.multi_requests_time_between_requests > 0:
                 time.sleep(self.params.multi_requests_time_between_requests)
@@ -832,11 +832,11 @@ class CkanApiBase(CkanApiABC):
             n_received += len(result_add)
             yield result_add
             current = time.time()
-            timeout = (current - start) > self.params.multi_requests_timeout
-            flag = len(result_add) > 0 and requests_count < self.params.max_requests_count and not timeout
+            timeout = (current - start) > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
+            flag = len(result_add) > 0 and (requests_count < self.params.max_requests_count or self.params.max_requests_count == 0) and not timeout
         if timeout:
             raise TimeoutError()
-        if requests_count >= self.params.max_requests_count:
+        if requests_count >= self.params.max_requests_count and not self.params.max_requests_count == 0:
             raise MaxRequestsCountError()
         current = time.time()
         if self.params.verbose_multi_requests:

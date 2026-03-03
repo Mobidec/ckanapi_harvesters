@@ -7,6 +7,7 @@ This file implements the field definition
 """
 from typing import Union
 import pandas as pd
+from collections import OrderedDict
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanFieldType, CkanField
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanFieldInternalAttrs
@@ -81,17 +82,17 @@ class BuilderField:
         return field_builder
 
     def _to_dict(self) -> dict:
-        return {
-            "Field Name": self.name,
-            "Type override": str(self.type_override) if self.type_override is not None else "",
-            "Label": self.label if self.label else "",
-            "Description": self.description if self.description else "",
-            "Index": str(self.is_index) if self.is_index is not None else "",
-            "Unique": str(self.uniquekey) if self.uniquekey is not None else "",
-            "Not null": str(self.notnull) if self.notnull is not None else "",
-            "Options": self.options_string if self.options_string else "",
-            "Comment": self.comment if self.comment else "",
-        }
+        return OrderedDict([
+            ("Field Name", self.name),
+            ("Type override", str(self.type_override) if self.type_override is not None else ""),
+            ("Label", self.label if self.label else ""),
+            ("Description", self.description if self.description else ""),
+            ("Index", str(self.is_index) if self.is_index is not None else ""),
+            ("Unique", str(self.uniquekey) if self.uniquekey is not None else ""),
+            ("Not null", str(self.notnull) if self.notnull is not None else ""),
+            ("Options", self.options_string if self.options_string else ""),
+            ("Comment", self.comment if self.comment else ""),
+        ])
 
     def _to_ckan_field(self) -> CkanField:
         field_info = CkanField(name=self.name, data_type=str(self.type_override) if self.type_override is not None else "",

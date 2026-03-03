@@ -5,6 +5,7 @@ Data format policy representation and enforcing
 """
 from typing import List, Dict, Tuple, Union
 from enum import IntEnum
+from collections import OrderedDict
 
 import pandas as pd
 
@@ -123,7 +124,7 @@ class StringValueSpecification:
         return StringValueSpecification(value, help)
 
     def to_dict(self) -> dict:
-        return {"value": self.value, "help": self.help}
+        return OrderedDict([("value", self.value), ("help", self.help)])
 
     @staticmethod
     def from_dict(values: dict) -> "StringValueSpecification":

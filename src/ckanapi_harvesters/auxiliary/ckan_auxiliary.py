@@ -266,6 +266,12 @@ def _string_from_element(element: pd.Series, empty_value=None) -> str:
     else:
         return value
 
+def empty_str_to_None(value:Union[str,None]) -> Union[str,None]:
+    if isinstance(value, str) and value == "":
+        return None
+    else:
+        return value
+
 def bytes_to_megabytes(size_bytes:int) -> float:
     return round(size_bytes / 1024 / 1024, 2)
 

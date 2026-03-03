@@ -8,6 +8,7 @@ This file implements the ckan connection definition.
 from typing import Union
 import os
 import json
+from collections import OrderedDict
 
 import pandas as pd
 
@@ -140,7 +141,7 @@ class BuilderCkan:
         :see: to_xls
         :return:
         """
-        ckan_dict = dict()
+        ckan_dict = OrderedDict()
         ckan_dict["CKAN URL"] = self.url
         ckan_dict["CKAN API key file"] = self.apikey_file
         ckan_dict["Proxies"] = self._proxy_config.proxy_string

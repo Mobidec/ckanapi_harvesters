@@ -7,6 +7,7 @@ from typing import List, Any, Iterable, Union, Dict, Set
 from abc import ABC, abstractmethod
 import re
 import fnmatch
+from collections import OrderedDict
 
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
 from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError, ErrorLevel, _policy_msg
@@ -44,7 +45,7 @@ class DataPolicyElementABC(DataPolicyABC, ABC):
 
     @abstractmethod
     def to_dict(self) -> dict:
-        d = {"mandatory": self.mandatory, "match_mode": self.match_mode.name}
+        d = OrderedDict([("mandatory", self.mandatory), ("match_mode", self.match_mode.name)])
         d.update(super().to_dict())
         return d
 

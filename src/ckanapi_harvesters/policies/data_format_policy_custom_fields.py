@@ -8,6 +8,7 @@ from abc import ABC, abstractmethod
 from warnings import warn
 import re
 import datetime
+from collections import OrderedDict
 
 import pandas as pd
 
@@ -33,10 +34,12 @@ class CustomFieldSpecification(DataPolicyElementABC):
         self.help: str = help
 
     def to_dict(self) -> dict:
-        d = {"key": self.key,
-             "values": self.values,
-             "data_type": self.data_type.name if self.data_type is not None else "",
-             "match_mode": self.match_mode.name}
+        d = OrderedDict([
+            ("key", self.key),
+            ("values", self.values),
+            ("data_type", self.data_type.name if self.data_type is not None else ""),
+            ("match_mode", self.match_mode.name),
+             ])
         d.update(super().to_dict())
         return d
 

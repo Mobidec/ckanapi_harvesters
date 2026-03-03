@@ -24,6 +24,12 @@ class DataPolicyError(ErrorLevelMessage):
             ("message", self.specific_message),
         ])
 
+    def get_message(self, *, with_context:bool=False) -> str:
+        if with_context:
+            return self.message
+        else:
+            return f"{self.error_level.name}: {self.specific_message}"
+
 
 class UnsupportedPolicyVersionError(Exception):
     def __init__(self, file_version):

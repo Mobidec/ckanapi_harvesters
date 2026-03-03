@@ -98,6 +98,11 @@ def run(ckan:CkanApi = None):
     # default_policy = ckan.load_default_policy(force=True)
     config_ckan.load_default_policy(ckan)
 
+    # test updating the scores on a CKAN package
+    policy_auto_store = policy.copy()
+    policy_auto_store.set_package_custom_fields(score="Data Policy Score", report="Data Policy Report")
+    ckan.policy_check("configuration", policy=policy_auto_store)
+
     # check all packages against policy
     ckan.owner_org = None
     print(" ")
