@@ -7,7 +7,7 @@ This file implements functions to initiate a DataStore without uploading any dat
 """
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, List, Callable, Any, Tuple, Union, Set
+from typing import Dict, List, Callable, Any, Tuple, Union, Set, Generator
 import os
 from io import StringIO
 from warnings import warn
@@ -16,9 +16,11 @@ import copy
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
-from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreFile, num_rows_patch_first_upload_partial
+from ckanapi_harvesters.builder.builder_resource_datastore import num_rows_patch_first_upload_partial
+from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 # from ckanapi_harvesters.builder.builder_resource import BuilderResourceUnmanagedABC
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 from ckanapi_harvesters.auxiliary.ckan_errors import NotMappedObjectNameError, DataStoreNotFoundError
 from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, IncompletePatchError
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo
@@ -56,6 +58,9 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
 
     def get_sample_file_path(self, resources_base_dir: str) -> None:
         return None
+
+    def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[Tuple[GeneralDataFrame,int], None, None]:
+        return
 
     def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True) -> Union[pd.DataFrame,None]:
         return None

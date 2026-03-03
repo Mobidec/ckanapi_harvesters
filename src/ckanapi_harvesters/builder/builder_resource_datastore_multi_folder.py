@@ -26,7 +26,7 @@ from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestMapperABC, RequestFileMapperABC
 from ckanapi_harvesters.builder.mapper_datastore_multi import default_file_mapper_from_primary_key
-from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreFile
+from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 
 
 class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
@@ -252,11 +252,11 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         for file_name, file_query in self.downloaded_file_query_list:
             yield file_name, file_query
 
-    def download_file_query(self, ckan: CkanApi, out_dir: str, file_name:str, file_query:dict) \
-            -> Tuple[Union[str,None], Union[pd.DataFrame,None]]:
+    def download_file_query(self, ckan: CkanApi, out_dir: str, file_name:str, file_query:dict,
+                            *, return_df:bool=False) -> Union[str,None, Tuple[Union[str,None], Union[pd.DataFrame, None]]]:
         resource_id = self.get_or_query_resource_id(ckan=ckan, error_not_found=self.download_error_not_found)
         if resource_id is None and self.download_error_not_found:
-            return None, None
+            return (None, None) if return_df else None
         self.download_file_query_list(ckan, cancel_if_present=True)
         file_out = None
         if out_dir is not None:
@@ -264,20 +264,32 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
             if self.download_skip_existing and os.path.exists(file_out):
                 if ckan.params.verbose_extra:
                     print(f"Skipping existing file {file_out}")
-                return file_out, None
-        df_download = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query)
-        df = self.df_mapper.df_download_alter(df_download, file_query=file_query, fields=self._get_fields_info())
-        if out_dir is not None:
-            self.local_file_format.write_file(df, file_out, fields=self._get_fields_info())
+                return (file_out, None) if return_df else None
+        if self.local_file_format.allow_append() and not return_df:
+            download_generator = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query)
+            first_df = None
+            for df_download in download_generator:
+                df = self.df_mapper.df_download_alter(df_download, file_query=file_query, fields=self._get_fields_info())
+                if out_dir is not None:
+                    if first_df is None:
+                        self.local_file_format.write_file(df, file_out, fields=self._get_fields_info())
+                        first_df = df  # maybe the first DataFrame could be used in the append function to reproduce treatments
+                    else:
+                        self.local_file_format.append_file(df, file_out, fields=self._get_fields_info())
+                else:
+                    file_out = None
         else:
-            file_out = None
-        return file_out, df
+            df_download_concat = pd.concat([self.df_mapper.df_download_alter(df_download, file_query=file_query, fields=self._get_fields_info())
+                                            for df_download in self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query)])
+            if return_df:
+                return file_out, df_download_concat
+        return file_out
 
-    def download_file_query_item(self, ckan: CkanApi, out_dir: str, file_query_item: Tuple[str,dict]) -> Tuple[str, pd.DataFrame]:
+    def download_file_query_item(self, ckan: CkanApi, out_dir: str, file_query_item: Tuple[str,dict]) -> str:
         file_name, file_query = file_query_item
         return self.download_file_query(ckan=ckan, file_name=file_name, file_query=file_query, out_dir=out_dir)
 
-    def download_request(self, ckan: CkanApi, out_dir: str, *, full_download:bool=False, force:bool=False, threads:int=1) -> None:
+    def download_request(self, ckan: CkanApi, out_dir: str, *, full_download:bool=False, force:bool=False, threads:int=1, return_data:bool=False) -> None:
         # limit download to first page by default
         if not full_download:
             super().download_request(ckan=ckan, out_dir=out_dir, full_download=False, force=force, threads=threads)

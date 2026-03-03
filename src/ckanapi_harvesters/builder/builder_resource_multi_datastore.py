@@ -19,9 +19,10 @@ from ckanapi_harvesters.auxiliary.path import resolve_rel_path, glob_rm_glob
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
+from ckanapi_harvesters.harvesters.file_formats.file_format_init import FileFormatABC, init_file_format_datastore
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.builder.builder_field import BuilderField
-from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreFile
+from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiFile
 
@@ -36,6 +37,7 @@ class BuilderMultiDataStore(BuilderMultiFile):
         self.aux_upload_fun_name:str = ""
         self.aux_download_fun_name:str = ""
         self.data_cleaner_upload:Union[CkanDataCleanerABC,None] = None
+        self.local_file_format: FileFormatABC = init_file_format_datastore(self.format)
 
     def copy(self, *, dest=None):
         if dest is None:
@@ -46,6 +48,7 @@ class BuilderMultiDataStore(BuilderMultiFile):
         dest.indexes = copy.deepcopy(self.indexes)
         dest.aux_upload_fun_name = self.aux_upload_fun_name
         dest.aux_download_fun_name = self.aux_download_fun_name
+        dest.local_file_format = self.local_file_format.copy()
         return dest
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
@@ -116,6 +119,7 @@ class BuilderMultiDataStore(BuilderMultiFile):
         ds_builder.aux_download_fun_name = self.aux_download_fun_name
         ds_builder.aliases = None
         ds_builder.data_cleaner_upload = self.data_cleaner_upload
+        ds_builder.local_file_format = self.local_file_format
         return ds_builder, file_dir
 
 

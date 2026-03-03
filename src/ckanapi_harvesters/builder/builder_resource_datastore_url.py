@@ -7,7 +7,7 @@ This file implements functions to initiate a DataStore without uploading any dat
 """
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, List, Callable, Any, Tuple, Union, Set
+from typing import Dict, List, Callable, Any, Tuple, Union, Set, Generator
 import os
 import io
 from warnings import warn
@@ -16,8 +16,9 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.builder.builder_resource import builder_request_default_auth_if_ckan
-from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreFile
+from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.auxiliary.ckan_errors import NotMappedObjectNameError, DataStoreNotFoundError
+from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, ResourceFileNotExistMessage
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo
 from ckanapi_harvesters.auxiliary.ckan_errors import CkanArgumentError, FunctionMissingArgumentError, ExternalUrlLockedError
@@ -69,15 +70,16 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
             raise FunctionMissingArgumentError("BuilderDataStoreUrl.load_sample_data", "ckan")
         return ckan.download_url_proxy(self.url, proxies=proxies, headers=headers, auth_if_ckan=builder_request_default_auth_if_ckan).content
 
-    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True) -> pd.DataFrame:
+    def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[Tuple[GeneralDataFrame,int], None, None]:
         payload = self.load_sample_data(resources_base_dir=resources_base_dir)
         buffer = io.StringIO(payload.decode())
-        response_df = self.local_file_format.read_buffer(buffer, fields=self._get_fields_info())
-        if upload_alter:
-            df_upload = self.df_mapper.df_upload_alter(response_df, self.sample_data_source, fields=self._get_fields_info())
-            return df_upload
-        else:
-            return response_df
+        with self.local_file_format.read_buffer_full(buffer, fields=self._get_fields_info()) as df_file:
+            if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
+                yield df_file, 0
+            else:  # iterator
+                file_handle = df_file.handles.handle
+                for df in df_file:
+                    yield df, file_handle.tell()
 
     @staticmethod
     def resource_mode_str() -> str:

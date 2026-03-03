@@ -430,87 +430,6 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         return self.local_file_format.write_in_memory(df, fields=self._get_fields_info())
 
 
-class BuilderDataStoreFile(BuilderDataStoreABC):
-    def __init__(self, *, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None, file_name:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
-        self.file_name = file_name
-
-    def copy(self, *, dest=None):
-        if dest is None:
-            dest = BuilderDataStoreFile()
-        super().copy(dest=dest)
-        dest.file_name = self.file_name
-        return dest
-
-    def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
-        super()._load_from_df_row(row=row)
-        self.file_name: str = _string_from_element(row["file/url"])
-
-    def upload_file_checks(self, *, resources_base_dir:str=None, ckan: CkanApi=None, **kwargs) -> Union[None,ContextErrorLevelMessage]:
-        file_path = self.get_sample_file_path(resources_base_dir=resources_base_dir)
-        if os.path.isfile(file_path):
-            return None
-        else:
-            return ResourceFileNotExistMessage(self.name, ErrorLevel.Error, f"Missing file for resource {self.name}: {file_path}")
-
-    @staticmethod
-    def sample_file_path_is_url() -> bool:
-        return False
-
-    def get_sample_file_path(self, resources_base_dir:str) -> str:
-        return resolve_rel_path(resources_base_dir, self.file_name, field=f"File/URL of resource {self.name}")
-
-    def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[Tuple[GeneralDataFrame,int], None, None]:
-        self.sample_data_source = self.get_sample_file_path(resources_base_dir)
-        with self.local_file_format.read_file(self.sample_data_source, self.field_builders) as df_file:
-            if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
-                yield df_file, 0
-            else:  # iterator
-                file_handle = df_file.handles.handle
-                for df in df_file:
-                    yield df, file_handle.tell()
-
-    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True) -> GeneralDataFrame:
-        generator = self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir)
-        df_local, _ = next(generator)
-        generator.close()
-        if upload_alter:
-            df_upload = self.df_mapper.df_upload_alter(df_local, self.sample_data_source, fields=self._get_fields_info())
-            return df_upload
-        else:
-            return df_local
-
-    @staticmethod
-    def resource_mode_str() -> str:
-        return "DataStore from File"
-
-    def _to_dict(self, include_id:bool=True) -> dict:
-        d = super()._to_dict(include_id=include_id)
-        d["File/URL"] = self.file_name
-        return d
-
-    def download_request(self, ckan: CkanApi, out_dir: str, *, full_download:bool=True,
-                         force:bool=False, threads:int=1) -> Union[pd.DataFrame,None]:
-        if (not self.enable_download) and (not force):
-            msg = f"Did not download resource {self.name} because download was disabled."
-            warn(msg)
-            return None
-        if out_dir is not None:
-            self.downloaded_destination = resolve_rel_path(out_dir, self.file_name, field=f"File/URL of resource {self.name}")
-            if self.download_skip_existing and os.path.exists(self.downloaded_destination):
-                return None
-        resource_id = self.get_or_query_resource_id(ckan=ckan, error_not_found=self.download_error_not_found)
-        if resource_id is None and not self.download_error_not_found:
-            return None
-        df_download = ckan.datastore_dump(resource_id, search_all=full_download)
-        df = self.df_mapper.df_download_alter(df_download, fields=self._get_fields_info())
-        if out_dir is not None:
-            os.makedirs(out_dir, exist_ok=True)
-            self.local_file_format.write_file(df, self.downloaded_destination, fields=self._get_fields_info())
-        return df
-
-
 class BuilderResourceIgnored(BuilderDataStoreABC):
     """
     Class to maintain a line in the resource builders list but has no action and can hold field metadata.
@@ -563,7 +482,7 @@ class BuilderResourceIgnored(BuilderDataStoreABC):
         return None
 
     def download_request(self, ckan: CkanApi, out_dir: str, *, full_download: bool = True, force: bool = False,
-                         threads: int = 1) -> Any:
+                         threads: int = 1, return_data:bool=False) -> Any:
         return None
 
     def download_sample(self, ckan: CkanApi, full_download: bool = True, **kwargs) -> bytes:

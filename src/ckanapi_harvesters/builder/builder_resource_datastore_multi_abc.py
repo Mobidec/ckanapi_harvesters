@@ -120,15 +120,15 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     def _unit_upload_apply(self, *, ckan: CkanApi, file_chunk: FileChunkDataFrame,
                            upload_alter:bool=True, overall_chunk_index: int, file_count: int, start_index: int, end_index: int,
                            method: UpsertChoice, **kwargs) -> None:
-        index = file_chunk.file_index
-        if index == 0 and self.upsert_method == UpsertChoice.Insert:
+        file_index = file_chunk.file_index
+        if file_index == 0 and file_chunk.chunk_index == 0 and self.upsert_method == UpsertChoice.Insert:
             return  # do not reupload the first document, which was used for the initialization of the dataset
-        if start_index <= index and index < end_index:
+        if start_index <= file_index and file_index < end_index:
             if upload_alter:
                 file_chunk.df = self.df_mapper.df_upload_alter(file_chunk.df, self.sample_data_source, fields=self._get_fields_info(), **kwargs)
             self._call_progress_callback(self.get_local_file_offset(file_chunk),
                                          self.get_local_file_total_size(), info=file_chunk,
-                                         file_index=index, file_count=file_count,
+                                         file_index=file_index, file_count=file_count,
                                          context=f"{ckan.identifier} single-thread upload")
             self.upsert_request_df_no_return(ckan=ckan, df_upload=file_chunk.df, method=method,
                                              apply_last_condition=datastore_multi_apply_last_condition_intermediary)
@@ -236,16 +236,17 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
 
 
     ## download -------
-    def download_request_df(self, ckan: CkanApi, file_query:dict) -> Union[pd.DataFrame,None]:
+    def download_file_query_generator(self, ckan: CkanApi, file_query:dict) -> Generator[pd.DataFrame, Any, None]:
         """
         Download the DataFrame with the file_query arguments
         """
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=self.download_error_not_found)
         if resource_id is None and not self.download_error_not_found:
             return None
-        df_download = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query)
-        df = self.df_mapper.df_download_alter(df_download, file_query=file_query, fields=self._get_fields_info())
-        return df
+        download_generator = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query)
+        for df_download in download_generator:
+            df = self.df_mapper.df_download_alter(df_download, file_query=file_query, fields=self._get_fields_info())
+            yield df
 
     def _unit_download_apply(self, ckan:CkanApi, file_query_item:Any, out_dir:str,
                            index:int, start_index:int, end_index:int, total:int, **kwargs) -> Any:

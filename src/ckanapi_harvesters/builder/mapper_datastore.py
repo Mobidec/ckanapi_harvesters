@@ -36,7 +36,7 @@ class DataSchemeConversion:
     def copy(self):
         return copy.deepcopy(self)
 
-    def df_upload_alter(self, df_local: Union[pd.DataFrame, Any], file_name:str=None, mapper_kwargs:dict=None, **kwargs) -> pd.DataFrame:
+    def df_upload_alter(self, df_local: Union[pd.DataFrame, List[dict], Any], file_name:str=None, mapper_kwargs:dict=None, **kwargs) -> Union[pd.DataFrame, ListRecords]:
         """
         Apply used-defined df_upload_fun if present
 
@@ -55,13 +55,15 @@ class DataSchemeConversion:
         if not isinstance(df_database, pd.DataFrame):
             if isinstance(df_database, ListRecords):
                 pass  # also accept ListRecords (List[dict])
+            elif isinstance(df_database, list):
+                df_database = ListRecords(df_database)
             elif self.df_upload_fun is None:
                 raise TypeError("No upload function was defined to convert the data format to a DataFrame")
             else:
                 raise TypeError("df_upload_fun must return a DataFrame")
         return df_database
 
-    def df_download_alter(self, df_database:pd.DataFrame, file_query:dict=None, mapper_kwargs:dict=None, **kwargs) -> pd.DataFrame:
+    def df_download_alter(self, df_database:Union[pd.DataFrame, List[dict], Any], file_query:dict=None, mapper_kwargs:dict=None, **kwargs) -> Union[pd.DataFrame, ListRecords]:
         """
         Apply used-defined df_download_fun if present.
         df_download_fun should be the reverse function of df_upload_fun
@@ -78,6 +80,15 @@ class DataSchemeConversion:
             # df_local = df_database.copy()  # unnecessary copy
             df_download_fun = self.df_download_fun
             df_local = df_download_fun(df_local, **mapper_kwargs, **kwargs)
+        if not isinstance(df_local, pd.DataFrame):
+            if isinstance(df_local, ListRecords):
+                pass  # also accept ListRecords (List[dict])
+            elif isinstance(df_local, list):
+                df_local = ListRecords(df_local)
+            elif self.df_download_fun is None:
+                raise TypeError("No download function was defined to convert the received DataFrame")
+            else:
+                raise TypeError("df_download_fun must return a DataFrame")
         return df_local
 
     def _connect_aux_functions(self, module: PythonUserCode, aux_upload_fun_name:str, aux_download_fun_name:str) -> None:

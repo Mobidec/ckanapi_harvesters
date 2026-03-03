@@ -16,8 +16,8 @@ from ckanapi_harvesters.builder.builder_errors import MissingDataStoreInfoError
 from ckanapi_harvesters.builder.builder_resource import (BuilderResourceABC, BuilderFileBinary, BuilderUrl,
                                                          BuilderResourceUnmanaged)
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiFile
-from ckanapi_harvesters.builder.builder_resource_datastore import (BuilderDataStoreABC, BuilderDataStoreFile,
-                                                                   BuilderResourceIgnored)
+from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC, BuilderResourceIgnored
+from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.builder.builder_resource_multi_datastore import BuilderMultiDataStore
 from ckanapi_harvesters.builder.builder_resource_datastore_url import BuilderDataStoreUrl
 from ckanapi_harvesters.builder.builder_resource_datastore_multi_harvester import BuilderDataStoreHarvester

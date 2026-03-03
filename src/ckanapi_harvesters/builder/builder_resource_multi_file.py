@@ -28,33 +28,10 @@ from ckanapi_harvesters.auxiliary.path import resolve_rel_path, glob_rm_glob, gl
 from ckanapi_harvesters.builder.builder_aux import positive_end_index
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
 from ckanapi_harvesters.builder.builder_resource_multi_abc import BuilderMultiABC, FileChunkDataFrame
+from ckanapi_harvesters.builder.builder_resource_multi_abc import default_progress_callback
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC
 
 multi_file_exclude_other_files:bool = True
-
-
-def default_progress_callback(position:int, total:int, info:Any, *, context:str=None,
-                              file_index:int, file_count:int, end_message:bool=False, **kwargs) -> None:
-    if context is None:
-        context = ""
-    if position == total and end_message:
-        # info is None
-        print(f"{context} Finished {file_index}/{file_count} (100%)")
-    elif info is None:
-        print(f"{context} Request {file_index}/{file_count} ({position/total*100.0:.2f}%)")
-    else:
-        if isinstance(info, str):
-            info_str = info
-        elif isinstance(info, pd.DataFrame):
-            if "source" in info.attrs.keys():
-                info_str = str(info.attrs["source"])
-            else:
-                info_str = "<DataFrame>"
-        elif isinstance(info, list):
-            info_str = "<records>"
-        else:
-            info_str = str(info)
-        print(f"{context} Request {file_index}/{file_count} ({position/total*100.0:.2f}%): " + info_str)
 
 
 class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
@@ -517,7 +494,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         return None
 
     def download_request(self, ckan: CkanApi, out_dir: str, *, full_download:bool=True, threads:int=1,
-                         force:bool=False, excluded_resource_names:Set[str]=None, **kwargs) -> None:
+                         force:bool=False, excluded_resource_names:Set[str]=None, return_data:bool=False, **kwargs) -> None:
         if full_download:
             return self.download_request_full(ckan=ckan, out_dir=out_dir, threads=threads, force=force,
                                               excluded_resource_names=excluded_resource_names, **kwargs)

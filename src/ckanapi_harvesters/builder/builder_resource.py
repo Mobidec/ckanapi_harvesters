@@ -251,7 +251,7 @@ class BuilderResourceABC(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def download_request(self, ckan:CkanApi, out_dir:str, *, full_download:bool=True, force:bool=False, threads:int=1) -> Any:
+    def download_request(self, ckan:CkanApi, out_dir:str, *, full_download:bool=True, force:bool=False, threads:int=1, return_data:bool=False) -> Any:
         """
         Download the resource and save in a file pointed by out_dir.
         In most implementations, this calls the download_sample method.
@@ -365,7 +365,7 @@ class BuilderFileABC(BuilderResourceABC, ABC):
             return None
 
     def download_request(self, ckan: CkanApi, out_dir: str, *, full_download:bool=True, threads:int=1,
-                         force:bool=False, **kwargs) -> None:
+                         force:bool=False, return_data:bool=False, **kwargs) -> None:
         if (not self.enable_download) and (not force):
             msg = f"Did not download resource {self.name} because download was disabled."
             warn(msg)
@@ -547,7 +547,7 @@ class BuilderUrlABC(BuilderFileABC, ABC):
         self._check_mandatory_attributes()
 
     def download_request(self, ckan: CkanApi, out_dir: str, *, full_download:bool=False, threads:int=1,
-                         force:bool=False, **kwargs) -> None:
+                         force:bool=False, return_data:bool=False, **kwargs) -> None:
         # do not download URLs by default
         if full_download:
             super().download_request(ckan=ckan, out_dir=out_dir,full_download=full_download, force=force,

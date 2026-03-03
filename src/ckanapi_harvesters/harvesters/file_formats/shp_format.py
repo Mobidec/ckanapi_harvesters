@@ -82,7 +82,7 @@ class ShapeFileFormat(FileFormatABC):
         df = gdf.to_wkb(hex=True)  # converts all geometric fields to WKB and returns a standard DataFrame object
         return df
 
-    def read_buffer(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
         return self.read_file(buffer, fields=fields)
 
     # saving a file after download -------------
@@ -114,13 +114,33 @@ class ShapeFileFormat(FileFormatABC):
         gdf = self.downloaded_df_to_gdf(df, fields=fields, context=file_path)
         gdf.to_file(file_path, driver="ESRI Shapefile")
 
+    @staticmethod
+    def append_allowed() -> bool:
+        # NB: not all drivers support appending.
+        # The drivers that support appending are listed in fiona.supported_drivers
+        # or [Toblerity/Fiona](https://github.com/Toblerity/Fiona/blob/main/fiona/drvsupport.py).
+        # ESRI Shapefile driver is supported according to documentation.
+        return True
+
+    def append_file(self, df: Union[pd.DataFrame, ListRecords], file_path: str,
+                    fields: Union[Dict[str, CkanField], None]) -> None:
+        gdf = self.downloaded_df_to_gdf(df, fields=fields, context=file_path)
+        gdf.to_file(file_path, mode='a', driver="ESRI Shapefile")
+
     def write_in_memory(self, df: pd.DataFrame, fields: Union[Dict[str, CkanField],None]) -> bytes:
-        # how could this work because there are multiple files?
+        # TODO: how could this work because there are multiple files?
         gdf = self.downloaded_df_to_gdf(df, fields=fields)
         buffer = io.StringIO()
         gdf.to_file(buffer, driver="ESRI Shapefile")
         return buffer.getvalue().encode("utf8")
 
+    def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
+        gdf = self.downloaded_df_to_gdf(df, fields=fields)
+        buffer = io.StringIO(buffer.decode("utf8"))
+        gdf.to_file(buffer, mode='a', driver="ESRI Shapefile")
+        return buffer.getvalue().encode("utf8")
+
+    # misc ------------------
     def copy(self):
         dest = ShapeFileFormat(self.read_file_kwargs)
         dest.download_conversion = self.download_conversion

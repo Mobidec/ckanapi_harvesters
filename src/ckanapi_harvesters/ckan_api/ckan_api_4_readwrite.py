@@ -404,6 +404,28 @@ class CkanApiReadWrite(CkanApiPolicy):
             self.datastore_upsert_last_line(resource_id)
         return line_count
 
+    def datastore_upsert_auto(self, records_generator:Union[pd.DataFrame, List[dict], Generator[GeneralDataFrame, None, None]], resource_id:str, *,
+                                   dry_run:bool=False, limit:int=None, offset:int=0, force:bool=None,
+                                   method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
+                                   always_last_condition:bool=None, return_df:bool=None,
+                                   data_cleaner:CkanDataCleanerABC=None, params:dict=None) -> int:
+        """
+        Version of datastore_upsert accepting generators or DataFrames.
+
+        :return: number of records inserted
+        """
+        if isinstance(records_generator, pd.DataFrame) or isinstance(records_generator, list):
+            df_insert = self.datastore_upsert(records_generator, resource_id=resource_id, dry_run=dry_run,
+                                              limit=limit, offset=offset, force=force, method=method, params=params,
+                                              apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
+                                              return_df=return_df, data_cleaner=data_cleaner)
+            return len(df_insert)
+        else:
+            return self.datastore_upsert_generator(records_generator, resource_id=resource_id, dry_run=dry_run,
+                                                   limit=limit, offset=offset, force=force, method=method, params=params,
+                                                   apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
+                                                   return_df=return_df, data_cleaner=data_cleaner)
+
     def datastore_insert(self, records:Union[dict, List[dict], pd.DataFrame], resource_id:str, *,
                          dry_run:bool=False, limit:int=None, offset:int=0, apply_last_condition:bool=True,
                          always_last_condition:bool=None,

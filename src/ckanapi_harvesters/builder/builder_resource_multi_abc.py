@@ -34,8 +34,8 @@ from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC
 multi_file_exclude_other_files:bool = True
 
 
-def default_progress_callback(position:int, total:int, info:Any, *, context:str=None,
-                              file_index:int, file_count:int, end_message:bool=False, **kwargs) -> None:
+def default_progress_callback(position:int, total:int, info:Any=None, *, context:str=None,
+                              file_index:int=None, file_count:int=None, end_message:bool=False, **kwargs) -> None:
     if context is None:
         context = ""
     if position == total and end_message:
@@ -160,11 +160,9 @@ class BuilderMultiABC(ABC):
         """
         raise NotImplementedError()
 
-    @abstractmethod
     def upload_request_final(self, ckan:CkanApi, *, force:bool=False) -> None:
-        raise NotImplementedError()
+        return self.upsert_request_final(ckan=ckan, force=force)
 
-    @abstractmethod
     def _unit_upload_apply(self, *, ckan:CkanApi, file_chunk: FileChunkDataFrame,
                            upload_alter:bool=True, overall_chunk_index:int, file_count: int, start_index:int, end_index:int, **kwargs) -> Any:
         """
