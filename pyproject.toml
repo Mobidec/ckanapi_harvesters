@@ -31,6 +31,7 @@ license = { file = "LICENSE" }
 Documentation = "https://mobidec.github.io/ckanapi_harvesters/index.html"
 Repository = "https://github.com/Mobidec/ckanapi_harvesters.git"
 Issues = "https://github.com/Mobidec/ckanapi_harvesters/issues"
+Changelog = "https://github.com/Mobidec/ckanapi_harvesters/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 extras = [  # default extras
