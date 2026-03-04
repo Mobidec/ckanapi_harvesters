@@ -31,6 +31,7 @@ from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanData
 
 non_finite_authorized_types = {"numeric", "float4", "float8", "float2"}
 real_number_types = non_finite_authorized_types
+int_types = {"int", "int4", "int8", "int2"}
 # see also: ckan_api_2_readonly ckan_dtype_mapper
 dtype_ckan_mapper = {
     "float64": "numeric",
@@ -57,6 +58,7 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
         self.param_replace_nan:bool = True  # option to replace non-authorized nan values by None
         self.param_round_values:bool = True  # option to round values when treating an integer field
         self.param_rename_fields_underscore:bool = True  # option to rename fields beginning with an underscore (in the subs step)
+        self.param_null_numbers: bool = True
 
     def copy(self, dest=None) -> "CkanDataCleanerUploadBasic":
         if dest is None:
@@ -67,6 +69,7 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
         dest.param_round_values = self.param_round_values
         dest.param_rename_fields_underscore = self.param_rename_fields_underscore
         dest.param_field_subs = self.param_field_subs.copy()
+        self.param_null_numbers = self.param_null_numbers
         return dest
 
     ## field type detection
@@ -238,6 +241,10 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
                         return value.isoformat(sep=ckan_timestamp_sep)
                 elif not field_data_type == "timestamp":
                     self.field_changes[field_name] = CkanField(field_name, "timestamp")
+            elif isinstance(value, str) and value == "":
+                if field_data_type in real_number_types or field_data_type in int_types:
+                    if self.param_null_numbers:
+                        new_value = None
             else:
                 new_value = self._replace_non_standard_value(value, field, field_data_type=field_data_type)
         return new_value
@@ -277,7 +284,7 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
             for column in records.columns:
                 field = fields[column]
                 # records[column] = records[column].apply(self.clean_value_field, field=field)
-                for index, value in enumerate(records[column]):
+                for index, value in zip(records.index, records[column]):
                     self._new_columns_in_row = {}
                     records.loc[index, column] = self.clean_value_field(value, field=field)
                     for path, new_value in self._new_columns_in_row.items():

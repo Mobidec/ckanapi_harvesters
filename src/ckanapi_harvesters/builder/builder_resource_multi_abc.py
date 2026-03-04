@@ -7,7 +7,7 @@ This file implements the basic resources. See builder_datastore for specific fun
 """
 from concurrent.futures import ThreadPoolExecutor
 import threading
-from threading import current_thread
+from threading import current_thread, Semaphore
 from typing import Any, Generator, Union, Callable, Set, List, Dict, Tuple
 from abc import ABC, abstractmethod
 import io
@@ -62,7 +62,7 @@ class FileChunkDataFrame:
     """
     Class to hold a chunk of a DataFrame of a file (only for DataStores), with the file name, index and an indication of the position in the file
     """
-    def __init__(self, df: Union[GeneralDataFrame,None], file_path: str, file_index: int, chunk_index: int, file_position: int) -> None:
+    def __init__(self, df: Union[GeneralDataFrame,None], file_path: str, file_index: int, chunk_index: int, file_position: int, read_line_counter: int) -> None:
         """
         :param df: the data of the file chunk (leave None if not loaded)
         :param file_path: the path to the source
@@ -76,6 +76,7 @@ class FileChunkDataFrame:
         self.chunk_index: int = chunk_index
         self.file_position: int = file_position
         self.is_first_chunk: bool = chunk_index == 0  # boolean indicating if the chunk is the first chunk of the file or not
+        self.read_line_counter: int = read_line_counter  # number of lines read since the beginning of reading of the resource
 
 
 class BuilderMultiABC(ABC):
@@ -86,6 +87,7 @@ class BuilderMultiABC(ABC):
         self.thread_ckan: Dict[str, CkanApi] = {}
         self.enable_multi_threaded_upload:bool = True
         self.enable_multi_threaded_download:bool = True
+        self.file_semaphore = Semaphore()
         # from Resource (for code validation)
         self.name:str = ""
         self.enable_download:bool = True

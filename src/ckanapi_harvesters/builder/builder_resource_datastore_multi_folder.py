@@ -26,7 +26,6 @@ from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestMapperABC, RequestFileMapperABC
 from ckanapi_harvesters.builder.mapper_datastore_multi import default_file_mapper_from_primary_key
-from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 
 
 class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
@@ -82,31 +81,6 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         d["File/URL"] = self.dir_name
         return d
 
-    @staticmethod
-    def from_file_datastore(resource_file: BuilderDataStoreFile,
-                            *, dir_name:str=None, primary_key:List[str]=None,
-                            file_query_list:Collection[Tuple[str,dict]]=None) -> "BuilderDataStoreFolder":
-        resource_folder = BuilderDataStoreFolder()
-        resource_folder._load_from_df_row(resource_file._to_row())
-        resource_folder.field_builders = resource_file.field_builders
-        if dir_name is not None:
-            resource_folder.dir_name = dir_name
-        elif isinstance(resource_file, BuilderDataStoreFolder):
-            resource_folder.dir_name = resource_file.dir_name
-        else:
-            resource_folder.dir_name, _ = os.path.splitext(resource_file.file_name)
-        resource_folder.package_name = resource_file.package_name
-        if isinstance(resource_file.df_mapper, RequestMapperABC):
-            resource_folder.df_mapper = resource_file.df_mapper.copy()
-        else:
-            resource_folder.df_mapper.df_upload_fun = resource_file.df_mapper.df_upload_fun
-            resource_folder.df_mapper.df_download_fun = resource_file.df_mapper.df_download_fun
-        if primary_key is not None or file_query_list is not None:
-            resource_folder.setup_default_file_mapper(primary_key=primary_key, file_query_list=file_query_list)
-        resource_folder.downloaded_file_query_list = file_query_list
-        return resource_folder
-
-
     ## upload ---------------------------------------------------
     def upload_file_checks(self, *, resources_base_dir:str=None, ckan: CkanApi=None, **kwargs) -> Union[None,ContextErrorLevelMessage]:
         if os.path.isdir(resolve_rel_path(resources_base_dir, glob_rm_glob(self.dir_name), field=f"File/URL of resource {self.name}")):
@@ -136,17 +110,30 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
 
     def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         self.list_local_files(resources_base_dir=resources_base_dir)
+        self.read_line_counter = 0
         for file_index, file_name in enumerate(self.local_file_list):
             with self.local_file_format.read_file(file_name, self.field_builders) as df_file:
                 if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
-                    yield FileChunkDataFrame(df_file, file_name, file_index, 0, 0)
+                    yield FileChunkDataFrame(df_file, file_name, file_index, 0, 0, self.read_line_counter)
                 else:  # iterator
                     file_handle = df_file.handles.handle
                     previous_file_position = 0
-                    for chunk_index, df in enumerate(df_file):
+                    # for chunk_index, df in enumerate(df_file):
+                    chunk_index = 0
+                    while True:
+                        self.file_semaphore.acquire()
                         file_position = file_handle.buffer.tell()  # approximative position in file
-                        yield FileChunkDataFrame(df, file_name, file_index, chunk_index, previous_file_position)
+                        try:
+                            df = next(df_file)
+                            self.read_line_counter += len(df)
+                            line_counter = self.read_line_counter
+                        except StopIteration:
+                            self.file_semaphore.release()
+                            break
+                        self.file_semaphore.release()
+                        yield FileChunkDataFrame(df, file_name, file_index, chunk_index, previous_file_position, line_counter)
                         previous_file_position = file_position
+                        chunk_index = chunk_index + 1
 
     def list_local_files(self, resources_base_dir:str, cancel_if_present:bool=True) -> List[str]:
         if cancel_if_present and self.local_file_list is not None and self.local_file_list_base_dir == resources_base_dir:
@@ -265,7 +252,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
                 if ckan.params.verbose_extra:
                     print(f"Skipping existing file {file_out}")
                 return (file_out, None) if return_df else None
-        if self.local_file_format.allow_append() and not return_df:
+        if self.local_file_format.append_allowed() and not return_df:
             download_generator = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query)
             first_df = None
             for df_download in download_generator:
@@ -295,5 +282,4 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
             super().download_request(ckan=ckan, out_dir=out_dir, full_download=False, force=force, threads=threads)
         else:
             self.download_request_full(ckan=ckan, out_dir=out_dir, threads=threads, force=force)
-
 

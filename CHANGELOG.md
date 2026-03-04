@@ -14,16 +14,25 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 - Support for reading CSV files by chunks using pandas.read_csv `chunksize` argument (only for DataStores). 
 This modification is compatible with multi-threading and returns a more accurate progression indicator.
+- The upload data cleaner can be used to replace empty string values with None for columns indicated as numeric in the field metadata.
 
 ### Changed
 
 - Auxiliary functions in resource builder classes have been refactored.
+- `BuilderDataStoreFile` now inherits from `BuilderDataStoreFolder` to support multi-threading of a file reading by chunks. 
+Function `BuilderDataStoreFolder.from_file_datastore` has been moved to `BuilderDataStoreFile.to_builder_datastore_folder`.
 - The `progress_callback` function arguments have been renamed into
 ```python
 def default_progress_callback(position:int, total:int, info:Any=None, *, context:str=None,
                               file_index:int=None, file_count:int=None, end_message:bool=False, **kwargs):
     ...
 ```
+
+### Fixed
+
+- Data cleaner could mix up values between lines, if the lines were sorted previously. 
+Lines could be sorted by the last column of the primary key, if defined.
+The data cleaner was used only for MongoDB/PostgreSQL imports or files with geometries.
 
 
 ## [0.0.10] - 2026-03-03

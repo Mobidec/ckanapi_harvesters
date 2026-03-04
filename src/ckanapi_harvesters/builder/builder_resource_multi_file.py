@@ -7,7 +7,7 @@ This file implements the basic resources. See builder_datastore for specific fun
 """
 from concurrent.futures import ThreadPoolExecutor
 import threading
-from threading import current_thread
+from threading import current_thread, Semaphore
 from typing import Any, Generator, Union, Callable, Set, List, Dict, Tuple
 from abc import ABC, abstractmethod
 import io
@@ -56,6 +56,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         self.progress_callback_kwargs: dict = {}
         self.enable_multi_threaded_upload:bool = True
         self.enable_multi_threaded_download:bool = True
+        self.file_semaphore = Semaphore()
 
     @staticmethod
     def resource_mode_str() -> str:
@@ -161,7 +162,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
 
     def get_local_df_chunk_generator(self, resources_base_dir:str, excluded_files:Set[str]=None, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         for file_index, file_name in enumerate(self.get_local_file_generator(resources_base_dir=resources_base_dir)):
-            yield FileChunkDataFrame(None, file_name, file_index, 0, 0)
+            yield FileChunkDataFrame(None, file_name, file_index, 0, 0, 0)
 
     def upload_file_checks(self, *, resources_base_dir: str = None, ckan: CkanApi = None, excluded_files:Set[str]=None, **kwargs) \
             -> Union[None, ContextErrorLevelMessage]:
@@ -202,7 +203,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         if start_index <= index and index < end_index and file_path not in excluded_files:
             self._call_progress_callback(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(), info=file_path,
                                          file_index=file_chunk.file_index, file_count=self.get_local_file_count(),
-                                         context=f"{ckan.identifier} single-thread upload")
+                                         context=f"{ckan.identifier} upload")
             self.upload_file_chunk(ckan=ckan, package_id=package_id, file_chunk=file_chunk,
                                    reupload=reupload, cancel_if_present=only_missing)
         else:

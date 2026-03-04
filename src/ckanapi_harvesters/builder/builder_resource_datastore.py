@@ -34,7 +34,7 @@ from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 
 # number of rows to upload to initiate DataStore with datapusher, before explicitly specifying field data types and indexes
-num_rows_patch_first_upload_partial: Union[int,None] = 50  # set to None to upload directly the whole DataFrame before the DataStore creation
+num_rows_patch_first_upload_partial: Union[int,None] = None  # set to None to upload directly the whole DataFrame before the DataStore creation
 
 
 default_alias_keyword:Union[str,None] = "default"  # generate default alias if an alias with this value is found in parameters
@@ -57,6 +57,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.reupload_needed: Union[bool,None] = None
         self.df_mapper = DataSchemeConversion()
         self.local_file_format: FileFormatABC = init_file_format_datastore(self.format)
+        self.read_line_counter:int = 0
 
     def copy(self, *, dest=None):
         super().copy(dest=dest)

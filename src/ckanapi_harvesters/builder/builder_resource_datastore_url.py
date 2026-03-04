@@ -17,6 +17,7 @@ import pandas as pd
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.builder.builder_resource import builder_request_default_auth_if_ckan
 from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
+from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
 from ckanapi_harvesters.auxiliary.ckan_errors import NotMappedObjectNameError, DataStoreNotFoundError
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, ResourceFileNotExistMessage
@@ -63,6 +64,14 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
     def get_sample_file_path(self, resources_base_dir: str) -> str:
         return self.url
 
+    def init_local_files_list(self, resources_base_dir:str, cancel_if_present:bool=True, **kwargs) -> List[str]:
+        file_path = self.get_sample_file_path(resources_base_dir=resources_base_dir)
+        self.file_size = 1
+        self.local_file_list = [file_path]
+        self.local_file_size = [self.file_size]
+        self.local_file_size_sum = 1
+        return self.local_file_list
+
     def load_sample_data(self, resources_base_dir:str, *, ckan:CkanApi=None,
                          proxies:dict=None, headers:dict=None) -> bytes:
         self.sample_source = self.url
@@ -70,16 +79,38 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
             raise FunctionMissingArgumentError("BuilderDataStoreUrl.load_sample_data", "ckan")
         return ckan.download_url_proxy(self.url, proxies=proxies, headers=headers, auth_if_ckan=builder_request_default_auth_if_ckan).content
 
-    def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[Tuple[GeneralDataFrame,int], None, None]:
+    def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         payload = self.load_sample_data(resources_base_dir=resources_base_dir)
         buffer = io.StringIO(payload.decode())
+        self.read_line_counter = 0
         with self.local_file_format.read_buffer_full(buffer, fields=self._get_fields_info()) as df_file:
             if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
-                yield df_file, 0
+                yield FileChunkDataFrame(df_file, self.url, 0, 0, 0, self.read_line_counter)
             else:  # iterator
                 file_handle = df_file.handles.handle
-                for df in df_file:
-                    yield df, file_handle.tell()
+                previous_file_position = 0
+                # for chunk_index, df in enumerate(df_file):
+                chunk_index = 0
+                while True:
+                    self.file_semaphore.acquire()
+                    file_position = file_handle.buffer.tell()  # approximative position in file
+                    try:
+                        df = next(df_file)
+                        self.read_line_counter += len(df)
+                        line_counter = self.read_line_counter
+                    except StopIteration:
+                        self.file_semaphore.release()
+                        break
+                    self.file_semaphore.release()
+                    yield FileChunkDataFrame(df, self.url, 0, chunk_index, previous_file_position, line_counter)
+                    previous_file_position = file_position
+                    chunk_index = chunk_index + 1
+
+    def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
+                            threads:int=1, external_stop_event=None,
+                            start_index:int=0, end_index:int=None, **kwargs) -> None:
+        # CKAN manages URL resources: no upload is necessary
+        return
 
     @staticmethod
     def resource_mode_str() -> str:

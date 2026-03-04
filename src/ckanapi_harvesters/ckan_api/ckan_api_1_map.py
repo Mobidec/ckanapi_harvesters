@@ -62,7 +62,7 @@ class CkanApiMap(CkanApiBase):
         """
         if dest is None:
             dest = CkanApiMap()
-        super().copy(dest=dest)
+        super().copy(new_identifier=new_identifier, dest=dest)
         dest.map = self.map.copy()
         return dest
 

@@ -59,8 +59,16 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
     def get_sample_file_path(self, resources_base_dir: str) -> None:
         return None
 
+    def init_local_files_list(self, resources_base_dir:str, cancel_if_present:bool=True, **kwargs) -> List[str]:
+        self.file_size = 0
+        self.local_file_list = []
+        self.local_file_size = []
+        self.local_file_size_sum = 0
+        return []
+
     def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[Tuple[GeneralDataFrame,int], None, None]:
-        return
+        if False:
+            yield None
 
     def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True) -> Union[pd.DataFrame,None]:
         return None

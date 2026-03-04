@@ -5,7 +5,7 @@ Code to initiate a DataStore defined by a large number of files to concatenate i
 """
 from concurrent.futures import ThreadPoolExecutor
 import threading
-from threading import current_thread
+from threading import current_thread, Semaphore
 from abc import ABC, abstractmethod
 from typing import Dict, List, Callable, Any, Tuple, Generator, Union, Set
 from warnings import warn
@@ -49,6 +49,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         self.progress_callback_kwargs: dict = {}
         self.enable_multi_threaded_upload:bool = True
         self.enable_multi_threaded_download:bool = True
+        self.file_semaphore = Semaphore()
 
     def copy(self, *, dest=None):
         super().copy(dest=dest)
@@ -124,12 +125,13 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         if file_index == 0 and file_chunk.chunk_index == 0 and self.upsert_method == UpsertChoice.Insert:
             return  # do not reupload the first document, which was used for the initialization of the dataset
         if start_index <= file_index and file_index < end_index:
-            if upload_alter:
-                file_chunk.df = self.df_mapper.df_upload_alter(file_chunk.df, self.sample_data_source, fields=self._get_fields_info(), **kwargs)
+            # if upload_alter:
+            #     file_chunk.df = self.df_mapper.df_upload_alter(file_chunk.df, self.sample_data_source, fields=self._get_fields_info(), **kwargs)
+            # alter function is applied in upsert_request_df
             self._call_progress_callback(self.get_local_file_offset(file_chunk),
                                          self.get_local_file_total_size(), info=file_chunk,
                                          file_index=file_index, file_count=file_count,
-                                         context=f"{ckan.identifier} single-thread upload")
+                                         context=f"{ckan.identifier} upload")
             self.upsert_request_df_no_return(ckan=ckan, df_upload=file_chunk.df, method=method,
                                              apply_last_condition=datastore_multi_apply_last_condition_intermediary)
         else:

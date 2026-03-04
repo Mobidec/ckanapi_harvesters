@@ -38,6 +38,7 @@ class BuilderMultiDataStore(BuilderMultiFile):
         self.aux_download_fun_name:str = ""
         self.data_cleaner_upload:Union[CkanDataCleanerABC,None] = None
         self.local_file_format: FileFormatABC = init_file_format_datastore(self.format)
+        self.read_line_counter: int = 0
 
     def copy(self, *, dest=None):
         if dest is None:
@@ -127,15 +128,29 @@ class BuilderMultiDataStore(BuilderMultiFile):
     def get_local_df_chunk_generator(self, resources_base_dir:str, excluded_files:Set[str]=None, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         self.list_local_files(resources_base_dir=resources_base_dir)
         for file_index, file_name in enumerate(self.local_file_list):
+            self.file_semaphore.acquire()
+            self.read_line_counter = 0
+            self.file_semaphore.release()
             with self.local_file_format.read_file(file_name, self.field_builders) as df_file:
                 if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
-                    yield FileChunkDataFrame(df_file, file_name, file_index, 0, 0)
+                    yield FileChunkDataFrame(df_file, file_name, file_index, 0, 0, self.read_line_counter)
                 else:  # iterator
                     file_handle = df_file.handles.handle
                     previous_file_position = 0
-                    for chunk_index, df in enumerate(df_file):
+                    # for chunk_index, df in enumerate(df_file):
+                    chunk_index = 0
+                    while True:
+                        self.file_semaphore.acquire()
                         file_position = file_handle.buffer.tell()  # approximative position in file
-                        yield FileChunkDataFrame(df, file_name, file_index, chunk_index, previous_file_position)
+                        try:
+                            df = next(df_file)
+                            self.read_line_counter += len(df)
+                            line_counter = self.read_line_counter
+                        except StopIteration:
+                            self.file_semaphore.release()
+                            break
+                        self.file_semaphore.release()
+                        yield FileChunkDataFrame(df, file_name, file_index, chunk_index, previous_file_position, line_counter)
                         previous_file_position = file_position
 
     def upload_file_chunk(self, ckan:CkanApi, package_id:str, file_chunk:FileChunkDataFrame, *,

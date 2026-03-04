@@ -166,14 +166,27 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
 
     def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         self.list_local_files(resources_base_dir=resources_base_dir)
+        self.read_line_counter = 0
         for query_index, query in enumerate(self.local_file_list):
             data_local = self.harvester.query_data(query=query)
             if isinstance(data_local, pd.DataFrame) or isinstance(data_local, ListRecords):
-                yield FileChunkDataFrame(data_local, query, query_index, 0, 0)
+                yield FileChunkDataFrame(data_local, query, query_index, 0, 0, self.read_line_counter)
             else:
-                for chunk_index, df in enumerate(data_local):
+                # for chunk_index, df in enumerate(data_local):
+                chunk_index = 0
+                while True:
+                    self.file_semaphore.acquire()
+                    # file_position = file_handle.buffer.tell()  # approximative position in file
+                    try:
+                        df = next(data_local)
+                        self.read_line_counter += len(df)
+                        line_counter = self.read_line_counter
+                    except StopIteration:
+                        self.file_semaphore.release()
+                        break
+                    self.file_semaphore.release()
                     # TODO: no file position in query result generator
-                    yield FileChunkDataFrame(df, query, query_index, chunk_index, 0)
+                    yield FileChunkDataFrame(df, query, query_index, chunk_index, 0, line_counter)
 
     def list_local_files(self, resources_base_dir:str, cancel_if_present:bool=True) -> List[Any]:
         if cancel_if_present and self.local_file_list is not None:
