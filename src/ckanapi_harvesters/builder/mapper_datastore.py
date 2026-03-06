@@ -10,7 +10,7 @@ import copy
 
 import pandas as pd
 
-from ckanapi_harvesters.builder.builder_errors import MissingCodeFileError
+from ckanapi_harvesters.auxiliary.ckan_errors import MissingCodeFileError
 from ckanapi_harvesters.auxiliary.external_code_import import PythonUserCode
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField

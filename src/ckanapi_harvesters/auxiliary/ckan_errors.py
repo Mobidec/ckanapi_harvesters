@@ -130,3 +130,12 @@ class UnknownTargetCRSError(RequirementError):
     def __init__(self, source_crs, context:str):
         super().__init__(f"Unknown destination CRS (source={source_crs}) for {context}.")
 
+# Custom code execution
+class MissingCodeFileError(Exception):
+    def __init__(self):
+        super().__init__("Function names were provided but Auxiliary functions file was not specified")
+
+class MissingIOFunctionError(Exception):
+    def __init__(self, function_type:str):
+        super().__init__(f"User custom IO function name was not provided for {function_type}")
+

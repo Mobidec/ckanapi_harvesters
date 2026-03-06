@@ -12,7 +12,7 @@ import pandas as pd
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import df_download_to_csv_kwargs
-from ckanapi_harvesters.builder.builder_errors import MissingCodeFileError, MissingIOFunctionError
+from ckanapi_harvesters.auxiliary.ckan_errors import MissingCodeFileError, MissingIOFunctionError
 from ckanapi_harvesters.auxiliary.external_code_import import PythonUserCode
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 
