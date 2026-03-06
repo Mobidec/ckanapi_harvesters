@@ -33,8 +33,8 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
     Class representing a DataStore (resource metadata and fields metadata) without managing its contents during the upload process.
     """
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+                 resource_id:str=None, download_url:str=None, options_string:str=None):
+        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
         self.reupload_on_update = False
         self.reupload_if_needed = True
         self.initiate_by_user:bool = False

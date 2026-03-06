@@ -3,7 +3,7 @@
 """
 Harvester base class
 """
-from typing import Union, List, Any, Callable
+from typing import Union, List, Any, Callable, Tuple
 from collections import OrderedDict
 from abc import ABC, abstractmethod
 
@@ -179,7 +179,7 @@ class TableHarvesterABC(DatasetHarvesterABC, ABC):
 
     ## query methods interface ---------------
     @abstractmethod
-    def list_queries(self, *, new_connection:bool=False) -> OrderedDict[Any, int]:
+    def list_queries(self, *, new_connection:bool=False) -> List[Tuple[Any,int]]:
         self.connect(cancel_if_connected=not new_connection)
         raise NotImplementedError()
 

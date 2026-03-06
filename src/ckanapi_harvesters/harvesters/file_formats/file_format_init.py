@@ -12,13 +12,13 @@ file_format_dict = {
     "shp": ShapeFileFormat,
 }
 
-def init_file_format_datastore(format:str) -> FileFormatABC:
+def init_file_format_datastore(format:str, options_string:str=None) -> FileFormatABC:
     if format is None or len(format) == 0:
         format = 'csv'
     format = format.lower().strip()
     if format in file_format_dict.keys():
         file_format_class = file_format_dict[format]
-        return file_format_class()
+        return file_format_class(options_string=options_string)
     else:
         raise NotImplementedError('File format {} not implemented'.format(format))
 

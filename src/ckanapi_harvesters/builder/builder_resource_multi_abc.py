@@ -26,7 +26,7 @@ from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanResourceInfo
 from ckanapi_harvesters.builder.builder_aux import positive_end_index
-from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame, ListRecords
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
 from ckanapi_harvesters.builder.builder_field import BuilderField
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC
@@ -35,14 +35,18 @@ multi_file_exclude_other_files:bool = True
 
 
 def default_progress_callback(position:int, total:int, info:Any=None, *, context:str=None,
-                              file_index:int=None, file_count:int=None, end_message:bool=False, **kwargs) -> None:
+                              file_index:int=None, file_count:int=None,
+                              lines_chunk:int=None, total_lines_read:int=None,
+                              canceled_upload: bool=False, end_message: bool=False, **kwargs) -> None:
     if context is None:
         context = ""
     if position == total and end_message:
         # info is None
-        print(f"{context} Finished {file_index}/{file_count} (100%)")
+        print(f"{context} Finished {file_index}/{file_count} (100%) - {total_lines_read} lines read")
+    elif canceled_upload:
+        print(f"{context} Canceled {file_index}/{file_count} ({position/total*100.0:.2f}%) - {total_lines_read} lines read")
     elif info is None:
-        print(f"{context} Request {file_index}/{file_count} ({position/total*100.0:.2f}%)")
+        print(f"{context} Request {file_index}/{file_count} ({position/total*100.0:.2f}%) - {total_lines_read} lines read")
     else:
         if isinstance(info, str):
             info_str = info
@@ -53,9 +57,19 @@ def default_progress_callback(position:int, total:int, info:Any=None, *, context
                 info_str = "<DataFrame>"
         elif isinstance(info, list):
             info_str = "<records>"
+        elif isinstance(info, FileChunkDataFrame):
+            if isinstance(info.df, pd.DataFrame):
+                if "source" in info.df.attrs.keys():
+                    info_str = str(info.df.attrs["source"])
+                else:
+                    info_str = "<DataFrame>"
+            elif isinstance(info.df, list):
+                info_str = "<records>"
+            else:
+                info_str = str(info.df)
         else:
             info_str = str(info)
-        print(f"{context} Request {file_index}/{file_count} ({position/total*100.0:.2f}%): " + info_str)
+        print(f"{context} Request {file_index}/{file_count} ({position/total*100.0:.2f}%) - {total_lines_read} lines read: " + info_str)
 
 
 class FileChunkDataFrame:
@@ -71,12 +85,16 @@ class FileChunkDataFrame:
         :param file_position: the position within the file itself (approximation)
         """
         self.df: Union[GeneralDataFrame,None] = df
+        if isinstance(df, pd.DataFrame) or isinstance(df, ListRecords):
+            df.attrs["source"] = file_path
+            df.attrs["read_line_counter"] = read_line_counter
+            df.attrs["chunk_index"] = chunk_index
         self.file_path: str = file_path
         self.file_index: int = file_index
         self.chunk_index: int = chunk_index
         self.file_position: int = file_position
         self.is_first_chunk: bool = chunk_index == 0  # boolean indicating if the chunk is the first chunk of the file or not
-        self.read_line_counter: int = read_line_counter  # number of lines read since the beginning of reading of the resource
+        self.read_line_counter: int = read_line_counter  # number of lines read since the beginning of reading of the resource (including the current DataFrame)
 
 
 class BuilderMultiABC(ABC):
@@ -101,13 +119,31 @@ class BuilderMultiABC(ABC):
         return dest
 
     def _call_progress_callback(self, position:int, total:int, *, info:Any=None, context:str=None,
-                                file_index:int=0, file_count:int=None, end_message: bool=False) -> None:
+                                file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
+                                canceled_request: bool=False, end_message: bool=False, level:int=0) -> None:
+        """
+        Progress callback function. Use to implement a progress indication for the user.
+
+        :param position: the position within the resource (usually, in bytes or line count)
+        :param total: the total size of the resource
+        :param info: an object from which more information can be extracted, typically, the DataFrame itself, with an indication of the data origin.
+        :param context: the context of the call (ckan instance, upload/download, single/multi-threaded)
+        :param file_index: the index of the file in the list
+        :param file_count: the number of files in the list
+        :param lines_chunk: the number of lines in the chunk currently being processed
+        :param total_lines_read: the total number of lines read, including the current chunk
+        :param canceled_request: this callback is also called when a line is ignored
+        :param end_message: boolean indicating of the work in progress
+        :param level: the level of the progress callback (1: package/dataset, 2: resource builder, 3: used for multi-file resources)
+        """
         if self.progress_callback is not None:
             if end_message:
                 position = total
                 file_index = file_count
             self.progress_callback(position, total, info=info, context=context,
-                                   file_index=file_index, file_count=file_count, end_message=end_message,
+                                   file_index=file_index, file_count=file_count,
+                                   lines_chunk=lines_chunk, total_lines_read=total_lines_read,
+                                   canceled_upload=canceled_request, end_message=end_message,
                                    **self.progress_callback_kwargs)
 
     def _prepare_for_multithreading(self, ckan: CkanApi):
@@ -173,7 +209,8 @@ class BuilderMultiABC(ABC):
         raise NotImplementedError()
 
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
-                            threads:int=1, external_stop_event=None,
+                            threads:int=1, external_stop_event=None, from_line_count:bool=False,
+                            allow_chunks: bool = True,
                             start_index:int=0, end_index:int=None, **kwargs) -> None:
         """
         Perform all the upload requests.
@@ -200,7 +237,7 @@ class BuilderMultiABC(ABC):
                 print(f"Launching single-threaded upload of multi-file resource {self.name}")
             total = self.get_local_file_count()
             end_index = positive_end_index(end_index, total)
-            for overall_chunk_index, file_chunk in enumerate(self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, **kwargs)):
+            for overall_chunk_index, file_chunk in enumerate(self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, allow_chunks=allow_chunks, **kwargs)):
                 if external_stop_event is not None and external_stop_event.is_set():
                     print(f"{ckan.identifier} Interrupted")
                     return
@@ -239,8 +276,9 @@ class BuilderMultiABC(ABC):
             raise e from e
 
     def upload_request_full_multi_threaded(self, ckan:CkanApi, resources_base_dir:str,
-                            threads:int=1, external_stop_event=None,
-                            start_index:int=0, end_index:int=None, **kwargs):
+                                           threads:int=1, external_stop_event=None,
+                                           allow_chunks: bool = True,
+                                           start_index:int=0, end_index:int=None, **kwargs):
         """
         Multi-threaded implementation of upload_request_full, using ThreadPoolExecutor.
         """
@@ -253,7 +291,7 @@ class BuilderMultiABC(ABC):
                 futures = [executor.submit(self.upload_request_graceful, ckan=ckan, file_chunk=file_chunk, overall_chunk_index=overall_chunk_index,
                                            start_index=start_index, end_index=end_index, external_stop_event=external_stop_event,
                                            **kwargs)
-                           for overall_chunk_index, file_chunk in enumerate(self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, **kwargs))]
+                           for overall_chunk_index, file_chunk in enumerate(self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, allow_chunks=allow_chunks, **kwargs))]
                 for future in futures:
                     future.result()  # This will propagate the exception
             self._call_progress_callback(self.get_local_file_total_size(), self.get_local_file_total_size(), file_count=self.get_local_file_count(),

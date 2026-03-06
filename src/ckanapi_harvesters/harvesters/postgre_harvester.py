@@ -3,7 +3,7 @@
 """
 Harvest from a PostgreSQL database using sqlalchemy
 """
-from typing import Union, List, Any, Dict
+from typing import Union, List, Any, Dict, Tuple
 from types import SimpleNamespace
 from collections import OrderedDict
 import urllib.parse
@@ -30,6 +30,7 @@ from ckanapi_harvesters.auxiliary.ckan_errors import UrlError
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_2_geom import CkanDataCleanerUploadGeom
+from ckanapi_harvesters.auxiliary.list_records import ListRecords
 
 postgre_type_mapper = {}
 
@@ -466,7 +467,7 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
         data_cleaner = CkanDataCleanerUploadGeom()
         return data_cleaner
 
-    def list_queries(self, *, new_connection:bool=False) -> OrderedDict[Any, int]:
+    def list_queries(self, *, new_connection:bool=False) -> List[Tuple[str,int]]:
         self.connect(cancel_if_connected=not new_connection)
         postgre_schema_name = self.params.dataset
         postgre_table_name = self.params.table
@@ -483,11 +484,11 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
             request_query_base += " " + self.params.query_string
         num_queries = num_rows // self.params.limit + 1
         if self.params.single_request:
-            return OrderedDict([(f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}", self.params.limit) for i in range(1)])
+            return [(f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}", self.params.limit) for i in range(1)]
         else:
-            queries_exact = OrderedDict([(f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}", self.params.limit) for i in range(num_queries)])
+            queries_exact = [(f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}", self.params.limit) for i in range(num_queries)]
             query_extra = f"{request_query_base} LIMIT {self.params.limit} OFFSET {num_queries * self.params.limit}"
-            queries_exact[query_extra] = self.params.limit
+            queries_exact.append((query_extra, self.params.limit))
             return queries_exact
 
     def query_data(self, query:Dict[str,Any]) -> pd.DataFrame:

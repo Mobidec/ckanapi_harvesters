@@ -32,7 +32,7 @@ builder_request_default_auth_if_ckan:Union[bool,None] = True  # fill authentific
 class BuilderResourceABC(ABC):
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
                  state:CkanState=None, enable_download:bool=True,
-                 resource_id:str=None, download_url:str=None):
+                 resource_id:str=None, download_url:str=None, options_string:str=None):
         self.name: Union[str,None] = name
         self.columns_sheet_name: Union[str, None] = None
         self.format: Union[str,None] = format
@@ -41,7 +41,7 @@ class BuilderResourceABC(ABC):
         if state is None:
             self.state = CkanState.Active  # activate by default
         self.enable_download:bool = enable_download
-        self.options_string: Union[str,None] = None
+        self.options_string: Union[str,None] = options_string
         # Map information, if present
         self.package_name: str = ""  # parent package name (update before any operation)
         self.known_id: Union[str,None] = resource_id
@@ -88,6 +88,9 @@ class BuilderResourceABC(ABC):
         Function to initialize some parameters from the ckan object
         """
         pass
+
+    def _apply_options(self, base_dir: str = None) -> None:
+        return
 
     @abstractmethod
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):

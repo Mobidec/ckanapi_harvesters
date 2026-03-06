@@ -38,7 +38,6 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
                  resource_id:str=None, download_url:str=None, dir_name:str=None, file_url_attr:str=None, options_string:str=None, base_dir:str=None):
         super().__init__(file_query_list=file_query_list, dir_name=dir_name,
                          name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
-        self.options_string = options_string
         self.enable_multi_threaded_upload = False
         # specific attributes
         self.file_url_attr:Union[str,None] = file_url_attr
@@ -168,14 +167,17 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
         self.list_local_files(resources_base_dir=resources_base_dir)
         self.read_line_counter = 0
         for query_index, query in enumerate(self.local_file_list):
+            self.file_semaphore.acquire()
             data_local = self.harvester.query_data(query=query)
             if isinstance(data_local, pd.DataFrame) or isinstance(data_local, ListRecords):
-                yield FileChunkDataFrame(data_local, query, query_index, 0, 0, self.read_line_counter)
+                self.read_line_counter += len(data_local)
+                line_counter = self.read_line_counter
+                self.file_semaphore.release()
+                yield FileChunkDataFrame(data_local, query, query_index, 0, 0, line_counter)
             else:
                 # for chunk_index, df in enumerate(data_local):
                 chunk_index = 0
                 while True:
-                    self.file_semaphore.acquire()
                     # file_position = file_handle.buffer.tell()  # approximative position in file
                     try:
                         df = next(data_local)
@@ -192,8 +194,8 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
         if cancel_if_present and self.local_file_list is not None:
             return self.local_file_list
         query_list = self.harvester.list_queries(new_connection=not cancel_if_present)
-        self.local_file_list = list(query_list.keys())
-        self.local_file_size = list(query_list.values())
+        self.local_file_list = [tup[0] for tup in query_list]
+        self.local_file_size = [tup[1] for tup in query_list]
         self.local_file_size_sum = sum(self.local_file_size)
         return self.local_file_list
 

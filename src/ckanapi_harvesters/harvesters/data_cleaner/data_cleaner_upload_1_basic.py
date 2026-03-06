@@ -241,6 +241,8 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
                         return value.isoformat(sep=ckan_timestamp_sep)
                 elif not field_data_type == "timestamp":
                     self.field_changes[field_name] = CkanField(field_name, "timestamp")
+                    if self.param_cast_types:
+                        return value.isoformat(sep=ckan_timestamp_sep)
             elif isinstance(value, str) and value == "":
                 if field_data_type in real_number_types or field_data_type in int_types:
                     if self.param_null_numbers:

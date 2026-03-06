@@ -33,8 +33,8 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
     Class representing a DataStore (resource metadata and fields metadata) defined by a url.
     """
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None, url:str=None):
-        super(BuilderDataStoreFile, self).__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+                 resource_id:str=None, download_url:str=None, url:str=None, options_string:str=None):
+        super(BuilderDataStoreFile, self).__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
         # super(BuilderUrlABC, self).__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, url=url)
         self.reupload_on_update = False
         self.reupload_if_needed = False
@@ -85,7 +85,11 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
         self.read_line_counter = 0
         with self.local_file_format.read_buffer_full(buffer, fields=self._get_fields_info()) as df_file:
             if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
-                yield FileChunkDataFrame(df_file, self.url, 0, 0, 0, self.read_line_counter)
+                self.file_semaphore.acquire()
+                self.read_line_counter += len(df_file)
+                line_counter = self.read_line_counter
+                self.file_semaphore.release()
+                yield FileChunkDataFrame(df_file, self.url, 0, 0, 0, line_counter)
             else:  # iterator
                 file_handle = df_file.handles.handle
                 previous_file_position = 0

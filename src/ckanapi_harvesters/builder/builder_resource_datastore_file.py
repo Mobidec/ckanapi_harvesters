@@ -43,9 +43,9 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
     Implementation supporting the reading of a file by chunks
     """
     def __init__(self, *, name: str = None, format: str = None, description: str = None,
-                 resource_id: str = None, download_url: str = None, file_name: str = None):
+                 resource_id: str = None, download_url: str = None, file_name: str = None, options_string:str=None):
         super().__init__(name=name, format=format, description=description, resource_id=resource_id,
-                         download_url=download_url, dir_name="")
+                         download_url=download_url, dir_name="", options_string=options_string)
         self.file_size:int = 0
         self.upsert_method: UpsertChoice = UpsertChoice.Upsert
         self.file_name = file_name

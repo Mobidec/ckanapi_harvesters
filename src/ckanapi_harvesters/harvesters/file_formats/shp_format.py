@@ -10,6 +10,9 @@ from warnings import warn
 from enum import IntEnum
 
 import pandas as pd
+
+from ckanapi_harvesters.harvesters.file_formats.csv_format import CsvFileFormat
+
 try:
     import geopandas as gpd
 except ImportError:
@@ -34,7 +37,8 @@ class DownloadedShapeFileConversion(IntEnum):
     ShapefileAsIs = 3
 
 class ShapeFileFormat(FileFormatABC):
-    def __init__(self, read_file_kwargs=None) -> None:
+    def __init__(self, options_string:str=None, *, read_file_kwargs=None) -> None:
+        super().__init__(options_string=options_string)
         if gpd.GeoDataFrame is None:
             raise FileFormatRequirementError("geopandas", "SHP")
         if pyproj is None:
@@ -43,9 +47,10 @@ class ShapeFileFormat(FileFormatABC):
         self.read_file_kwargs:dict = read_file_kwargs
         self.require_field_crs:bool = True
         self.download_conversion = DownloadedShapeFileConversion.ShapefileProjection
+        self.allow_chunks = False
 
     # loading a file before upload ----------------
-    def read_file(self, file_path: Union[str,io.StringIO], fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: Union[str,io.StringIO], fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
         # target EPSG = EPSG used in CKAN, source EPSG read from SHP file
         gdf = gpd.read_file(file_path, **self.read_file_kwargs)
         geo_columns = list(gdf.select_dtypes('geometry'))
@@ -141,8 +146,11 @@ class ShapeFileFormat(FileFormatABC):
         return buffer.getvalue().encode("utf8")
 
     # misc ------------------
-    def copy(self):
-        dest = ShapeFileFormat(self.read_file_kwargs)
+    def copy(self, dest=None):
+        if dest is None:
+            dest = ShapeFileFormat(self.options_string)
+        super().copy(dest=dest)
+        dest.read_file_kwargs = self.read_file_kwargs
         dest.download_conversion = self.download_conversion
         dest.require_field_crs = self.require_field_crs
         return dest

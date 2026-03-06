@@ -30,8 +30,8 @@ from ckanapi_harvesters.builder.mapper_datastore_multi import default_file_mappe
 
 class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
     def __init__(self, *, file_query_list: List[Tuple[str,dict]]=None, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None, dir_name:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+                 resource_id:str=None, download_url:str=None, dir_name:str=None, options_string:str=None):
+        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
         self.dir_name = dir_name
         # Functions inputs/outputs
         self.df_mapper: RequestFileMapperABC = default_file_mapper_from_primary_key(self.primary_key, file_query_list)
@@ -97,25 +97,31 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         self.list_local_files(resources_base_dir=resources_base_dir)
         return self.local_file_list[file_index]
 
-    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True, file_index:int=0, **kwargs) -> GeneralDataFrame:
-        generator = self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir)
+    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True, file_index:int=0, allow_chunks:bool=True, **kwargs) -> GeneralDataFrame:
+        generator = self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, allow_chunks=allow_chunks)
         chunk = next(generator)
         df_local = chunk.df
         generator.close()
         if upload_alter:
-            df_upload = self.df_mapper.df_upload_alter(df_local, self.sample_data_source, fields=self._get_fields_info())
+            df_upload = self.df_mapper.df_upload_alter(df_local, chunk.file_path, fields=self._get_fields_info())
             return df_upload
         else:
             return df_local
 
-    def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
+    def get_local_df_chunk_generator(self, resources_base_dir:str, allow_chunks:bool=True,
+                                     **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         self.list_local_files(resources_base_dir=resources_base_dir)
         self.read_line_counter = 0
         for file_index, file_name in enumerate(self.local_file_list):
-            with self.local_file_format.read_file(file_name, self.field_builders) as df_file:
-                if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
-                    yield FileChunkDataFrame(df_file, file_name, file_index, 0, 0, self.read_line_counter)
-                else:  # iterator
+            df_file = self.local_file_format.read_file(file_name, self._get_fields_info(), allow_chunks=allow_chunks)
+            if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
+                self.file_semaphore.acquire()
+                self.read_line_counter += len(df_file)
+                line_counter = self.read_line_counter
+                self.file_semaphore.release()
+                yield FileChunkDataFrame(df_file, file_name, file_index, 0, 0, line_counter)
+            else:  # iterator
+                with df_file:
                     file_handle = df_file.handles.handle
                     previous_file_position = 0
                     # for chunk_index, df in enumerate(df_file):
@@ -205,7 +211,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
                                            always_last_condition=always_last_condition, data_cleaner=self.data_cleaner_upload)
         else:
             if ckan.params.verbose_extra:
-                print(f"File up to date on server side")
+                print(f"File/chunk up to date on server side")
             ret_df = None
         return df_upload_transformed, ret_df
 

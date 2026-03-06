@@ -36,8 +36,8 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     """
 
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None, dirname:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+                 resource_id:str=None, download_url:str=None, options_string:str=None, dirname:str=None):
+        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
         # Functions inputs/outputs
         self.df_mapper: RequestFileMapperABC = default_file_mapper_from_primary_key(self.primary_key)
         self.reupload_if_needed = False  # do not reupload if needed because this could cause data loss (the upload function only uploads the first table)
@@ -50,6 +50,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         self.enable_multi_threaded_upload:bool = True
         self.enable_multi_threaded_download:bool = True
         self.file_semaphore = Semaphore()
+        self.process_level:int = 2  # resource builder - can be changed to 3 for a file of a multi-file resource
 
     def copy(self, *, dest=None):
         super().copy(dest=dest)
@@ -124,32 +125,47 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         file_index = file_chunk.file_index
         if file_index == 0 and file_chunk.chunk_index == 0 and self.upsert_method == UpsertChoice.Insert:
             return  # do not reupload the first document, which was used for the initialization of the dataset
-        if start_index <= file_index and file_index < end_index:
+        process_upsert = start_index <= file_index and file_index < end_index and file_chunk.read_line_counter - len(file_chunk.df) >= self.upload_start_line
+        self._call_progress_callback(self.get_local_file_offset(file_chunk),
+                                     self.get_local_file_total_size(), info=file_chunk,
+                                     file_index=file_index, file_count=file_count,
+                                     lines_chunk=len(file_chunk.df), total_lines_read=file_chunk.read_line_counter,
+                                     canceled_request=not process_upsert, level=self.process_level,
+                                     context=f"{ckan.identifier} upload")
+        if process_upsert:
             # if upload_alter:
             #     file_chunk.df = self.df_mapper.df_upload_alter(file_chunk.df, self.sample_data_source, fields=self._get_fields_info(), **kwargs)
             # alter function is applied in upsert_request_df
-            self._call_progress_callback(self.get_local_file_offset(file_chunk),
-                                         self.get_local_file_total_size(), info=file_chunk,
-                                         file_index=file_index, file_count=file_count,
-                                         context=f"{ckan.identifier} upload")
             self.upsert_request_df_no_return(ckan=ckan, df_upload=file_chunk.df, method=method,
                                              apply_last_condition=datastore_multi_apply_last_condition_intermediary)
         else:
             # self._call_progress_callback(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip")
             pass
 
+    def get_datastore_len(self, ckan:CkanApi) -> int:
+        datastore_info = ckan.get_datastore_info_or_request(self.name, self.package_name, error_not_found=True)
+        return datastore_info.row_count
+
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
                             method:UpsertChoice=None,
                             threads:int=1, external_stop_event=None,
-                            only_missing:bool=False,
+                            allow_chunks: bool = True,
+                            only_missing:bool=False, from_line_count:bool=False,
                             start_index:int=0, end_index:int=None, **kwargs) -> None:
         self.df_mapper.upsert_only_missing_rows = only_missing
+        if from_line_count:
+            self.upload_start_line = self.get_datastore_len(ckan)
+            if self.upload_start_line is None:
+                self.upload_start_line = 0
+            if ckan.params.verbose_extra:
+                print(f"Transfer will start from line {self.upload_start_line}")
         if method is None:
             if self.primary_key is None or len(self.primary_key) == 0:
                 self.upsert_method = UpsertChoice.Insert  # do not use upsert if there is no primary key
             method = self.upsert_method
         super().upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir,
                                     threads=threads, external_stop_event=external_stop_event,
+                                    allow_chunks=allow_chunks,
                                     start_index=start_index, end_index=end_index,
                                     method=method, **kwargs)
         # if threads < 0:

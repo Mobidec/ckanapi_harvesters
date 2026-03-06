@@ -212,15 +212,16 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
 
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
                             threads:int=1, external_stop_event=None,
-                            start_index:int=0, end_index:int=None,
-                            reupload:bool=False, only_missing:bool=False, excluded_files:Set[str]=None) -> None:
+                            start_index:int=0, end_index:int=None, allow_chunks:bool=True,
+                            reupload:bool=False, only_missing:bool=False, from_line_count:bool=False,
+                            excluded_files:Set[str]=None) -> None:
         if excluded_files is None:
             excluded_files = set()
         package_id = self.get_or_query_package_id(ckan)
         super().upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir, threads=threads,
                                     external_stop_event=external_stop_event, start_index=start_index, end_index=end_index,
-                                    reupload=reupload, only_missing=only_missing,
-                                    package_id=package_id, excluded_files=excluded_files)
+                                    reupload=reupload, only_missing=only_missing, from_line_count=from_line_count,
+                                    package_id=package_id, excluded_files=excluded_files, allow_chunks=allow_chunks)
         # if threads < 0:
         #     # cancel large uploads in this case
         #     return None

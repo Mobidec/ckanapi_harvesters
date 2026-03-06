@@ -13,34 +13,33 @@ from ckanapi_harvesters.auxiliary.list_records import ListRecords
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import df_download_to_csv_kwargs
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 
-default_read_chunksize: int = 1000
 
 
 class CsvFileFormat(FileFormatABC):
 
-    def __init__(self, read_csv_kwargs: dict=None, to_csv_kwargs: dict=None) -> None:
+    def __init__(self, options_string: str, *, read_csv_kwargs: dict=None, to_csv_kwargs: dict=None) -> None:
+        super().__init__(options_string=options_string)
         if read_csv_kwargs is None: read_csv_kwargs = CsvFileFormat.default_csv_file_upload_read_csv_kwargs
         if to_csv_kwargs is None: to_csv_kwargs = df_download_to_csv_kwargs
         self.read_csv_kwargs:dict = read_csv_kwargs
         self.to_csv_kwargs:dict = to_csv_kwargs
 
-    @classmethod
-    def setup_chunksize(cls, value: Union[int,None]):
-        """
-        Setup chunk size, either for all CSV files or only this instance
-        """
-        global default_read_chunksize
-        default_read_chunksize = value
-        cls.default_csv_file_upload_read_csv_kwargs['chunksize'] = value
-
     # read -------------------
-    default_csv_file_upload_read_csv_kwargs = dict(dtype=str, keep_default_na=False, sep=None, engine='python', chunksize=default_read_chunksize)
+    default_csv_file_upload_read_csv_kwargs = dict(dtype=str, keep_default_na=False, sep=None, engine='python')
 
-    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
-        return pd.read_csv(file_path, **self.read_csv_kwargs)
+    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
+        kwargs = self.read_csv_kwargs.copy()
+        if allow_chunks and self.allow_chunks:
+            kwargs["chunksize"] = self.chunksize
+            return pd.read_csv(file_path, **self.read_csv_kwargs)
+        else:
+            kwargs["chunksize"] = None
+            return pd.read_csv(file_path, **kwargs)
 
     def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
-        return pd.read_csv(buffer, **self.read_csv_kwargs, chunksize=None)
+        kwargs = self.read_csv_kwargs.copy()
+        kwargs["chunksize"] = None
+        return pd.read_csv(buffer, **kwargs, chunksize=None)
 
     # write ------------------
     def write_file(self, df: pd.DataFrame, file_path: str, fields: Union[Dict[str, CkanField],None]) -> None:
@@ -65,6 +64,11 @@ class CsvFileFormat(FileFormatABC):
         return buffer.getvalue().encode("utf8")
 
     # misc ------------------
-    def copy(self):
-        return CsvFileFormat(self.read_csv_kwargs, self.to_csv_kwargs)
+    def copy(self, dest=None):
+        if dest is None:
+            dest = CsvFileFormat(self.options_string)
+        super().copy(dest=dest)
+        dest.read_csv_kwargs = self.read_csv_kwargs
+        dest.to_csv_kwargs = self.to_csv_kwargs
+        return dest
 

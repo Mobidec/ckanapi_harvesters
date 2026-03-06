@@ -42,8 +42,8 @@ default_alias_keyword:Union[str,None] = "default"  # generate default alias if a
 
 class BuilderDataStoreABC(BuilderResourceABC, ABC):
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+                 resource_id:str=None, download_url:str=None, options_string:str=None):
+        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
         self.field_builders: Union[Dict[str, BuilderField],None] = None
         self.primary_key: Union[List[str],None] = None
         self.indexes: Union[List[str],None] = None
@@ -56,8 +56,9 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.reupload_if_needed: bool = True
         self.reupload_needed: Union[bool,None] = None
         self.df_mapper = DataSchemeConversion()
-        self.local_file_format: FileFormatABC = init_file_format_datastore(self.format)
+        self.local_file_format: FileFormatABC = init_file_format_datastore(self.format, self.options_string)
         self.read_line_counter:int = 0
+        self.upload_start_line:int = 0
 
     def copy(self, *, dest=None):
         super().copy(dest=dest)
@@ -75,7 +76,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         return dest
 
     def _init_file_format(self):
-        self.local_file_format = init_file_format_datastore(self.format)  # default file format is CSV (user can change)
+        self.local_file_format = init_file_format_datastore(self.format, self.options_string)  # default file format is CSV (user can change)
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row)
@@ -436,8 +437,8 @@ class BuilderResourceIgnored(BuilderDataStoreABC):
     Class to maintain a line in the resource builders list but has no action and can hold field metadata.
     """
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None, file_url:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+                 resource_id:str=None, download_url:str=None, file_url:str=None, options_string:str=None):
+        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
         self.file_url: Union[str, None] = file_url
 
     def copy(self, *, dest=None):

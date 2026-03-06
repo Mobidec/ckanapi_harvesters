@@ -1004,7 +1004,8 @@ class BuilderPackageBasic:
         return success
 
     def upload_large_datasets(self, ckan:CkanApi, *, resources_base_dir:str=None, threads:int=1,
-                              progress_callback:Callable=None, only_missing:bool=False) -> None:
+                              progress_callback:Callable=None,
+                              only_missing:bool=False, from_line_count:bool=False, allow_chunks:bool=True) -> None:
         """
         Method to upload large datasets of the package.
         The small datasets are to be uploaded with the patch_request_full method.
@@ -1014,6 +1015,8 @@ class BuilderPackageBasic:
         :param threads:
         :param progress_callback:
         :param only_missing: upsert only missing rows for DataStores and only missing files for MultiFile
+        :param from_line_count: count the lines on the CKAN DataStore and ignore the first n lines of your data source
+        :param allow_chunks: read DataStore files by chunks, when available
         :return:
         """
         self.info_request_package(ckan=ckan)
@@ -1028,13 +1031,15 @@ class BuilderPackageBasic:
                 if progress_callback is not None:
                     resource_builder.progress_callback = progress_callback
                 resource_builder.upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir, threads=threads,
-                                                     only_missing=only_missing)
+                                                     allow_chunks=allow_chunks,
+                                                     only_missing=only_missing, from_line_count=from_line_count)
         for resource_builder in self.resource_builders.values():
             if isinstance(resource_builder, BuilderMultiFile):
                 if progress_callback is not None:
                     resource_builder.progress_callback = progress_callback
                 resource_builder.upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir, threads=threads,
-                                                     only_missing=only_missing,
+                                                     only_missing=only_missing, from_line_count=from_line_count,
+                                                     allow_chunks=allow_chunks,
                                                      excluded_files=mono_resource_used_files if multi_file_exclude_other_files else None)
         self.package_resource_reorder(ckan)
 

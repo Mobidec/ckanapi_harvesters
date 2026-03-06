@@ -37,7 +37,7 @@ class BuilderMultiDataStore(BuilderMultiFile):
         self.aux_upload_fun_name:str = ""
         self.aux_download_fun_name:str = ""
         self.data_cleaner_upload:Union[CkanDataCleanerABC,None] = None
-        self.local_file_format: FileFormatABC = init_file_format_datastore(self.format)
+        self.local_file_format: FileFormatABC = init_file_format_datastore(self.format, self.options_string)
         self.read_line_counter: int = 0
 
     def copy(self, *, dest=None):
@@ -121,20 +121,27 @@ class BuilderMultiDataStore(BuilderMultiFile):
         ds_builder.aliases = None
         ds_builder.data_cleaner_upload = self.data_cleaner_upload
         ds_builder.local_file_format = self.local_file_format
+        ds_builder.process_level = 3  # file of a multi-file resource
         return ds_builder, file_dir
 
 
     ## Upload ----------------
-    def get_local_df_chunk_generator(self, resources_base_dir:str, excluded_files:Set[str]=None, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
+    def get_local_df_chunk_generator(self, resources_base_dir:str, excluded_files:Set[str]=None,
+                                     allow_chunks:bool=True, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         self.list_local_files(resources_base_dir=resources_base_dir)
         for file_index, file_name in enumerate(self.local_file_list):
             self.file_semaphore.acquire()
             self.read_line_counter = 0
             self.file_semaphore.release()
-            with self.local_file_format.read_file(file_name, self.field_builders) as df_file:
-                if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
-                    yield FileChunkDataFrame(df_file, file_name, file_index, 0, 0, self.read_line_counter)
-                else:  # iterator
+            df_file = self.local_file_format.read_file(file_name, self.field_builders, allow_chunks=allow_chunks)
+            if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
+                self.file_semaphore.acquire()
+                self.read_line_counter += len(df_file)
+                line_counter = self.read_line_counter
+                self.file_semaphore.release()
+                yield FileChunkDataFrame(df_file, file_name, file_index, 0, 0, line_counter)
+            else:  # iterator
+                with df_file:
                     file_handle = df_file.handles.handle
                     previous_file_position = 0
                     # for chunk_index, df in enumerate(df_file):

@@ -227,6 +227,8 @@ class RequestFileMapperIndexKeys(RequestFileMapperABC):
             if len(i_restart) == 1 and len(i_restart[0]) == 1:
                 i_restart_py = int(i_restart[0][0])
                 return i_restart_py, i_restart_py < len(df_upload), df_last_row.attrs["total"], df_last_row
+            elif len(i_restart) == 0:
+                return 0, True, df_last_row.attrs["total"], df_last_row
             else:
                 msg = "Multiple results obtained when querying the last inserted index"
                 warn(msg)

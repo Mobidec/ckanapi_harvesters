@@ -3,7 +3,7 @@
 """
 Harvest from a mongo database using pymongo
 """
-from typing import Union, List, Any, Dict
+from typing import Union, List, Any, Dict, Tuple
 from types import SimpleNamespace
 from collections import OrderedDict
 import json
@@ -31,6 +31,7 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import ssl_arguments_decompose,
 from ckanapi_harvesters.auxiliary.ckan_errors import UrlError
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
+from ckanapi_harvesters.auxiliary.list_records import ListRecords
 
 
 mongodb_excluded_collections = {"system.profile"}
@@ -325,7 +326,7 @@ class TableHarvesterMongoCollection(DatasetHarvesterMongoDatabase, TableHarveste
         data_cleaner.param_mongodb_dbref_as_one_column = not self.params.dbref_expand
         return data_cleaner
 
-    def list_queries(self, *, new_connection:bool=False) -> OrderedDict[Dict[str,Any],int]:
+    def list_queries(self, *, new_connection:bool=False) -> List[Tuple[dict,int]]:
         self.connect(cancel_if_connected=not new_connection)
         assert(self.mongo_collection is not None)
         query = json.loads(self.params.query_string) if self.params.query_string is not None else {}
@@ -335,11 +336,11 @@ class TableHarvesterMongoCollection(DatasetHarvesterMongoDatabase, TableHarveste
         num_rows = self.mongo_collection.estimated_document_count()
         num_queries = num_rows // self.params.limit + 1
         if self.params.single_request:
-            return OrderedDict([(OrderedDict([("$match", query), ("$skip", i * self.params.limit), ("$limit", self.params.limit)]), self.params.limit) for i in range(1)])
+            return [(OrderedDict([("$match", query), ("$skip", i * self.params.limit), ("$limit", self.params.limit)]), self.params.limit) for i in range(1)]
         else:
-            queries_exact = OrderedDict([(OrderedDict([("$match", query), ("$skip", i * self.params.limit), ("$limit", self.params.limit)]), self.params.limit) for i in range(num_queries)])
+            queries_exact = [(OrderedDict([("$match", query), ("$skip", i * self.params.limit), ("$limit", self.params.limit)]), self.params.limit) for i in range(num_queries)]
             query_extra = OrderedDict([("$match", query), ("$skip", num_queries * self.params.limit)])
-            queries_exact[query_extra] = self.params.limit
+            queries_exact.append((query_extra, self.params.limit))
             return queries_exact
 
     def query_data(self, query:Dict[str,Any]) -> List[dict]:
@@ -351,6 +352,6 @@ class TableHarvesterMongoCollection(DatasetHarvesterMongoDatabase, TableHarveste
         cursor = self.mongo_collection.find(query["$match"], session=self.mongo_session).skip(query["$skip"])
         if "$limit" in query.keys():
             cursor = cursor.limit(query["$limit"])
-        documents = list(cursor)
+        documents = ListRecords(list(cursor))
         return documents
 
