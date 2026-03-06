@@ -12,12 +12,15 @@ from warnings import warn
 
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import to_jsons_indent_lists_single_line
-from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanUserInfo
+from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanUserInfo, CkanPackageInfo
 from ckanapi_harvesters.policies.data_format_policy_errors import ErrorCount, DataPolicyError
 
 
 def round_size(value_mb:float) -> float:
     return round(value_mb, 2)
+
+def size_str_mb(size_mb:float) -> str:
+    return f"{round_size(size_mb):.2f} MB"
 
 
 class CkanAdminReport:
@@ -65,6 +68,8 @@ class CkanAdminReport:
         ckan.map_user_rights(cancel_if_present=self.cancel_if_present)
         self._elapsed_time_requests = time.time() - start
         self._request_count = ckan.debug.ckan_request_counter - request_count_init
+        if ckan.params.verbose_extra:
+            print(f"Done requests for admin report ({self._elapsed_time_requests} seconds, {self._request_count} requests).")
 
     def _consolidate(self, ckan: CkanApi) -> None:
         for user_info in ckan.map.users.values():
@@ -74,6 +79,8 @@ class CkanAdminReport:
                 ckan.map.users[user_id].organizations.append(organization_info.name)
 
     def _create_report(self, ckan: CkanApi) -> None:
+        start = time.time()
+        request_count_init = ckan.debug.ckan_request_counter
         policy_messages: Dict[str, List[DataPolicyError]] = {}
         ckan.policy_check(buffer=policy_messages)
 
@@ -111,7 +118,8 @@ class CkanAdminReport:
             package_external_size_mb = 0.
             package_datastore_size_mb = 0.
             package_datastore_lines = 0
-            for resource_id, resource_info in package_info.package_resources.items():
+            for resource_id in package_info.package_resources.keys():
+                resource_info = ckan.map.resources[resource_id]
                 resource_modified = resource_info.last_modified if resource_info.last_modified is not None else resource_info.created
                 internal_filestore = ckan.is_url_internal(resource_info.download_url)
                 resource_report = OrderedDict([
@@ -142,7 +150,8 @@ class CkanAdminReport:
                     if internal_filestore:
                         package_filestore_size_mb += resource_info.download_size_mb
                     else:
-                        package_external_size_mb += resource_info.download_size_mb
+                        if resource_info.download_size_mb is not None:
+                            package_external_size_mb += resource_info.download_size_mb
                         package_external_resource_count += 1
                 if resource_info.datastore_info is not None:
                     datastore_size = round_size(resource_info.datastore_info.table_size_mb + resource_info.datastore_info.index_size_mb)
@@ -202,6 +211,7 @@ class CkanAdminReport:
             global_last_modified_metadata = max(global_last_modified_metadata, package_info.metadata_modified) \
                 if global_last_modified_metadata else package_info.metadata_modified
             packages_report[package_name] = package_report
+            self._package_update_report(ckan, package_info, package_report)
         packages_report = OrderedDict(sorted(packages_report.items()))
         report_totals = OrderedDict([
             ("total_filestore_size_mb", round_size(total_filestore_size_mb)),
@@ -235,9 +245,10 @@ class CkanAdminReport:
             ("users", OrderedDict(sorted({ckan.map.users[user_id].name: str(capacity) for user_id, capacity in group_info.user_members.items()}.items())) if group_info.user_members is not None else None),
         ]) for group_info in ckan.map.groups.values()}
         groups_report = OrderedDict(sorted(groups_report.items()))
+        elapsed_time_report_and_updates = time.time() - start
         report_footer = OrderedDict([
             ("requests_count", self._request_count),
-            ("time_elapsed_seconds", self._elapsed_time_requests),
+            ("time_elapsed_seconds", self._elapsed_time_requests + elapsed_time_report_and_updates),
         ])
         report = OrderedDict([
             ("header", report_header),
@@ -252,6 +263,53 @@ class CkanAdminReport:
             report["groups"] = groups_report
         report["footer"] = report_footer
         self.report = report
+        if ckan.params.verbose_extra:
+            print(f"Done generating report ({elapsed_time_report_and_updates} seconds, {ckan.debug.ckan_request_counter - request_count_init} requests).")
+
+    def _package_update_report(self, ckan:CkanApi, package_info: CkanPackageInfo, package_report) -> None:
+        policy = ckan.policy
+        if policy is None:
+            return
+        package_update_needed = any([field_name is not None for field_name in [
+            policy.output_custom_fields.package_filestore_size_field,
+            policy.output_custom_fields.package_external_size_field,
+            policy.output_custom_fields.package_datastore_size_field,
+            policy.output_custom_fields.package_datastore_rowcount_field]])
+        if package_update_needed and package_info.custom_fields is None:
+            package_info.custom_fields = OrderedDict()
+        package_update_needed = False
+        if policy.output_custom_fields.package_filestore_size_field is not None:
+            package_size_str = size_str_mb(package_report["filestore_total_size_mb"])
+            if policy.output_custom_fields.package_filestore_size_field in package_info.custom_fields.keys():
+                package_update_needed |= not package_info.custom_fields[policy.output_custom_fields.package_filestore_size_field] == package_size_str
+            else:
+                package_update_needed = True
+            package_info.custom_fields[policy.output_custom_fields.package_filestore_size_field] = package_size_str
+        if policy.output_custom_fields.package_external_size_field is not None:
+            package_size_str = size_str_mb(package_report["external_total_size_mb"])
+            if policy.output_custom_fields.package_external_size_field in package_info.custom_fields.keys():
+                package_update_needed |= not package_info.custom_fields[policy.output_custom_fields.package_external_size_field] == package_size_str
+            else:
+                package_update_needed = True
+            package_info.custom_fields[policy.output_custom_fields.package_external_size_field] = package_size_str
+        if policy.output_custom_fields.package_datastore_size_field is not None:
+            package_size_str = size_str_mb(package_report["datastore_total_size_mb"])
+            if policy.output_custom_fields.package_datastore_size_field in package_info.custom_fields.keys():
+                package_update_needed |= not package_info.custom_fields[
+                                                 policy.output_custom_fields.package_datastore_size_field] == package_size_str
+            else:
+                package_update_needed = True
+            package_info.custom_fields[policy.output_custom_fields.package_datastore_size_field] = package_size_str
+        if policy.output_custom_fields.package_datastore_rowcount_field is not None:
+            package_rowcount_str = str(package_report["datastore_total_lines"])
+            if policy.output_custom_fields.package_datastore_rowcount_field in package_info.custom_fields.keys():
+                package_update_needed |= not package_info.custom_fields[policy.output_custom_fields.package_datastore_rowcount_field] == package_rowcount_str
+            else:
+                package_update_needed = True
+            package_info.custom_fields[policy.output_custom_fields.package_datastore_rowcount_field] = package_rowcount_str
+        package_info.updated = package_update_needed
+        if package_update_needed and ckan is not None:
+            ckan.package_patch(package_info.id, custom_fields=package_info.custom_fields)
 
     def execute(self, ckan: CkanApi) -> dict:
         self._perform_requests(ckan)
@@ -274,10 +332,13 @@ class CkanAdminReport:
 if __name__ == '__main__':
     ckan = CkanApi()
     ckan.initialize_from_cli_args()
-    ckan.input_missing_info(input_args_if_necessary=True, input_owner_org=True)
+    ckan.input_missing_info(input_args_if_necessary=True, input_owner_org=False)
 
     package_list = None  # use this argument or no argument to make a full report
     # package_list = ["builder-example-py"]  # limit to the example package
+
+    ckan.load_default_policy()
+    ckan.params.verbose_extra = True
 
     report = CkanAdminReport(ckan=ckan, package_list=package_list, full_report=True)
     print(report.to_jsons())

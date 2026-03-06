@@ -12,6 +12,7 @@ from . import data_format_policy_abc
 from . import data_format_policy_lists
 from . import data_format_policy_tag_groups
 from . import data_format_policy_custom_fields
+from . import data_format_policy_output_config
 from . import data_format_policy
 
 # usage shortcuts
