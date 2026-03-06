@@ -50,13 +50,15 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.aliases: Union[List[str],None] = None
         self.aux_upload_fun_name:str = ""
         self.aux_download_fun_name:str = ""
+        self.aux_read_fun_name:str = ""
+        self.aux_write_fun_name:str = ""
         # Functions input/outputs
         self.data_cleaner_upload: Union[CkanDataCleanerABC,None] = None
         self.reupload_on_update = False  # do not reupload on update for DataStores
         self.reupload_if_needed: bool = True
         self.reupload_needed: Union[bool,None] = None
         self.df_mapper = DataSchemeConversion()
-        self.local_file_format: FileFormatABC = init_file_format_datastore(self.format, self.options_string)
+        self.local_file_format: FileFormatABC = init_file_format_datastore(self.format, self.options_string, self.aux_read_fun_name, self.aux_write_fun_name)
         self.read_line_counter:int = 0
         self.upload_start_line:int = 0
 
@@ -68,6 +70,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         dest.aliases = copy.deepcopy(self.aliases)
         dest.aux_upload_fun_name = self.aux_upload_fun_name
         dest.aux_download_fun_name = self.aux_download_fun_name
+        dest.aux_read_fun_name = self.aux_read_fun_name
+        dest.aux_write_fun_name = self.aux_write_fun_name
         dest.reupload_on_update = self.reupload_on_update
         dest.reupload_if_needed = self.reupload_if_needed
         dest.reupload_needed = self.reupload_needed
@@ -76,7 +80,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         return dest
 
     def _init_file_format(self):
-        self.local_file_format = init_file_format_datastore(self.format, self.options_string)  # default file format is CSV (user can change)
+        self.local_file_format = init_file_format_datastore(self.format, self.options_string, self.aux_read_fun_name, self.aux_write_fun_name)  # default file format is CSV (user can change)
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row)
@@ -87,6 +91,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             self.aux_upload_fun_name: str = _string_from_element(row["upload function"], empty_value="")
         if "download function" in row.keys():
             self.aux_download_fun_name: str = _string_from_element(row["download function"], empty_value="")
+        if "read function" in row.keys():
+            self.aux_read_fun_name: str = _string_from_element(row["read function"], empty_value="")
+        if "write function" in row.keys():
+            self.aux_write_fun_name: str = _string_from_element(row["write function"], empty_value="")
         if "aliases" in row.keys():
             aliases_string = _string_from_element(row["aliases"])
         if primary_keys_string is not None:
@@ -110,6 +118,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         d["Indexes"] = ckan_tags_sep.join(self.indexes) if self.indexes is not None else ""
         d["Upload function"] = self.aux_upload_fun_name
         d["Download function"] = self.aux_download_fun_name
+        d["Read function"] = self.aux_read_fun_name
+        d["Write function"] = self.aux_write_fun_name
         d["Aliases"] = ckan_tags_sep.join(self.aliases) if self.aliases is not None else ""
         return d
 

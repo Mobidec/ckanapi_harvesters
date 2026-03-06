@@ -149,7 +149,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
                             method:UpsertChoice=None,
                             threads:int=1, external_stop_event=None,
-                            allow_chunks: bool = True,
+                            allow_chunks: bool = False,
                             only_missing:bool=False, from_line_count:bool=False,
                             start_index:int=0, end_index:int=None, **kwargs) -> None:
         self.df_mapper.upsert_only_missing_rows = only_missing

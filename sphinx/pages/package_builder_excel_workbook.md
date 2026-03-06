@@ -116,8 +116,9 @@ Indeed, Excel sheet names cannot exceed 31 characters, contain the following cha
 begin or end with an apostrophe (`'`) or be named "History". 
 When using the resource name, the default sheet name replaces the forbidden characters with `#`. 
 - __Description__: Description of the resource, appearing in the CKAN package home page. Markdown features are allowed. 
-- __Format__: Format used to read/write files. Formats are defined in `ckanapi_harvesters.builder.file_formats`. 
-Default format is CSV for DataStores.
+- __Format__: This determines the method used to read/write files. Formats are defined in `ckanapi_harvesters.builder.file_formats`. 
+Default format is CSV for DataStores. 
+If a custom read/write method is defined (see below, columns Read/Write function), this column is ignored.
 - __State__: The state field enables to prepare a resource without making visible to all users. Available states are:
   - ___Active___ (_default_)
   - ___Draft___
@@ -153,6 +154,10 @@ Comma-separated list of field names.
 In DataStore from Folder mode and when the primary key is defined by two or more fields, the default download behavior is to map a file to a combination of the first fields of the primary key. The last field is used as an index. 
 - __Indexes__: Indexed fields can increase the speed of certain queries. (only applies to DataStores)
 Comma-separated list of field names.
+- __Read function__: custom function to execute when loading the data from a file. This function must be implemented in the Auxiliary functions file.
+It must take a file/IO buffer and return a DataFrame.
+- __Write function__: custom function to execute when saving records to a file. This function must be implemented in the Auxiliary functions file.
+It must take a DataFrame and a file/IO buffer as input arguments.
 - __Upload function__: If an Auxiliary functions file is specified, this represents the name of the function which is called before uploading a DataFrame from a local file. (only applies to DataStores)
 This function must have one argument which is a pandas DataFrame and must return the modified DataFrame. If not provided, no modification is performed.
 - __Download function__: This should be the reverse function of the upload function. It is called when a DataFrame is downloaded from the server. (only applies to DataStores)

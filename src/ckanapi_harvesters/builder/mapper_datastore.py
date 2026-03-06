@@ -12,31 +12,40 @@ import pandas as pd
 
 from ckanapi_harvesters.builder.builder_errors import MissingCodeFileError
 from ckanapi_harvesters.auxiliary.external_code_import import PythonUserCode
-from ckanapi_harvesters.auxiliary.list_records import ListRecords
+from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
+from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 
 
-def simple_upload_fun(df_local: pd.DataFrame) -> None:
+# user custom transformation function prototypes
+def upload_function_example(df_local: pd.DataFrame, fields:Dict[str, CkanField]=None, **kwargs) -> pd.DataFrame:
+    return df_local
+
+def download_function_example(df_download: pd.DataFrame, fields:Dict[str, CkanField]=None, **kwargs) -> pd.DataFrame:
+    return df_download
+
+def simple_upload_fun(df_local: pd.DataFrame, fields:Dict[str, CkanField]=None, **kwargs) -> pd.DataFrame:
     for field in df_local.columns:
         if df_local[field].dtype == pd.Timestamp:
             df_local[field] = df_local[field].apply(pd.Timestamp.isoformat)  # ISO-8601 format
+    return df_local
 
 
 class DataSchemeConversion:
-    def __init__(self, *, df_upload_fun:Callable[[pd.DataFrame], Any] = None,
-                 df_download_fun:Callable[[pd.DataFrame], Any] = None):
+    def __init__(self, *, df_upload_fun:Callable[[GeneralDataFrame,Any], GeneralDataFrame] = None,
+                 df_download_fun:Callable[[GeneralDataFrame,Any], GeneralDataFrame] = None):
         """
         Class to convert between local data formats and database formats
 
         :param df_upload_fun:
         :param df_download_fun:
         """
-        self.df_upload_fun:Union[Callable[[Any, Any], Union[ListRecords, pd.DataFrame]], None] = df_upload_fun
-        self.df_download_fun:Union[Callable[[pd.DataFrame, Any], pd.DataFrame], None] = df_download_fun
+        self.df_upload_fun:Union[Callable[[GeneralDataFrame, Any], GeneralDataFrame], None] = df_upload_fun
+        self.df_download_fun:Union[Callable[[GeneralDataFrame, Any], GeneralDataFrame], None] = df_download_fun
 
     def copy(self):
         return copy.deepcopy(self)
 
-    def df_upload_alter(self, df_local: Union[pd.DataFrame, List[dict], Any], file_name:str=None, mapper_kwargs:dict=None, **kwargs) -> Union[pd.DataFrame, ListRecords]:
+    def df_upload_alter(self, df_local: Union[pd.DataFrame, List[dict], Any], fields:Dict[str, CkanField]=None, file_name:str=None, mapper_kwargs:dict=None, **kwargs) -> Union[pd.DataFrame, ListRecords]:
         """
         Apply used-defined df_upload_fun if present
 
@@ -51,7 +60,7 @@ class DataSchemeConversion:
         if self.df_upload_fun is not None:
             # df_database = df_local.copy()  # unnecessary copy
             df_upload_fun = self.df_upload_fun
-            df_database = df_upload_fun(df_database, **mapper_kwargs, **kwargs)
+            df_database = df_upload_fun(df_database, fields=fields, **mapper_kwargs, **kwargs)
         if not isinstance(df_database, pd.DataFrame):
             if isinstance(df_database, ListRecords):
                 pass  # also accept ListRecords (List[dict])
@@ -63,7 +72,7 @@ class DataSchemeConversion:
                 raise TypeError("df_upload_fun must return a DataFrame")
         return df_database
 
-    def df_download_alter(self, df_database:Union[pd.DataFrame, List[dict], Any], file_query:dict=None, mapper_kwargs:dict=None, **kwargs) -> Union[pd.DataFrame, ListRecords]:
+    def df_download_alter(self, df_database:Union[pd.DataFrame, List[dict], Any], file_query:dict=None, fields:Dict[str, CkanField]=None, mapper_kwargs:dict=None, **kwargs) -> Union[pd.DataFrame, ListRecords]:
         """
         Apply used-defined df_download_fun if present.
         df_download_fun should be the reverse function of df_upload_fun
@@ -79,7 +88,7 @@ class DataSchemeConversion:
         if self.df_download_fun is not None:
             # df_local = df_database.copy()  # unnecessary copy
             df_download_fun = self.df_download_fun
-            df_local = df_download_fun(df_local, **mapper_kwargs, **kwargs)
+            df_local = df_download_fun(df_local, fields=fields, **mapper_kwargs, **kwargs)
         if not isinstance(df_local, pd.DataFrame):
             if isinstance(df_local, ListRecords):
                 pass  # also accept ListRecords (List[dict])

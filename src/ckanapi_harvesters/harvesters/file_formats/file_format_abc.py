@@ -20,7 +20,7 @@ class FileFormatABC(ABC):
 
     def __init__(self, options_string: str=None):
         self.options_string:Union[str,None] = options_string
-        self.allow_chunks:bool = True
+        self.allow_chunks:bool = False
         self.chunksize:int = FileFormatABC.default_read_chunksize
         self._apply_options_string()
 
@@ -30,12 +30,12 @@ class FileFormatABC(ABC):
             parser = argparse.ArgumentParser(description="File format base class arguments")
         parser.add_argument("--chunksize", type=int,
                             help="Chunk size for reading files by chunks (number of records)")
-        parser.add_argument("--no-chunks",
-                            help="Option to disable reading files by chunks", action="store_true", default=False)
+        parser.add_argument("--allow-chunks",
+                            help="Option to enable reading files by chunks", action="store_true", default=False)
         return parser
 
     def _apply_arguments(self, args: argparse.Namespace, extra_args: list):
-        self.allow_chunks = not args.no_chunks
+        self.allow_chunks = args.allow_chunks
         if args.chunksize is not None:
             self.chunksize = args.chunksize
 
@@ -50,7 +50,7 @@ class FileFormatABC(ABC):
 
     # read -------------------
     @abstractmethod
-    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=False) -> Union[pd.DataFrame, ListRecords]:
         """
         Read a file from the file system, either fully (returning DataFrame or ListRecords) or by chunks (Iterator over a number of records).
         """

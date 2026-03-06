@@ -50,7 +50,7 @@ class ShapeFileFormat(FileFormatABC):
         self.allow_chunks = False
 
     # loading a file before upload ----------------
-    def read_file(self, file_path: Union[str,io.StringIO], fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: Union[str,io.StringIO], fields: Union[Dict[str, CkanField],None], allow_chunks:bool=False) -> Union[pd.DataFrame, ListRecords]:
         # target EPSG = EPSG used in CKAN, source EPSG read from SHP file
         gdf = gpd.read_file(file_path, **self.read_file_kwargs)
         geo_columns = list(gdf.select_dtypes('geometry'))

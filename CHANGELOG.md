@@ -14,6 +14,8 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 - Support for reading CSV files by chunks using pandas.read_csv `chunksize` argument (only for DataStores). 
 This modification is compatible with multi-threading and returns a more accurate progression indicator.
+It is disabled by default. To enable it, use the `allow_chunks` argument or enter `--allow-chunks` in the __Options__ column of the resources worksheet.
+- Support for user-defined file format loading functions with new Excel columns __Read function__ and __Write function__. 
 - The upload data cleaner can be used to replace empty string values with None for columns indicated as numeric in the field metadata.
 - The admin report can output the storage space used by a dataset in custom fields defined in the data format policy JSON.
 

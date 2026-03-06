@@ -31,6 +31,10 @@ class MissingCodeFileError(Exception):
     def __init__(self):
         super().__init__("Function names were provided but Auxiliary functions file was not specified")
 
+class MissingIOFunctionError(Exception):
+    def __init__(self, function_type:str):
+        super().__init__(f"User custom IO function name was not provided for {function_type}")
+
 class ResourceFileNotExistMessage(ContextErrorLevelMessage):
     def __init__(self, resource_name:str, error_level:ErrorLevel, specific_message: str):
         super().__init__(f"Resource {resource_name}", error_level, specific_message)

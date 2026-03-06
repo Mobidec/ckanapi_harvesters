@@ -212,7 +212,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
 
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
                             threads:int=1, external_stop_event=None,
-                            start_index:int=0, end_index:int=None, allow_chunks:bool=True,
+                            start_index:int=0, end_index:int=None, allow_chunks:bool=False,
                             reupload:bool=False, only_missing:bool=False, from_line_count:bool=False,
                             excluded_files:Set[str]=None) -> None:
         if excluded_files is None:

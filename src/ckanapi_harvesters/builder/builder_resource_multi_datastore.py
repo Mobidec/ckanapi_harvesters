@@ -36,8 +36,10 @@ class BuilderMultiDataStore(BuilderMultiFile):
         self.indexes: Union[List[str],None] = None
         self.aux_upload_fun_name:str = ""
         self.aux_download_fun_name:str = ""
+        self.aux_read_fun_name:str = ""
+        self.aux_write_fun_name:str = ""
         self.data_cleaner_upload:Union[CkanDataCleanerABC,None] = None
-        self.local_file_format: FileFormatABC = init_file_format_datastore(self.format, self.options_string)
+        self.local_file_format: FileFormatABC = init_file_format_datastore(self.format, self.options_string, self.aux_read_fun_name, self.aux_write_fun_name)
         self.read_line_counter: int = 0
 
     def copy(self, *, dest=None):
@@ -127,7 +129,7 @@ class BuilderMultiDataStore(BuilderMultiFile):
 
     ## Upload ----------------
     def get_local_df_chunk_generator(self, resources_base_dir:str, excluded_files:Set[str]=None,
-                                     allow_chunks:bool=True, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
+                                     allow_chunks:bool=False, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         self.list_local_files(resources_base_dir=resources_base_dir)
         for file_index, file_name in enumerate(self.local_file_list):
             self.file_semaphore.acquire()

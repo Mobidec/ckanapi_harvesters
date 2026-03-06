@@ -40,6 +40,7 @@ from ckanapi_harvesters.builder.builder_resource_datastore_multi_harvester impor
 from ckanapi_harvesters.builder.builder_resource_init import init_resource_from_df, init_resource_from_ckan
 from ckanapi_harvesters.builder.builder_ckan import BuilderCkan
 from ckanapi_harvesters.auxiliary.external_code_import import PythonUserCode, unlock_external_code_execution
+from ckanapi_harvesters.harvesters.file_formats.user_format import UserFileFormat
 
 self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 example_package_xls = os.path.join(self_dir, "builder_package_example.xlsx")
@@ -643,6 +644,10 @@ class BuilderPackageBasic:
             resource_builder.df_mapper._connect_aux_functions(self.external_python_code,
                                                               aux_upload_fun_name=resource_builder.aux_upload_fun_name,
                                                               aux_download_fun_name=resource_builder.aux_download_fun_name)
+            if isinstance(resource_builder.local_file_format, UserFileFormat):
+                resource_builder.local_file_format._connect_aux_functions(self.external_python_code,
+                                                                          aux_read_fun_name=resource_builder.aux_read_fun_name,
+                                                                          aux_write_fun_name=resource_builder.aux_write_fun_name)
 
     def to_ckan_package_info(self, *, check_id:bool=True) -> CkanPackageInfo:
         """
@@ -1005,7 +1010,7 @@ class BuilderPackageBasic:
 
     def upload_large_datasets(self, ckan:CkanApi, *, resources_base_dir:str=None, threads:int=1,
                               progress_callback:Callable=None,
-                              only_missing:bool=False, from_line_count:bool=False, allow_chunks:bool=True) -> None:
+                              only_missing:bool=False, from_line_count:bool=False, allow_chunks:bool=False) -> None:
         """
         Method to upload large datasets of the package.
         The small datasets are to be uploaded with the patch_request_full method.
