@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import threading
 from threading import current_thread, Semaphore
 from abc import ABC, abstractmethod
-from typing import Dict, List, Callable, Any, Tuple, Generator, Union, Set
+from typing import Dict, List, Callable, Any, Tuple, Generator, Union, Set, Collection
 from warnings import warn
 import copy
 
@@ -17,6 +17,7 @@ from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataSto
 from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 from ckanapi_harvesters.builder.builder_aux import positive_end_index
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanResourceInfo
+from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_index_col_name
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestFileMapperABC, default_file_mapper_from_primary_key
@@ -36,10 +37,12 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     """
 
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None, options_string:str=None, dirname:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
+                 resource_id:str=None, download_url:str=None, options_string:str=None, base_dir:str=None):
+        super().__init__(name=name, format=format, description=description, resource_id=resource_id,
+                         download_url=download_url, options_string=options_string, base_dir=base_dir)
         # Functions inputs/outputs
-        self.df_mapper: RequestFileMapperABC = default_file_mapper_from_primary_key(self.primary_key)
+        self.df_mapper: RequestFileMapperABC
+        self.setup_default_file_mapper(self.primary_key)
         self.reupload_if_needed = False  # do not reupload if needed because this could cause data loss (the upload function only uploads the first table)
         self.upsert_method: UpsertChoice = UpsertChoice.Upsert
         # BuilderMultiABC:
@@ -62,6 +65,28 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         dest.enable_multi_threaded_download = self.enable_multi_threaded_download
         # do not copy stop_event
         return dest
+
+    def _load_from_df_row(self, row: pd.Series, base_dir:str=None) -> None:
+        super()._load_from_df_row(row=row)
+        self.setup_default_file_mapper(self.primary_key)
+
+    def setup_default_file_mapper(self, primary_key:List[str]=None, file_query_list:Collection[Tuple[str, dict]]=None) -> None:
+        """
+        This function enables the user to define the primary key and initializes the default file mapper.
+        :param primary_key: manually specify the primary key
+        :return:
+        """
+        df_mapper_mem = self.df_mapper
+        if primary_key is not None:
+            self.primary_key = primary_key
+        if self.primary_key is None or len(self.primary_key) == 0:
+            self.primary_key = datastore_default_index_col_name
+        self.df_mapper = default_file_mapper_from_primary_key(self.primary_key, file_query_list)
+        if file_query_list is not None:
+            self.downloaded_file_query_list = file_query_list
+        # preserve upload/download functions
+        self.df_mapper.df_upload_fun = df_mapper_mem.df_upload_fun
+        self.df_mapper.df_download_fun = df_mapper_mem.df_download_fun
 
     ## upload ---------
     # do not change default argument apply_last_condition=True
@@ -107,7 +132,8 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     def upload_request_final(self, ckan: CkanApi, *, force:bool=False) -> None:
         return self.upsert_request_final(ckan=ckan, force=force)
 
-    def upsert_request_df_no_return(self, ckan: CkanApi, df_upload:pd.DataFrame,
+    def upsert_request_df_no_return(self, ckan: CkanApi, df_upload:pd.DataFrame, *,
+                                    total_lines_read:int, file_name:str,
                                     method:UpsertChoice=UpsertChoice.Upsert,
                                     apply_last_condition:bool=None, always_last_condition:bool=None) -> None:
         """
@@ -115,7 +141,8 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
 
         :return:
         """
-        self.upsert_request_df(ckan=ckan, df_upload=df_upload, method=method,
+        self.upsert_request_df(ckan=ckan, df_upload=df_upload, total_lines_read=total_lines_read, file_name=file_name,
+                               method=method,
                                apply_last_condition=apply_last_condition, always_last_condition=always_last_condition)
         return None
 
@@ -137,6 +164,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
             #     file_chunk.df = self.df_mapper.df_upload_alter(file_chunk.df, self.sample_data_source, fields=self._get_fields_info(), **kwargs)
             # alter function is applied in upsert_request_df
             self.upsert_request_df_no_return(ckan=ckan, df_upload=file_chunk.df, method=method,
+                                             total_lines_read=file_chunk.read_line_counter, file_name=file_chunk.file_path,
                                              apply_last_condition=datastore_multi_apply_last_condition_intermediary)
         else:
             # self._call_progress_callback(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip")

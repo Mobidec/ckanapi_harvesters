@@ -37,13 +37,14 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
     def __init__(self, *, file_query_list: List[Tuple[str,dict]]=None, name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None, dir_name:str=None, file_url_attr:str=None, options_string:str=None, base_dir:str=None):
         super().__init__(file_query_list=file_query_list, dir_name=dir_name,
-                         name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+                         name=name, format=format, description=description, resource_id=resource_id,
+                         download_url=download_url, options_string=None, base_dir=None)
         self.enable_multi_threaded_upload = False
+        self.options_string = options_string
         # specific attributes
         self.file_url_attr:Union[str,None] = file_url_attr
         self._harvester: Union[TableHarvesterABC,None] = None
-        if self.options_string is not None and len(self.options_string) > 0:
-            self._apply_options(base_dir=base_dir)
+        self.initialize_from_options_string(base_dir=base_dir)
 
     @property
     def harvester(self) -> Union[TableHarvesterABC,None]:
@@ -54,7 +55,8 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
         self._harvester = harvester
         self._apply_harvester_metadata()
 
-    def _apply_options(self, base_dir: str = None):
+    def initialize_extra_options_string(self, extra_options_string:str, base_dir:str) -> None:
+        super().initialize_extra_options_string(extra_options_string, base_dir=base_dir)
         self.harvester = init_table_harvester_from_options_string(self.options_string, file_url_attr=self.file_url_attr, base_dir=base_dir)
 
     def init_options_from_ckan(self, ckan:CkanApi) -> None:
@@ -128,11 +130,9 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None) -> None:
         super()._load_from_df_row(row=row)
-        self.df_mapper = default_file_mapper_from_primary_key(self.primary_key)
         self.dir_name = ""
         self.file_url_attr: str = _string_from_element(row["file/url"])
-        if self.options_string is not None and len(self.options_string) > 0:
-            self._apply_options(base_dir=base_dir)
+        self.initialize_from_options_string(base_dir=base_dir)
 
     def _to_dict(self, include_id:bool=True) -> dict:
         d = super()._to_dict(include_id=include_id)
@@ -238,7 +238,8 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
     #                                 start_index=start_index, end_index=end_index,
     #                                 method=method, fields=fields)
 
-    def upsert_request_df(self, ckan: CkanApi, df_upload:pd.DataFrame,
+    def upsert_request_df(self, ckan: CkanApi, df_upload:pd.DataFrame, *,
+                          total_lines_read:int, file_name:str,
                           method:UpsertChoice=UpsertChoice.Upsert,
                           apply_last_condition:bool=None, always_last_condition:bool=None) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -263,7 +264,8 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
             apply_last_condition = True  # datastore_multi_apply_last_condition_intermediary
         resource_id = self.get_or_query_resource_id(ckan=ckan, error_not_found=True)
         df_upload_local = df_upload
-        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload_local, fields=self._get_fields_info())
+        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload_local, fields=self._get_fields_info(),
+                                                               total_lines_read=total_lines_read, file_name=file_name)
         file_query = self.df_mapper.get_file_query_of_df(df_upload_transformed)
         if file_query is not None:
             i_restart, upload_needed, row_count, df_row = self.df_mapper.last_inserted_index_request(ckan=ckan,

@@ -12,12 +12,15 @@ import io
 from warnings import warn
 from collections import OrderedDict
 import copy
+import argparse
+import shlex
 
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.builder.builder_field import BuilderField
+from ckanapi_harvesters.builder.mapper_datastore_multi import RequestFileMapperIndexKeys
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 from ckanapi_harvesters.harvesters.file_formats.file_format_init import init_file_format_datastore
 from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
@@ -43,7 +46,7 @@ default_alias_keyword:Union[str,None] = "default"  # generate default alias if a
 
 class BuilderDataStoreABC(BuilderResourceABC, ABC):
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None, options_string:str=None):
+                 resource_id:str=None, download_url:str=None, options_string:str=None, base_dir:str=None):
         super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
         self.field_builders: Union[Dict[str, BuilderField],None] = None
         self.primary_key: Union[List[str],None] = None
@@ -59,9 +62,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.reupload_if_needed: bool = True
         self.reupload_needed: Union[bool,None] = None
         self.df_mapper = DataSchemeConversion()
-        self.local_file_format: FileFormatABC = init_file_format_datastore(self.format, self.options_string, self.aux_read_fun_name, self.aux_write_fun_name)
+        self.local_file_format: Union[FileFormatABC,None] = None
         self.read_line_counter:int = 0
         self.upload_start_line:int = 0
+        self.initialize_from_options_string(base_dir=base_dir)
 
     def copy(self, *, dest=None):
         super().copy(dest=dest)
@@ -80,8 +84,60 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         dest.local_file_format = self.local_file_format.copy()
         return dest
 
-    def _init_file_format(self):
-        self.local_file_format = init_file_format_datastore(self.format, self.options_string, self.aux_read_fun_name, self.aux_write_fun_name)  # default file format is CSV (user can change)
+    @staticmethod
+    def _setup_cli_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
+        if parser is None:
+            parser = argparse.ArgumentParser(description="DataStore resource specific options")
+        parser.add_argument("--data-cleaner", type=str,
+                            help="Data cleaner to call before uploading data")
+        parser.add_argument("--one-frame-per-primary-key",
+                            help="Enabling this option makes the upload process expect one DataFrame per primary key combination (except the last field of the primary key, which could be an index in the file)", action="store_true", default=False)
+        return parser
+
+    def _setup_cli_parser_external(self, parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
+        # return FileFormatABC._setup_cli_parser(parser)
+        return parser
+
+    def print_help_cli(self, display:bool=True) -> str:
+        parser = self._setup_cli_parser()
+        self._setup_cli_parser_external(parser)
+        if display:
+            parser.print_help()
+        buffer = io.StringIO()
+        parser.print_help(buffer)
+        return buffer.getvalue()
+
+    def _cli_args_apply(self, args: argparse.Namespace, *, base_dir: str = None, error_not_found: bool = True) -> None:
+        if args.data_cleaner is not None:
+            self.data_cleaner_upload = init_data_cleaner(args.data_cleaner)
+        if args.one_frame_per_primary_key is not None and args.one_frame_per_primary_key:
+            self.apply_one_frame_per_primary_key()
+
+    def apply_one_frame_per_primary_key(self):
+        """
+        Enables mode --one-frame-per-primary-key
+
+        In this mode, the upload process expect one DataFrame per primary key combination
+        (except the last field of the primary key, which could be an index in the file).
+        Upload update checks are performed using this assumption (do not read files by chunks).
+        Downloads fill files according to unique combinations of the first columns of the primary key.
+        """
+        assert (self.primary_key is not None and len(self.primary_key) > 1)
+        self.df_mapper = RequestFileMapperIndexKeys(group_by_keys=self.primary_key[:-1], sort_by_keys=self.primary_key)
+
+    def initialize_extra_options_string(self, extra_options_string:str, base_dir:str) -> None:
+        self.local_file_format = init_file_format_datastore(self.format, extra_options_string, self.aux_read_fun_name, self.aux_write_fun_name)  # default file format is CSV (user can change)
+
+    def initialize_from_options_string(self, base_dir:str, *, options_string:str=None, parser:argparse.ArgumentParser=None) -> None:
+        if options_string is None:
+            options_string = self.options_string
+        if options_string is None:
+            self.initialize_extra_options_string(None, base_dir=base_dir)
+            return
+        parser = self._setup_cli_parser(parser)
+        args, extra_args = parser.parse_known_args(shlex.split(options_string))
+        self.initialize_extra_options_string(shlex.join(extra_args), base_dir=base_dir)
+        self._cli_args_apply(args)
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row)
@@ -114,7 +170,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                 self.indexes = [field.strip() for field in indexes_string.split(ckan_tags_sep)]
         if aliases_string is not None:
             self.aliases = aliases_string.split(ckan_tags_sep)
-        self._init_file_format()
+        self.initialize_from_options_string(base_dir=base_dir)
 
     @abstractmethod
     def _to_dict(self, include_id:bool=True) -> dict:
@@ -211,7 +267,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         df = self.load_sample_df(resources_base_dir=resources_base_dir)
         return self.local_file_format.write_in_memory(df, fields=self._get_fields_info())
 
-    def upsert_request_df(self, ckan: CkanApi, df_upload:pd.DataFrame,
+    def upsert_request_df(self, ckan: CkanApi, df_upload:pd.DataFrame, *,
+                          total_lines_read:int, file_name:str,
                           method:UpsertChoice=UpsertChoice.Upsert,
                           apply_last_condition:bool=None, always_last_condition:bool=None) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -225,7 +282,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         :return:
         """
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=True)
-        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload, fields=self._get_fields_info())
+        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload, fields=self._get_fields_info(),
+                                                               total_lines_read=total_lines_read, file_name=file_name)
         ret_df = ckan.datastore_upsert(df_upload_transformed, resource_id, method=method,
                                        apply_last_condition=apply_last_condition,
                                        always_last_condition=always_last_condition, data_cleaner=self.data_cleaner_upload)
@@ -453,8 +511,9 @@ class BuilderResourceIgnored(BuilderDataStoreABC):
     Class to maintain a line in the resource builders list but has no action and can hold field metadata.
     """
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None, file_url:str=None, options_string:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
+                 resource_id:str=None, download_url:str=None, file_url:str=None, options_string:str=None, base_dir:str=None):
+        super().__init__(name=name, format=format, description=description, resource_id=resource_id,
+                         download_url=download_url, options_string=options_string, base_dir=base_dir)
         self.file_url: Union[str, None] = file_url
 
     def copy(self, *, dest=None):

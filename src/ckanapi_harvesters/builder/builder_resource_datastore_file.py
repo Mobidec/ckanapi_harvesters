@@ -43,9 +43,9 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
     Implementation supporting the reading of a file by chunks
     """
     def __init__(self, *, name: str = None, format: str = None, description: str = None,
-                 resource_id: str = None, download_url: str = None, file_name: str = None, options_string:str=None):
+                 resource_id: str = None, download_url: str = None, file_name: str = None, options_string:str=None, base_dir:str=None):
         super().__init__(name=name, format=format, description=description, resource_id=resource_id,
-                         download_url=download_url, dir_name="", options_string=options_string)
+                         download_url=download_url, dir_name="", options_string=options_string, base_dir=base_dir)
         self.file_size:int = 0
         self.upsert_method: UpsertChoice = UpsertChoice.Upsert
         self.file_name = file_name
@@ -153,6 +153,8 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
                                     file_query_list:Collection[Tuple[str,dict]]=None) -> BuilderDataStoreFolder:
         resource_folder = BuilderDataStoreFolder()
         resource_folder._load_from_df_row(self._to_row())
+        resource_folder.options_string = self.options_string
+        resource_folder.data_cleaner_upload = self.data_cleaner_upload.copy()
         resource_folder.field_builders = self.field_builders
         if dir_name is not None:
             resource_folder.dir_name = dir_name

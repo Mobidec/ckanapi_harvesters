@@ -166,20 +166,33 @@ Comma-separated list of field names.
 It must take a file/IO buffer and return a DataFrame.
 - __Write function__: custom function to execute when saving records to a file. This function must be implemented in the Auxiliary functions file.
 It must take a DataFrame and a file/IO buffer as input arguments.
+- __Upload function__: If an Auxiliary functions file is specified, this represents the name of the function which is called before uploading a DataFrame from a local file. (only applies to DataStores)
+This function must have one argument which is a pandas DataFrame and must return the modified DataFrame. If not provided, no modification is performed.
+- __Download function__: This should be the reverse function of the upload function. It is called when a DataFrame is downloaded from the server. (only applies to DataStores)
 - __Data cleaner__ option to activate a function which corrects values according to the destination type specified in the fields metadata (only for uploads). 
 By default, no modifications are made to the data before upload except when importing data from external databases (PostgreSQL/MongoDB). The ___GeoJSON___ data cleaner is used in this case. 
 Values for this field are:
   - ___None___: explicitly do not use a data cleaner
   - ___Basic___: basic data conversions e.g. replace empty values by `null` for numeric columns.
   - ___GeoJSON___: conversions adapted for geometry columns (like GeoJSON) - this includes the ___Basic___ features.
-- __Upload function__: If an Auxiliary functions file is specified, this represents the name of the function which is called before uploading a DataFrame from a local file. (only applies to DataStores)
-This function must have one argument which is a pandas DataFrame and must return the modified DataFrame. If not provided, no modification is performed.
-- __Download function__: This should be the reverse function of the upload function. It is called when a DataFrame is downloaded from the server. (only applies to DataStores)
 - __Aliases__: Names for read only aliases of the resource (only for DataStores). 
 Resource aliases are used to construct SQL read-only queries with identifiers more easily memorizable than resource ids.
 
 Paths of resources are necessarily relative to the resources directory because the download step 
 will reconstruct the same hierarchy as the upload directory, in a different location.
+
+
+#### Data upload steps
+
+When uploading data, the steps are the following:
+1) Read file: the selected method depends on the indicated format or, if specified, the custom __Read function__. 
+This function returns either a DataFrame or a list of dicts. The function can also return a generator of these objects.
+2) Add index: if no primary key is defined, an extra column named `_upload_index` is added to the DataFrame. 
+3) Alter function: the __Upload function__ is called, if defined by user.
+4) Sort lines by the primary key, if it is defined by more than one column. 
+When multiple primary keys were provided, the default behavior is to associate a file with the values of the primary key except its last column (when downloading a resource).  
+5) Data cleaner: the selected __Data cleaner__ is executed, if specified (GeoJSON selected by default for mode ___DataStore from Harvester___).
+6) `datastore_upsert`: the DataFrame is uploaded through the API. 
 
 
 #### Specific modes for _DataStore from Harvester_

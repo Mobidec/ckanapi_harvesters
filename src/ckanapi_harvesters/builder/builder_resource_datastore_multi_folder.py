@@ -20,6 +20,7 @@ from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataF
 from ckanapi_harvesters.builder.builder_resource_datastore_multi_abc import BuilderDataStoreMultiABC
 from ckanapi_harvesters.builder.builder_resource_datastore_multi_abc import datastore_multi_apply_last_condition_intermediary
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
+from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_index_col_name
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path, glob_rm_glob, list_files_scandir
 from ckanapi_harvesters.ckan_api import CkanApi
@@ -30,11 +31,13 @@ from ckanapi_harvesters.builder.mapper_datastore_multi import default_file_mappe
 
 class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
     def __init__(self, *, file_query_list: List[Tuple[str,dict]]=None, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None, dir_name:str=None, options_string:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
+                 resource_id:str=None, download_url:str=None, dir_name:str=None, options_string:str=None, base_dir:str=None):
+        super().__init__(name=name, format=format, description=description, resource_id=resource_id,
+                         download_url=download_url, options_string=options_string, base_dir=base_dir)
         self.dir_name = dir_name
         # Functions inputs/outputs
-        self.df_mapper: RequestFileMapperABC = default_file_mapper_from_primary_key(self.primary_key, file_query_list)
+        self.df_mapper: RequestFileMapperABC
+        self.setup_default_file_mapper(self.primary_key, file_query_list)
         self.local_file_list_base_dir:Union[str,None] = None
         self.local_file_list:Union[List[str],None] = None
         self.local_file_size:Union[List[int],None] = None
@@ -53,24 +56,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None) -> None:
         super()._load_from_df_row(row=row)
-        self.df_mapper = default_file_mapper_from_primary_key(self.primary_key)
         self.dir_name: str = _string_from_element(row["file/url"])
-
-    def setup_default_file_mapper(self, primary_key:List[str]=None, file_query_list:Collection[Tuple[str, dict]]=None) -> None:
-        """
-        This function enables the user to define the primary key and initializes the default file mapper.
-        :param primary_key: manually specify the primary key
-        :return:
-        """
-        df_mapper_mem = self.df_mapper
-        if primary_key is not None:
-            self.primary_key = primary_key
-        self.df_mapper = default_file_mapper_from_primary_key(self.primary_key, file_query_list)
-        if file_query_list is not None:
-            self.downloaded_file_query_list = file_query_list
-        # preserve upload/download functions
-        self.df_mapper.df_upload_fun = df_mapper_mem.df_upload_fun
-        self.df_mapper.df_download_fun = df_mapper_mem.df_download_fun
 
     @staticmethod
     def resource_mode_str() -> str:
@@ -103,7 +89,8 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         df_local = chunk.df
         generator.close()
         if upload_alter:
-            df_upload = self.df_mapper.df_upload_alter(df_local, fields=self._get_fields_info(), file_name=chunk.file_path)
+            df_upload = self.df_mapper.df_upload_alter(df_local, fields=self._get_fields_info(),
+                                                       total_lines_read=chunk.read_line_counter, file_name=chunk.file_path)
             return df_upload
         else:
             return df_local
@@ -173,7 +160,8 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
             raise RuntimeError("You must call list_local_files first")
         return len(self.local_file_list)
 
-    def upsert_request_df(self, ckan: CkanApi, df_upload:pd.DataFrame,
+    def upsert_request_df(self, ckan: CkanApi, df_upload:pd.DataFrame, *,
+                          total_lines_read:int, file_name:str,
                           method:UpsertChoice=UpsertChoice.Upsert,
                           apply_last_condition:bool=None, always_last_condition:bool=None) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -190,7 +178,8 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
             apply_last_condition = True  # datastore_multi_apply_last_condition_intermediary
         resource_id = self.get_or_query_resource_id(ckan=ckan, error_not_found=True)
         df_upload_local = df_upload
-        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload_local, fields=self._get_fields_info())
+        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload_local, fields=self._get_fields_info(),
+                                                               total_lines_read=total_lines_read, file_name=file_name)
         file_query = self.df_mapper.get_file_query_of_df(df_upload_transformed)
         if file_query is not None:
             i_restart, upload_needed, row_count, df_row = self.df_mapper.last_inserted_index_request(ckan=ckan,
