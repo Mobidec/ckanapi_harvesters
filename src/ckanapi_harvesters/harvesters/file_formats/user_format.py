@@ -11,7 +11,6 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import df_download_to_csv_kwargs
 from ckanapi_harvesters.auxiliary.ckan_errors import MissingCodeFileError, MissingIOFunctionError
 from ckanapi_harvesters.auxiliary.external_code_import import PythonUserCode
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
@@ -58,18 +57,18 @@ class UserFileFormat(FileFormatABC):
     def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=False) -> Union[pd.DataFrame, ListRecords]:
         if self.df_read_fun is None:
             raise MissingIOFunctionError("Read function")
-        return self.df_read_fun(file_path, fields=fields, allow_chunks=allow_chunks and self.allow_chunks, params=self)
+        return self.df_read_fun(file_path, fields=fields, allow_chunks=allow_chunks and self.allow_chunks, params=self, **self.read_kwargs)
 
     def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
         if self.df_read_fun is None:
             raise MissingIOFunctionError("Read function")
-        return self.df_read_fun(buffer, fields=fields, allow_chunks=False, params=self)
+        return self.df_read_fun(buffer, fields=fields, allow_chunks=False, params=self, **self.read_kwargs)
 
     # write ------------------
     def write_file(self, df: pd.DataFrame, file_path: str, fields: Union[Dict[str, CkanField],None]) -> None:
         if self.df_write_fun is None:
             raise MissingIOFunctionError("Write function")
-        self.df_write_fun(df, file_path, append=False, fields=fields, params=self)
+        self.df_write_fun(df, file_path, append=False, fields=fields, params=self, **self.write_kwargs)
 
     def append_allowed(self) -> bool:
         return self.option_append_allowed
@@ -78,20 +77,20 @@ class UserFileFormat(FileFormatABC):
                     fields: Union[Dict[str, CkanField], None]) -> None:
         if self.df_write_fun is None:
             raise MissingIOFunctionError("Write function")
-        self.df_write_fun(df, file_path, append=True, fields=fields, params=self)
+        self.df_write_fun(df, file_path, append=True, fields=fields, params=self, **self.write_kwargs)
 
     def write_in_memory(self, df: pd.DataFrame, fields: Union[Dict[str, CkanField],None]) -> bytes:
         if self.df_write_fun is None:
             raise MissingIOFunctionError("Write function")
         buffer = io.StringIO()
-        self.df_write_fun(df, buffer, append=False, fields=fields, params=self)
+        self.df_write_fun(df, buffer, append=False, fields=fields, params=self, **self.write_kwargs)
         return buffer.getvalue().encode("utf8")
 
     def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
         if self.df_write_fun is None:
             raise MissingIOFunctionError("Write function")
         buffer = io.StringIO(buffer.decode("utf8"))
-        self.df_write_fun(df, buffer, append=True, fields=fields, params=self)
+        self.df_write_fun(df, buffer, append=True, fields=fields, params=self, **self.write_kwargs)
         return buffer.getvalue().encode("utf8")
 
     # misc ------------------

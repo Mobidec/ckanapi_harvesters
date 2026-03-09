@@ -13,6 +13,7 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.list_records import ListRecords
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import import_args_kwargs_dict
 
 
 class FileFormatABC(ABC):
@@ -22,6 +23,8 @@ class FileFormatABC(ABC):
         self.options_string:Union[str,None] = options_string
         self.allow_chunks:bool = False
         self.chunksize:int = FileFormatABC.default_read_chunksize
+        self.read_kwargs:dict = {}
+        self.write_kwargs:dict = {}
         self._apply_options_string()
 
     @staticmethod
@@ -32,12 +35,18 @@ class FileFormatABC(ABC):
                             help="Chunk size for reading files by chunks (number of records)")
         parser.add_argument("--allow-chunks",
                             help="Option to enable reading files by chunks", action="store_true", default=False)
+        parser.add_argument("--read-kwargs", nargs="*",
+                            help="Keyword arguments for the read function in key=value format")
+        parser.add_argument("--write-kwargs", nargs="*",
+                            help="Keyword arguments for the write function in key=value format")
         return parser
 
     def _apply_arguments(self, args: argparse.Namespace, extra_args: list):
         self.allow_chunks = args.allow_chunks
         if args.chunksize is not None:
             self.chunksize = args.chunksize
+        self.read_kwargs.update(import_args_kwargs_dict(args.read_kwargs))
+        self.write_kwargs.update(import_args_kwargs_dict(args.write_kwargs))
 
     def _apply_options_string(self, options_string:str=None, *, parser: argparse.ArgumentParser = None):
         if options_string is None:
@@ -105,6 +114,8 @@ class FileFormatABC(ABC):
         dest.options_string = self.options_string
         dest.allow_chunks = self.allow_chunks
         dest.chunksize = self.chunksize
+        dest.read_kwargs = self.read_kwargs
+        dest.write_kwargs = self.write_kwargs
         return dest
 
     def __copy__(self):

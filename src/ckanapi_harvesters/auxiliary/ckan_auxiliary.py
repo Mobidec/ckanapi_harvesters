@@ -3,7 +3,7 @@
 """
 Data model to represent a CKAN database architecture
 """
-from typing import Iterable, Union, Set, Tuple, final
+from typing import Iterable, Union, Tuple, Any
 from enum import IntEnum
 import json
 import numbers
@@ -296,4 +296,32 @@ def to_jsons_indent_lists_single_line(obj, *args, reduced_size:bool=False, **kwa
         output = re.sub(r"(?<=\[)[^\[\]\{\}]+(?=\])", _jsons_repl_func, output)
         # output = re.sub(r"(?<=\{)[^\[\]\{\}]+(?=\})", _jsons_repl_func, output)
         return output
+
+## argparse
+def str_to_python_value(value:str) -> Any:
+    if value in ["True", "true"]:
+        return True
+    elif value in ["False", "false"]:
+        return False
+    elif value in ["None", "none"]:
+        return None
+    else:
+        try:
+            return int(value)
+        except ValueError:
+            try:
+                return float(value)
+            except ValueError:
+                return value
+
+def import_args_kwargs_dict(args_kwargs:str) -> dict:
+    kwargs_dict = {}
+    if args_kwargs is not None:
+        for item in args_kwargs:
+            if "=" in item:
+                key, value = item.split("=")
+                kwargs_dict[key] = str_to_python_value(value)
+            else:
+                raise ValueError(f"Invalid format for keyword argument: {item}. Use key=value format.")
+    return kwargs_dict
 
