@@ -71,6 +71,8 @@ The `proxy_auth` argument can be also used in your script. Additional headers ca
 - __Data format policy file__: Path to a JSON file containing the CKAN data format policy, relative to this Excel workbook folder. The data format policy enables you to check your information against data format policy rules provided by your organization.
 - __Options__: List of options to initialize the CKAN API object in CLI format. Notable options are:
   - `--ckan-postgis` to signal the data transformation operations to handle PostGIS objects properly.
+- __Limit__: Maximum number of records to return/send per request.
+- __Time between requests__: Delay between each request (upload/download), in seconds - recommended: 0.1 seconds. Default value used if left empty.
 
 
 ### Sheet "package"
@@ -142,7 +144,13 @@ If a custom read/write method is defined (see below, columns Read/Write function
   The files used by single-resource lines are ignored by the wildcard selection.
   - ___MultiDataStore___: A MultiFile which initiates a DataStore and manages field metadata.
   The forbidden wildcard characters in the name of the Excel spreadsheet for field metadata must be replaced by `#`.
-- __Options__: Field reserved for resources in mode _DataStore from Requests_.
+- __Options__: Options in CLI format: 
+  - In file mode, use to add specific arguments for file reading/writing functions e.g.
+    - To enable reading a CSV file by chunks, use option `--allow-chunks`
+    - For a CSV file, add options to the pandas.read_csv function in key=value format e.g. 
+    `--read-kwargs compression=gzip` or
+    `--allow-chunks --read-kwargs chunksize=1000`
+  - In mode _DataStore from Requests_, use to configure database connection parameters. See specific documentation.
 - __Download__: By default, all the resources are downloaded. You can specify not to download a specific resource with the keyword `false`.
 Resources which are not listed in the Excel spreadsheet will not be downloaded by the default methods.
 - __File/URL__: Source URL if the resource refers to an URL.

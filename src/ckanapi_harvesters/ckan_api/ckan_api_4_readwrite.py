@@ -7,6 +7,7 @@ from typing import List, Union, Tuple, Generator
 import time
 from warnings import warn
 import io
+import argparse
 
 import pandas as pd
 
@@ -29,8 +30,6 @@ from ckanapi_harvesters.ckan_api.ckan_api_3_policy import CkanApiPolicy
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import df_upload_to_csv_kwargs
-
-
 
 
 class CkanApiReadWriteParams(CkanApiPolicyParams):
@@ -56,6 +55,15 @@ class CkanApiReadWriteParams(CkanApiPolicyParams):
         dest.submit_delay = self.submit_delay
         dest.submit_timeout = self.submit_timeout
         return dest
+
+    def _cli_ckan_args_apply(self, args: argparse.Namespace, *, base_dir:str=None,
+                             error_not_found:bool=True, default_proxies:dict=None, proxy_headers:dict=None,
+                             proxies:dict=None, headers:dict=None) -> None:
+        # overload adding support to trigger admin mode
+        super()._cli_ckan_args_apply(args=args, base_dir=base_dir, error_not_found=error_not_found,
+                                     default_proxies=default_proxies, proxy_headers=proxy_headers)
+        if args.limit is not None:
+            self.default_limit_write = args.limit
 
 
 class CkanApiReadWrite(CkanApiPolicy):
@@ -296,6 +304,8 @@ class CkanApiReadWrite(CkanApiPolicy):
         if return_df is None:
             return_df = mode_df
         if limit is None: limit = self.params.default_limit_write
+        if self.params.multi_requests_time_between_requests > 0:
+            time.sleep(self.params.multi_requests_time_between_requests)
         if limit is None:
             # direct API call with one request
             if self.params.store_last_response_debug_info:

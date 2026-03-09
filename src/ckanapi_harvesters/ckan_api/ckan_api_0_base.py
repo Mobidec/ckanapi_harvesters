@@ -12,6 +12,7 @@ from warnings import warn
 import argparse
 import shlex
 import os
+import io
 
 import requests
 from requests.auth import AuthBase
@@ -325,6 +326,14 @@ class CkanApiBase(CkanApiABC):
         #                     help="Enable external code execution for builder (only enable for trusted sources)")
         return parser
 
+    def print_help_cli(self, display:bool=True) -> str:
+        parser = self._setup_cli_ckan_parser()
+        if display:
+            parser.print_help()
+        buffer = io.StringIO()
+        parser.print_help(buffer)
+        return buffer.getvalue()
+
     def _cli_ckan_args_apply(self, args: argparse.Namespace, *, base_dir:str=None, error_not_found:bool=True,
                              default_proxies:dict=None, proxy_headers:dict=None) -> None:
         """
@@ -343,8 +352,8 @@ class CkanApiBase(CkanApiABC):
         self.apikey._cli_args_apply(args, base_dir=base_dir, error_not_found=error_not_found)
         self.params._cli_ckan_args_apply(args, base_dir=base_dir, error_not_found=error_not_found,
                                          default_proxies=default_proxies, proxy_headers=proxy_headers)
-        if args.default_limit is not None:
-            self.set_limits(args.default_limit)
+        # if args.default_limit is not None:
+        #     self.set_limits(args.default_limit)
         if args.verbose is not None:
             self.set_verbosity(args.verbose)
         # if args.external_code:
@@ -805,6 +814,8 @@ class CkanApiBase(CkanApiABC):
         start = time.time()
         requests_count = 1
         n_received = 0
+        if self.params.multi_requests_time_between_requests > 0:
+            time.sleep(self.params.multi_requests_time_between_requests)
         if self.params.verbose_multi_requests:
             print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit} results from {api_fun.__name__}...")
         result_add: Union[pd.DataFrame, CkanActionResponse, Collection] = api_fun(params=params, limit=limit, offset=offset, **kwargs)

@@ -9,6 +9,7 @@ from warnings import warn
 from typing import Dict, Union, Iterable
 import getpass
 import argparse
+import  io
 
 from ckanapi_harvesters.auxiliary.ckan_errors import ApiKeyFileError
 from ckanapi_harvesters.auxiliary.path import sanitize_path, path_rel_to_dir
@@ -139,6 +140,14 @@ class ApiKey:
         parser.add_argument("--apikey-file", type=str,
                             help="Path to a file containing the API key (first line)")
         return parser
+
+    def print_help_cli(self, display:bool=True) -> str:
+        parser = self._setup_cli_parser()
+        if display:
+            parser.print_help()
+        buffer = io.StringIO()
+        parser.print_help(buffer)
+        return buffer.getvalue()
 
     def _cli_args_apply(self, args: argparse.Namespace, *, base_dir: str = None, error_not_found: bool = True) -> None:
         if args.apikey is not None:

@@ -35,6 +35,8 @@ class BuilderCkan:
         self._ckan_ca_src: Union[str, None] = None
         self._extern_ca_src: Union[str, None] = None
         self.options_string: Union[str, None] = None
+        self.limit: Union[int, None] = None
+        self.time_between_requests: Union[float, None] = None
         self.comment: Union[str, None] = None
 
     def __str__(self):
@@ -56,6 +58,8 @@ class BuilderCkan:
         dest._ckan_ca_src = self._ckan_ca_src
         dest._extern_ca_src = self._extern_ca_src
         dest.options_string = self.options_string
+        dest.limit = self.limit
+        dest.time_between_requests = self.time_between_requests
         dest.comment = self.comment
         return dest
 
@@ -130,6 +134,14 @@ class BuilderCkan:
                                  error_not_found=error_not_found)
         if "options" in ckan_df.columns:
             self.options_string = _string_from_element(ckan_df.pop("options"))
+        if "limit" in ckan_df.columns:
+            number_str = _string_from_element(ckan_df.pop("limit"))
+            if number_str is not None:
+                self.limit = int(number_str)
+        if "time between requests" in ckan_df.columns:
+            number_str = _string_from_element(ckan_df.pop("time between requests"))
+            if number_str is not None:
+                self.time_between_requests = float(number_str)
         if "comment" in ckan_df.columns:
             self.comment = _string_from_element(ckan_df.pop("comment"))
 
@@ -150,6 +162,8 @@ class BuilderCkan:
         ckan_dict["External remote CA"] = ca_arg_to_str(self.extern_ca, base_dir=base_dir, source_string=self._extern_ca_src)
         ckan_dict["Data format policy file"] = make_path_relative(self.policy_file, base_dir)
         ckan_dict["Options"] = self.options_string
+        ckan_dict["Limit"] = self.limit
+        ckan_dict["Time between requests"] = self.time_between_requests
         ckan_dict["Comment"] = self.comment
         return ckan_dict
 
@@ -164,6 +178,8 @@ class BuilderCkan:
             "External CA": "Path to a custom CA certificate used for connexions other than the CKAN server, relative to this Excel workbook folder (.pem)",
             "Data format policy file": "Path to a JSON file containing the CKAN data format policy, relative to this Excel workbook folder",
             "Options": "List of options to initialize the CKAN API object in CLI format",
+            "Limit": "Maximum number of records to return/send per request",
+            "Time between requests": "Delay between upload/download requests (seconds) - recommended: 0.1 seconds",
         }
         return ckan_help_dict
 
@@ -235,5 +251,9 @@ class BuilderCkan:
         if self.options_string is not None:
             ckan.initialize_from_options_string(self.options_string,
                                                 base_dir=base_dir, default_proxies=default_proxies)
+        if self.limit is not None:
+            ckan.set_limits(self.limit)
+        if self.time_between_requests is not None:
+            ckan.params.multi_requests_time_between_requests = self.time_between_requests
         return ckan
 

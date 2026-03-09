@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 import argparse
 import shlex
 from warnings import warn
-import copy
+import io
 
 import pandas as pd
 from requests.auth import AuthBase
@@ -109,6 +109,14 @@ class DatabaseParams:
         parser.add_argument("--ckan-epsg", type=int,
                             help="Default EPSG for CKAN", default=default_ckan_target_epsg)
         return parser
+
+    def print_help_cli(self, display:bool=True) -> str:
+        parser = self.setup_cli_harvester_parser()
+        if display:
+            parser.print_help()
+        buffer = io.StringIO()
+        parser.print_help(buffer)
+        return buffer.getvalue()
 
     def initialize_from_cli_args(self, args: argparse.Namespace, base_dir: str = None, error_not_found: bool = True,
                                  default_proxies: dict = None, proxy_headers: dict = None) -> None:

@@ -8,7 +8,7 @@ import getpass
 from warnings import warn
 import os
 import argparse
-import shlex
+import io
 
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir
 from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
@@ -115,6 +115,14 @@ class Login:
         parser.add_argument("--login-file", type=str,
                             help="Path to a text file containing login credentials for authentification (user, password)")
         return parser
+
+    def print_help_cli(self, display:bool=True) -> str:
+        parser = self._setup_cli_parser()
+        if display:
+            parser.print_help()
+        buffer = io.StringIO()
+        parser.print_help(buffer)
+        return buffer.getvalue()
 
     def _cli_args_apply(self, args: argparse.Namespace, *, base_dir: str = None, error_not_found: bool = True) -> None:
         if args.login_file is not None:

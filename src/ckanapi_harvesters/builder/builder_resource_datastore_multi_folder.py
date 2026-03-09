@@ -103,7 +103,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         df_local = chunk.df
         generator.close()
         if upload_alter:
-            df_upload = self.df_mapper.df_upload_alter(df_local, chunk.file_path, fields=self._get_fields_info())
+            df_upload = self.df_mapper.df_upload_alter(df_local, fields=self._get_fields_info(), file_name=chunk.file_path)
             return df_upload
         else:
             return df_local

@@ -78,6 +78,14 @@ class CkanFieldInternalAttrs:
                             help="Source EPSG (geographic coordinate system) for the column, used by data_cleaner")
         return parser
 
+    def print_help_cli(self, display:bool=True) -> str:
+        parser = self._setup_cli_ckan_parser()
+        if display:
+            parser.print_help()
+        buffer = io.StringIO()
+        parser.print_help(buffer)
+        return buffer.getvalue()
+
     def _cli_ckan_args_apply(self, args: argparse.Namespace) -> None:
         if args.epsg_src:
             self.epsg_source = args.epsg_src

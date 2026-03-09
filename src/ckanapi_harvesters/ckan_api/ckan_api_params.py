@@ -143,10 +143,12 @@ class CkanApiParamsBasic:
                             help="CA certificate location for extern connexions (.pem file)")
         parser.add_argument("--user-agent", type=str,
                             help="User agent for HTTP requests")
-        parser.add_argument("-l", "--default-limit", type=int,
-                            help="Default number of rows per request")
+        parser.add_argument("-l", "--limit", type=int,
+                            help="Number of rows per request (upload/download)")
         parser.add_argument("-v", "--verbose",
                             help="Option to set verbosity", action="store_true", default=False)
+        parser.add_argument("--time-between-requests", type=float,
+                            help="Time between upload/download requests (seconds) - recommended: 0.1 seconds")
         # parser.add_argument("--external-code", action="store_true",
         #                     help="Enable external code execution for builder (only enable for trusted sources)")
         return parser
@@ -174,8 +176,10 @@ class CkanApiParamsBasic:
             self.extern_ca = path_rel_to_dir(args.extern_ca, base_dir=base_dir)
         if args.user_agent is not None:
             self.user_agent = args.user_agent
-        # if args.default_limit is not None:
-        #     self.set_limits(args.default_limit)
+        if args.time_between_requests is not None:
+            self.multi_requests_time_between_requests = args.time_between_requests
+        if args.limit is not None:
+            self.default_limit_read = args.limit
         # if args.verbose is not None:
         #     self.set_verbosity(args.verbose)
         # if args.external_code:

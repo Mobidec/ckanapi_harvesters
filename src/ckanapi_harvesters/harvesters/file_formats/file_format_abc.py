@@ -41,6 +41,14 @@ class FileFormatABC(ABC):
                             help="Keyword arguments for the write function in key=value format")
         return parser
 
+    def print_help_cli(self, display:bool=True) -> str:
+        parser = self._setup_cli_parser()
+        if display:
+            parser.print_help()
+        buffer = io.StringIO()
+        parser.print_help(buffer)
+        return buffer.getvalue()
+
     def _apply_arguments(self, args: argparse.Namespace, extra_args: list):
         self.allow_chunks = args.allow_chunks
         if args.chunksize is not None:
