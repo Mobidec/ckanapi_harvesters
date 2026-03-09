@@ -22,7 +22,8 @@ The data cleaner was used only for MongoDB/PostgreSQL imports or files with geom
 This modification is compatible with multi-threading and returns a more accurate progression indicator.
 It is disabled by default. To enable it, use the `allow_chunks` argument or enter `--allow-chunks` in the __Options__ column of the resources worksheet.
 - Excel builder workbook:
-  - Support for user-defined file format loading functions with new Excel columns __Read function__ and __Write function__.
+  - Support for user-defined file format loading functions with new Excel columns __Read function__ and __Write function__ per resource.
+  - Extra column __Data cleaner__ per DataStore to activate a function which corrects values according to the destination type specified in the fields metadata (only for uploads).
   - Field __Limit__ in the _ckan_ sheet to change the number of rows sent per request.
   - Field __Time between requests__ in the _ckan_ sheet to change the delay between each request (upload/download), in seconds
 - The upload data cleaner can be used to replace empty string values with None for columns indicated as numeric in the field metadata.

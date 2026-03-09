@@ -59,6 +59,10 @@ class CkanDataCleanerUploadGeom(CkanDataCleanerUploadBasic):
     def __init__(self):
         super().__init__()
 
+    @staticmethod
+    def get_class_keyword() -> str:
+        return "GeoJSON"
+
     def _replace_standard_value_bypass(self, value: Any, field: CkanField, *, field_data_type: str) -> Tuple[Any, bool]:
         if field_data_type == "geometry" or field_data_type.startswith("geometry("):  #  and field.internal_attrs.geometry_as_source:
             value_shape = shapely_geometry_from_value(value)

@@ -54,6 +54,15 @@ class CkanDataCleanerABC(ABC):
         self.field_suggested_index:Set[str] = set()
         self._new_columns_in_row: Dict[str,Any] = None  # is initialized at each row
 
+    @staticmethod
+    @abstractmethod
+    def get_class_keyword() -> str:
+        """
+        Returns the name of the class, according to data_cleaner_dict defined in data_cleaner_init.py.
+        This name is used to setup the data cleaner for a resource builder.
+        """
+        raise NotImplementedError()
+
     def clear_outputs_new_dataframe(self):
         self.fields_encountered = OrderedDict()
         self.warnings = {}
@@ -237,4 +246,43 @@ class CkanDataCleanerABC(ABC):
             return [field_info.to_ckan_dict() for field_info in fields_dict.values()]
         else:
             return fields
+
+
+class DataCleanerNone(CkanDataCleanerABC):
+    """
+    Implementation which does nothing. Placeholder to explicitly mention a data cleaner must not be used.
+    """
+    @staticmethod
+    def get_class_keyword() -> str:
+        return "None"
+
+    def copy(self, dest=None) -> "DataCleanerNone":
+        if dest is None:
+            dest = DataCleanerNone()
+        super().copy(dest=dest)
+        return dest
+
+    def clean_records(self, records: Union[List[dict], pd.DataFrame], known_fields:Union[OrderedDict[str, CkanField], None],
+                      *, inplace:bool=False) -> Union[List[dict], pd.DataFrame]:
+        return records
+
+    def _clean_final_steps(self, records: Union[List[dict], pd.DataFrame], fields:Union[OrderedDict[str, CkanField], None],
+                           known_fields:Union[OrderedDict[str, CkanField], None]) -> Union[List[dict], pd.DataFrame]:
+        return records
+
+    def clean_value_field(self, value: Any, field: CkanField) -> Any:
+        return value
+
+    def _clean_subvalue(self, subvalue: Any, field: CkanField, path: str, level: int,
+                                   *, field_data_type: str) -> Any:
+        return subvalue
+
+    def create_new_field(self, field_name:str, values: Union[Any, pd.Series]) -> CkanField:
+        if field_name in self.fields_new.keys():
+            return self.fields_new[field_name]
+        else:
+            raise KeyError(f"Field {field_name} does not exist")
+
+    def detect_field_types_and_subs(self, records: Union[List[dict], pd.DataFrame]) -> OrderedDict[str, str]:
+        raise NotImplementedError()
 

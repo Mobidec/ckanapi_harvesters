@@ -60,6 +60,10 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
         self.param_rename_fields_underscore:bool = True  # option to rename fields beginning with an underscore (in the subs step)
         self.param_null_numbers: bool = True
 
+    @staticmethod
+    def get_class_keyword() -> str:
+        return "Basic"
+
     def copy(self, dest=None) -> "CkanDataCleanerUploadBasic":
         if dest is None:
             dest = CkanDataCleanerUploadBasic()

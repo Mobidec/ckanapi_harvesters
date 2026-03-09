@@ -10,6 +10,7 @@ from . import data_cleaner_abc
 from . import data_cleaner_upload_1_basic
 from . import data_cleaner_upload_2_geom
 from . import data_cleaner_upload
+from . import data_cleaner_init
 
 # usage shortcuts
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload import CkanDataCleanerUpload

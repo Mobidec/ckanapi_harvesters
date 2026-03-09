@@ -166,6 +166,12 @@ Comma-separated list of field names.
 It must take a file/IO buffer and return a DataFrame.
 - __Write function__: custom function to execute when saving records to a file. This function must be implemented in the Auxiliary functions file.
 It must take a DataFrame and a file/IO buffer as input arguments.
+- __Data cleaner__ option to activate a function which corrects values according to the destination type specified in the fields metadata (only for uploads). 
+By default, no modifications are made to the data before upload except when importing data from external databases (PostgreSQL/MongoDB). The ___GeoJSON___ data cleaner is used in this case. 
+Values for this field are:
+  - ___None___: explicitly do not use a data cleaner
+  - ___Basic___: basic data conversions e.g. replace empty values by `null` for numeric columns.
+  - ___GeoJSON___: conversions adapted for geometry columns (like GeoJSON) - this includes the ___Basic___ features.
 - __Upload function__: If an Auxiliary functions file is specified, this represents the name of the function which is called before uploading a DataFrame from a local file. (only applies to DataStores)
 This function must have one argument which is a pandas DataFrame and must return the modified DataFrame. If not provided, no modification is performed.
 - __Download function__: This should be the reverse function of the upload function. It is called when a DataFrame is downloaded from the server. (only applies to DataStores)

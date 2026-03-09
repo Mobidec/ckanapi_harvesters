@@ -32,6 +32,7 @@ from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
+from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_init import init_data_cleaner
 
 # number of rows to upload to initiate DataStore with datapusher, before explicitly specifying field data types and indexes
 num_rows_patch_first_upload_partial: Union[int,None] = None  # set to None to upload directly the whole DataFrame before the DataStore creation
@@ -87,6 +88,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         primary_keys_string: Union[str,None] = _string_from_element(row["primary key"])
         indexes_string: Union[str,None] = _string_from_element(row["indexes"])
         aliases_string: Union[str,None] = None
+        if "data cleaner" in row.keys():
+            data_cleaner_string = _string_from_element(row["data cleaner"], empty_value="")
+            if data_cleaner_string is not None:
+                self.data_cleaner_upload = init_data_cleaner(data_cleaner_string)
         if "upload function" in row.keys():
             self.aux_upload_fun_name: str = _string_from_element(row["upload function"], empty_value="")
         if "download function" in row.keys():
@@ -116,6 +121,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         d = super()._to_dict(include_id=include_id)
         d["Primary key"] = ckan_tags_sep.join(self.primary_key) if self.primary_key else ""
         d["Indexes"] = ckan_tags_sep.join(self.indexes) if self.indexes is not None else ""
+        d["Data cleaner"] = self.data_cleaner_upload.get_class_keyword() if self.data_cleaner_upload is not None else ""
         d["Upload function"] = self.aux_upload_fun_name
         d["Download function"] = self.aux_download_fun_name
         d["Read function"] = self.aux_read_fun_name
