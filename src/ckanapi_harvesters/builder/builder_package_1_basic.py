@@ -339,7 +339,13 @@ class BuilderPackageBasic:
             self.comment = _string_from_element(package_df.pop("comment"), empty_value="")
         # package attributes
         self.package_attributes: CkanPackageInfo
-        self.package_name = _string_from_element(package_df.pop("name")).strip()
+        if "name" in package_df.columns:
+            # deprecated: package "Name" column was renamed "Name in URL"
+            self.package_name = _string_from_element(package_df.pop("name")).strip()
+            msg = "Package attribute 'Name' was renamed to 'Name in URL'. Previous name 'Name' is deprecated. Use 'Name in URL' instead."
+            warn(msg)
+        else:
+            self.package_name = _string_from_element(package_df.pop("name in url")).strip()
         self.package_attributes.title = _string_from_element(package_df.pop("title"))
         if "known id" in package_df.columns:
             self.package_attributes.id = _string_from_element(package_df.pop("known id"))
@@ -399,7 +405,7 @@ class BuilderPackageBasic:
         info_dict["Download directory"] = self._get_out_dir_src(base_dir=base_dir)
         info_dict["Comment"] = self.comment
         package_dict = OrderedDict()
-        package_dict["Name"] = self.package_name
+        package_dict["Name in URL"] = self.package_name
         package_dict["Title"] = self.package_attributes.title
         if include_id and self.package_attributes.id:
             package_dict["Known Id"] = self.package_attributes.id
@@ -429,7 +435,7 @@ class BuilderPackageBasic:
             "Comment": "Place to add a comment on this file",
         }
         package_help_dict = {
-            "Name": "Name used in the URL (short name)",
+            "Name in URL": "Name used in the URL (short name)",
             "Title": "Title of the resource",
             "Description": "Description can use Markdown formatting",
             "Visibility": "Private/Public",
