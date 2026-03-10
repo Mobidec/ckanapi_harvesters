@@ -73,7 +73,7 @@ class CkanFieldInternalAttrs:
     @staticmethod
     def _setup_cli_ckan_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="CKAN internal field parameters")
+            parser = argparse.ArgumentParser(description="CKAN internal field parameters", add_help=False)
         parser.add_argument("--epsg-src", type=int,
                             help="Source EPSG (geographic coordinate system) for the column, used by data_cleaner")
         return parser

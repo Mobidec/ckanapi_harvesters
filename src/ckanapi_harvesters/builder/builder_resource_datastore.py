@@ -87,7 +87,11 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
     @staticmethod
     def _setup_cli_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="DataStore resource specific options")
+            parser = argparse.ArgumentParser(description="DataStore resource specific options", add_help=False,
+                                             epilog=
+                                             "Examples: \n"
+                                             "- Selecting a Data Cleaner: --data-cleaner GeoJSON \n"
+                                             "- Process one file per primary key combination (first columns of the primary key, except the last one): --one-frame-per-primary-key")
         parser.add_argument("--data-cleaner", type=str,
                             help="Data cleaner to call before uploading data")
         parser.add_argument("--one-frame-per-primary-key",

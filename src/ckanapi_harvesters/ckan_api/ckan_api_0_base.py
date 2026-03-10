@@ -317,7 +317,8 @@ class CkanApiBase(CkanApiABC):
         :return:
         """
         if parser is None:
-            parser = argparse.ArgumentParser(description="CKAN API connection parameters initialization")
+            parser = argparse.ArgumentParser(description="CKAN API connection parameters initialization", add_help=False,
+                                             epilog="Example: --ckan-url https://demo.ckan.org/ --apikey-file __CKAN_API_KEY__.txt --owner-org demo-organization")
         parser.add_argument("--ckan-url", type=str,
                             help="CKAN URL")
         CkanApiKey._setup_cli_parser(parser)  # add arguments --apikey-file --apikey

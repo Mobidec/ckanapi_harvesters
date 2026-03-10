@@ -25,12 +25,13 @@ class CsvFileFormat(FileFormatABC):
         if to_csv_kwargs is None: to_csv_kwargs = CsvFileFormat.default_csv_file_download_to_csv_kwargs
         self.read_kwargs:dict = read_csv_kwargs
         self.write_kwargs:dict = to_csv_kwargs
+        self._apply_options_string()
 
     # read -------------------
     def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=False) -> Union[pd.DataFrame, ListRecords]:
         kwargs = self.read_kwargs.copy()
         if allow_chunks or self.allow_chunks:
-            kwargs["chunksize"] = self.chunksize
+            kwargs["chunksize"] = self.chunk_size
             return pd.read_csv(file_path, **kwargs)
         else:
             kwargs["chunksize"] = None
@@ -69,4 +70,10 @@ class CsvFileFormat(FileFormatABC):
             dest = CsvFileFormat(self.options_string)
         super().copy(dest=dest)
         return dest
+
+
+if __name__ == '__main__':
+    sample_instance = CsvFileFormat("--read-kwargs compression=gzip header=10")
+    print("File format reader CLI-format options:")
+    sample_instance.print_help_cli()
 

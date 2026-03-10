@@ -135,7 +135,7 @@ class CkanApiParamsBasic:
         :return:
         """
         if parser is None:
-            parser = argparse.ArgumentParser(description="CKAN API connection parameters initialization")
+            parser = argparse.ArgumentParser(description="CKAN API connection parameters initialization", add_help=False)
         ProxyConfig._setup_cli_proxy_parser(parser)  # add arguments --proxy --http-proxy --https-proxy --no-proxy --proxy-auth-file
         parser.add_argument("--ckan-ca", type=str,
                             help="CKAN CA certificate location (.pem file)")

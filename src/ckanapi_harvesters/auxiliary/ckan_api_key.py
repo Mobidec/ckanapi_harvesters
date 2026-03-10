@@ -134,7 +134,7 @@ class ApiKey:
     @staticmethod
     def _setup_cli_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="API key initialization")
+            parser = argparse.ArgumentParser(description="API key initialization", add_help=False)
         parser.add_argument("--apikey", type=str,
                             help="API key")
         parser.add_argument("--apikey-file", type=str,
@@ -243,7 +243,7 @@ class CkanApiKey(ApiKey):
     @staticmethod
     def _setup_cli_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="CKAN API key initialization")
+            parser = argparse.ArgumentParser(description="CKAN API key initialization", add_help=False)
         ApiKey._setup_cli_parser(parser=parser)
         return parser
 

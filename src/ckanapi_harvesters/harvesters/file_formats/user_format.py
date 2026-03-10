@@ -3,7 +3,7 @@
 """
 The basic file format for DataStore: CSV
 """
-from typing import Union, Dict, Callable, Any
+from typing import Union, Dict, Callable, Any, List
 import io
 import argparse
 
@@ -17,10 +17,10 @@ from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileForma
 
 
 # user custom IO function prototypes
-def read_function_example(file_path_or_buffer:Union[str, io.IOBase], fields: Union[Dict[str, CkanField],None], allow_chunks:bool=False, params:"UserFileFormat" = None, **kwargs) -> GeneralDataFrame:
+def read_function_example(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=False, params:"UserFileFormat" = None, **kwargs) -> Union[pd.DataFrame, List[dict]]:
     return pd.DataFrame()
 
-def write_function_example(df: GeneralDataFrame, file_path_or_buffer:Union[str, io.IOBase], fields: Union[Dict[str, CkanField],None], append:bool=False, params:"UserFileFormat" = None, **kwargs) -> None:
+def write_function_example(df: Union[pd.DataFrame, List[dict]], file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], append:bool=False, params:"UserFileFormat" = None, **kwargs) -> None:
     raise NotImplementedError()
     df.to_csv(file_path_or_buffer)
 

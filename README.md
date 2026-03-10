@@ -53,9 +53,15 @@ The package is divided in the following sections:
     [builder_example_notebook.ipynb](sphinx/notebooks/builder_example_notebook.ipynb).
 
 
-## Github Pages
+## Useful links
 
-Your automaticly generated documentation (with Sphinx) is [Here](https://mobidec.github.io/ckanapi_harvesters/)
+Links to resources and documentation:
+- [Documentation](https://mobidec.github.io/ckanapi_harvesters/index.html)
+- [GitHub Repository](https://github.com/Mobidec/ckanapi_harvesters.git)
+- [Issues](https://github.com/Mobidec/ckanapi_harvesters/issues)
+- [Changelog](https://github.com/Mobidec/ckanapi_harvesters/blob/main/CHANGELOG.md)
+- [PyPI](https://pypi.org/project/ckanapi-harvesters/)
+
 
 ## Python Package Template Architecture
 

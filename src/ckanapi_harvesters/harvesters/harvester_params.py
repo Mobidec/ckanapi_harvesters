@@ -80,7 +80,7 @@ class DatabaseParams:
     @staticmethod
     def setup_cli_harvester_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="Harvester parameters")
+            parser = argparse.ArgumentParser(description="Harvester parameters", add_help=False)
         parser.add_argument("--harvester", type=str,
                             help="Type of harvester to use", required=True)
         ProxyConfig._setup_cli_proxy_parser(parser)  # add arguments --proxy --http-proxy --https-proxy --no-proxy --proxy-auth-file
@@ -154,7 +154,7 @@ class DatabaseParams:
     @staticmethod
     def parse_harvest_method(options_string: str) -> str:
         # parser = DatabaseParams.setup_cli_harvester_parser()
-        parser = argparse.ArgumentParser(description="Harvester selection")
+        parser = argparse.ArgumentParser(description="Harvester selection", add_help=False)
         parser.add_argument("--harvester", type=str,
                             help="Type of harvester to use", required=True)
         args, _ = parser.parse_known_args(shlex.split(options_string))
@@ -244,7 +244,7 @@ class DatasetParams(DatabaseParams):
     @staticmethod
     def setup_cli_harvester_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="Harvester parameters")
+            parser = argparse.ArgumentParser(description="Harvester parameters", add_help=False)
             DatabaseParams.setup_cli_harvester_parser(parser=parser)
         parser.add_argument("--dataset", type=str,
                             help="Dataset name")
@@ -287,7 +287,7 @@ class TableParams(DatasetParams):
     @staticmethod
     def setup_cli_harvester_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="Harvester parameters")
+            parser = argparse.ArgumentParser(description="Harvester parameters", add_help=False)
             DatabaseParams.setup_cli_harvester_parser(parser)
             DatasetParams.setup_cli_harvester_parser(parser)
         parser.add_argument("-o", "--output-dir", type=str,

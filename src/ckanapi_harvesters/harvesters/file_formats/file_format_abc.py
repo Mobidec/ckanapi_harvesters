@@ -22,7 +22,7 @@ class FileFormatABC(ABC):
     def __init__(self, options_string: str=None):
         self.options_string:Union[str,None] = options_string
         self.allow_chunks:bool = False
-        self.chunksize:int = FileFormatABC.default_read_chunksize
+        self.chunk_size:int = FileFormatABC.default_read_chunksize
         self.read_kwargs:dict = {}
         self.write_kwargs:dict = {}
         self._apply_options_string()
@@ -30,11 +30,15 @@ class FileFormatABC(ABC):
     @staticmethod
     def _setup_cli_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="File format base class arguments")
-        parser.add_argument("--chunksize", type=int,
-                            help="Chunk size for reading files by chunks (number of records)")
+            parser = argparse.ArgumentParser(description="File format reader arguments", add_help=False,
+                                             epilog=
+                                             "Examples: \n"
+                                             "- Enabling reading files by chunks: --allow-chunks --chunk-size 1000 \n"
+                                             "- Additional arguments for pandas.read_csv for a CSV file: --read-kwargs compression=gzip header=10")
+        parser.add_argument("--chunk-size", type=int,
+                            help="Chunk size for reading files by chunks (number of records). If given, this enables reading files by chunk (option --allow-chunks)")
         parser.add_argument("--allow-chunks",
-                            help="Option to enable reading files by chunks", action="store_true", default=False)
+                            help="Option to enable reading files by chunks, with the default chunk size or given with --chunk-size.", action="store_true", default=False)
         parser.add_argument("--read-kwargs", nargs="*",
                             help="Keyword arguments for the read function in key=value format")
         parser.add_argument("--write-kwargs", nargs="*",
@@ -50,9 +54,11 @@ class FileFormatABC(ABC):
         return buffer.getvalue()
 
     def _apply_arguments(self, args: argparse.Namespace, extra_args: list):
-        self.allow_chunks = args.allow_chunks
-        if args.chunksize is not None:
-            self.chunksize = args.chunksize
+        if args.allow_chunks is not None:
+            self.allow_chunks = args.allow_chunks
+        if args.chunk_size is not None:
+            self.chunk_size = args.chunk_size
+            self.allow_chunks = True
         self.read_kwargs.update(import_args_kwargs_dict(args.read_kwargs))
         self.write_kwargs.update(import_args_kwargs_dict(args.write_kwargs))
 
@@ -121,7 +127,7 @@ class FileFormatABC(ABC):
     def copy(self, dest=None):
         dest.options_string = self.options_string
         dest.allow_chunks = self.allow_chunks
-        dest.chunksize = self.chunksize
+        dest.chunk_size = self.chunk_size
         dest.read_kwargs = self.read_kwargs
         dest.write_kwargs = self.write_kwargs
         return dest

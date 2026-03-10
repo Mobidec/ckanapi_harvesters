@@ -278,3 +278,8 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         else:
             self.download_request_full(ckan=ckan, out_dir=out_dir, threads=threads, force=force)
 
+
+if __name__ == '__main__':
+    sample_instance = BuilderDataStoreFolder()
+    print("DataStore resource builder CLI-format options:")
+    sample_instance.print_help_cli()

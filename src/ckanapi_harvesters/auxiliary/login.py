@@ -111,7 +111,7 @@ class Login:
     @staticmethod
     def _setup_cli_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="Login credentials initialization")
+            parser = argparse.ArgumentParser(description="Login credentials initialization", add_help=False)
         parser.add_argument("--login-file", type=str,
                             help="Path to a text file containing login credentials for authentification (user, password)")
         return parser
@@ -149,7 +149,7 @@ class SSHLogin(Login):
     @staticmethod
     def _setup_cli_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="SSH login credentials initialization")
+            parser = argparse.ArgumentParser(description="SSH login credentials initialization", add_help=False)
         parser.add_argument("--ssh-login-file", type=str,
                             help="Path to a text file containing SSH login credentials for authentification (user, password)")
         return parser

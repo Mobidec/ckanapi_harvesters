@@ -435,7 +435,7 @@ class BuilderPackageBasic:
             "Comment": "Place to add a comment on this file",
         }
         package_help_dict = {
-            "Name in URL": "Name used in the URL (short name)",
+            "Name in URL": "Name used in the URL to reference the dataset (short name, only accepting lowercase letters (a-z), digits (0-9), `-` and `_`, no accents, no spaces, length 2-100 characters)",
             "Title": "Title of the resource",
             "Description": "Description can use Markdown formatting",
             "Visibility": "Private/Public",

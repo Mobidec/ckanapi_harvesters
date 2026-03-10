@@ -52,3 +52,9 @@ class TableParamsMongoCollection(TableParams):
         self.dbref_expand = args.dbref_expand
         if args.collection is not None:
             self.collection = args.collection
+
+
+if __name__ == '__main__':
+    sample_instance = TableParamsMongoCollection()
+    print("MongoDB harvester CLI-format options:")
+    sample_instance.print_help_cli()
