@@ -7,13 +7,15 @@ from typing import Union
 
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC, DataCleanerNone
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload import CkanDataCleanerUpload
-from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_2_geom import CkanDataCleanerUploadGeom
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_1_basic import CkanDataCleanerUploadBasic
+from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_2_geom import CkanDataCleanerUploadGeom
+from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_3_check import CkanDataCleanerUploadCheckOnly
 
 data_cleaner_dict = {
     "all": CkanDataCleanerUpload,
-    "geojson": CkanDataCleanerUploadGeom,
     "basic": CkanDataCleanerUploadBasic,
+    "geojson": CkanDataCleanerUploadGeom,
+    "check": CkanDataCleanerUploadCheckOnly,
     "none": DataCleanerNone,
 }
 
