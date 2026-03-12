@@ -302,17 +302,17 @@ class CkanApiMap(CkanApiBase):
 
     def get_resource_info_or_request(self, resource_name:str, package_name:str=None, *,
                                      request_missing:bool=True, error_not_mapped:bool=False,
-                                     error_not_found:bool=True) -> Union[CkanResourceInfo,None]:
+                                     error_not_found:bool=True, datastore_info:bool=False) -> Union[CkanResourceInfo,None]:
         resource_id = self.get_resource_id_or_request(resource_name, package_name, error_not_mapped=error_not_mapped,
                                                       request_missing=request_missing, error_not_found=error_not_found)
         if resource_id is None:
             return None
-        return self.get_resource_info_or_request_of_id(resource_id, request_missing=request_missing,
+        return self.get_resource_info_or_request_of_id(resource_id, request_missing=request_missing, datastore_info=datastore_info,
                                                        error_not_mapped=error_not_mapped, error_not_found=error_not_found)
 
     def get_resource_info_or_request_of_id(self, resource_id:str, *,
                                            request_missing:bool=True, error_not_mapped:bool=False,
-                                           error_not_found:bool=True) -> Union[CkanResourceInfo,None]:
+                                           error_not_found:bool=True, datastore_info:bool=False) -> Union[CkanResourceInfo,None]:
         """
         Get information on a resource if present in the map or perform request.
         Recommended: self.map.get_resource_info() rather than this for this usage because resource information is returned
@@ -325,6 +325,8 @@ class CkanApiMap(CkanApiBase):
         """
         resource_info = self.map.get_resource_info(resource_id, error_not_mapped=error_not_mapped)
         if resource_info is not None:
+            if datastore_info and resource_info.datastore_info is None and resource_info.datastore_info_error is None:
+                resource_info.datastore_info = self.get_datastore_info_or_request(resource_info.id, resource_info.package_id, error_not_mapped=False)
             return resource_info
         elif request_missing:
             try:

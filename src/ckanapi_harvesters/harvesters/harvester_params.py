@@ -20,7 +20,8 @@ from ckanapi_harvesters.auxiliary.ckan_errors import NoCAVerificationError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import ca_file_rel_to_dir, assert_or_raise
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_api_key import ApiKey
-from ckanapi_harvesters.auxiliary.login import Login, SSHLogin
+from ckanapi_harvesters.auxiliary.login import Login
+from ckanapi_harvesters.auxiliary.ssh_tunnel import SshLogin
 from ckanapi_harvesters.harvesters.harvester_errors import HarvestMethodRequiredError
 
 harvester_enforce_ca_verification: bool = False

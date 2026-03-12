@@ -36,9 +36,10 @@ from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_init import init_data_cleaner
+from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_index_col_name
 
 # number of rows to upload to initiate DataStore with datapusher, before explicitly specifying field data types and indexes
-num_rows_patch_first_upload_partial: Union[int,None] = None  # set to None to upload directly the whole DataFrame before the DataStore creation
+num_rows_patch_first_upload_partial: Union[int,None] = 50  # set to None to upload directly the whole DataFrame before the DataStore creation
 
 
 default_alias_keyword:Union[str,None] = "default"  # generate default alias if an alias with this value is found in parameters
@@ -144,6 +145,17 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.initialize_extra_options_string(shlex.join(extra_args), base_dir=base_dir)
         self._cli_args_apply(args)
 
+    def init_options_from_ckan(self, ckan:CkanApi, *, override_ckan:bool=False, base_dir:str=None) -> None:
+        if self.known_resource_info is None:
+            self.known_resource_info = ckan.get_resource_info_or_request(self.name, self.package_name,
+                                                                         error_not_found=False, datastore_info=True)
+        super().init_options_from_ckan(ckan, override_ckan=override_ckan, base_dir=base_dir)
+        # self.local_file_format.chunk_size = ckan.params.default_limit_read
+        if self.field_builders is not None:
+            for field_builder in self.field_builders.values():
+                field_builder.internal_attrs.update_from_ckan(ckan)
+
+
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row)
         primary_keys_string: Union[str,None] = _string_from_element(row["primary key"])
@@ -189,12 +201,6 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         d["Write function"] = self.aux_write_fun_name
         d["Aliases"] = ckan_tags_sep.join(self.aliases) if self.aliases is not None else ""
         return d
-
-    def init_options_from_ckan(self, ckan:CkanApi) -> None:
-        super().init_options_from_ckan(ckan)
-        if self.field_builders is not None:
-            for field_builder in self.field_builders.values():
-                field_builder.internal_attrs.update_from_ckan(ckan)
 
     def _check_field_duplicates(self):
         if self.field_builders is not None:
@@ -453,9 +459,13 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             pass  # do not alter df_upload because it should already be in the database format
         df_upload, data_cleaner_fields, data_cleaner_index = self._apply_data_cleaner_before_patch(ckan, df_upload, reupload=reupload)
         current_fields = set(df_upload.columns) - {datastore_id_col}  # _id field cannot be documented
-        if num_rows_patch_first_upload_partial is not None and len(df_upload) > num_rows_patch_first_upload_partial:
-            df_upload_partial = df_upload.iloc[:num_rows_patch_first_upload_partial]
-            df_upload_upsert = df_upload.iloc[num_rows_patch_first_upload_partial:]
+        if num_rows_patch_first_upload_partial is not None:
+            num_rows_patch_first_upload_partial_apply = min(num_rows_patch_first_upload_partial, ckan.params.default_limit_write)
+        else:
+            num_rows_patch_first_upload_partial_apply = None
+        if num_rows_patch_first_upload_partial_apply is not None and len(df_upload) > num_rows_patch_first_upload_partial_apply:
+            df_upload_partial = df_upload.iloc[:num_rows_patch_first_upload_partial_apply]
+            df_upload_upsert = df_upload.iloc[num_rows_patch_first_upload_partial_apply:]
         else:
             df_upload_partial, df_upload_upsert = df_upload, None
         empty_datastore = df_upload is None or len(df_upload) == 0

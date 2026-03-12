@@ -21,6 +21,9 @@ class MultipleErrors(Exception):
 class ApiKeyFileError(Exception):
     pass
 
+class LoginFileError(Exception):
+    pass
+
 class InvalidParameterError(Exception):
     pass
 
@@ -121,7 +124,8 @@ class RequestError(Exception):
     pass
 
 class RequirementError(Exception):
-    pass
+    def __init__(self, requirement:str, function:str):
+        super().__init__(f"The package {requirement} is required for function {function}.")
 
 class FileFormatRequirementError(RequirementError):
     def __init__(self, requirement:str, file_format:str):

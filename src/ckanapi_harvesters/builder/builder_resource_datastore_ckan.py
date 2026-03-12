@@ -67,7 +67,7 @@ class BuilderDataStoreCkan(BuilderDataStoreFolder):
 
     @staticmethod
     def resource_mode_str() -> str:
-        return "Ckan DataStore merge"
+        return "CKAN DataStore merge"
 
     @staticmethod
     def sample_file_path_is_url() -> bool:

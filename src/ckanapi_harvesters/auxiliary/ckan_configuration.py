@@ -9,7 +9,7 @@ from typing import Union
 ## Package containing CKAN data format policy
 configuration_package_name = "configuration"
 policy_resource = "data_format_policy.json"
-datastore_default_index_col_name: Union[str,None] = "_upload_index"
+datastore_default_index_col_name: Union[str,None] = "py_upload_index"
 
 default_ckan_has_postgis: bool = True
 epsg_wgs84 = 4326  # WGS-84

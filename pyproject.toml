@@ -53,6 +53,10 @@ alt = [  # optional packages alternative
     "pyproj >= 3.6.1",     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
     "geopandas >= 1.1.2",  # Shapefile reading functions
 ]
+sshtunnel = [
+    "sshtunnel >= 0.4.0",
+    "paramiko == 3.5.1",   # compatibility with sshtunnel
+]
 
 [tool.setuptools.package-data]
 # non-source files to include in the package

@@ -17,17 +17,24 @@ from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 
 
 # user custom transformation function prototypes
-def upload_function_example(df_local: Union[pd.DataFrame, List[dict]], *
-                            total_lines_read: int, fields:Dict[str, CkanField], file_name:str, **kwargs) -> pd.DataFrame:
+def upload_function_example(df_local: Union[pd.DataFrame, List[dict]], *,
+                            fields:Dict[str, CkanField], file_name:str=None, total_lines_read:int=None, **kwargs) -> Union[pd.DataFrame, List[dict]]:
     return df_local
 
-def download_function_example(df_download: pd.DataFrame, fields:Dict[str, CkanField]=None, **kwargs) -> pd.DataFrame:
+def download_function_example(df_download: pd.DataFrame, *,
+                              fields:Dict[str, CkanField]=None, file_query:str=None, **kwargs) -> Union[pd.DataFrame, List[dict]]:
     return df_download
 
-def simple_upload_fun(df_local: pd.DataFrame, fields:Dict[str, CkanField]=None, **kwargs) -> pd.DataFrame:
+def simple_upload_fun(df_local: Union[pd.DataFrame, List[dict]], *,
+                      fields:Dict[str, CkanField], file_name:str=None, total_lines_read:int=None, **kwargs) -> Union[pd.DataFrame, List[dict]]:
     for field in df_local.columns:
         if df_local[field].dtype == pd.Timestamp:
             df_local[field] = df_local[field].apply(pd.Timestamp.isoformat)  # ISO-8601 format
+    return df_local
+
+def replace_empty_str(df_local: Union[pd.DataFrame, List[dict]], *,
+                      fields:Dict[str, CkanField], file_name:str=None, total_lines_read:int=None, **kwargs) -> Union[pd.DataFrame, List[dict]]:
+    df_local.replace("", None, inplace=True)
     return df_local
 
 
@@ -73,7 +80,7 @@ class DataSchemeConversion:
             else:
                 for index, line in df_local:
                     line[self.upload_add_index_column] = index + index_offset
-        if file_name is not None and isinstance(df_local, pd.DataFrame):
+        if file_name is not None and (isinstance(df_local, pd.DataFrame) or isinstance(df_local, ListRecords)):
             df_local.attrs["source"] = file_name
         df_database = df_local
         if self.df_upload_fun is not None:

@@ -32,6 +32,7 @@ from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanData
 non_finite_authorized_types = {"numeric", "float4", "float8", "float2"}
 real_number_types = non_finite_authorized_types
 int_types = {"int", "int4", "int8", "int2"}
+no_empty_str_types = real_number_types.union(int_types).union({"bool", "timestamp", "date"})
 # see also: ckan_api_2_readonly ckan_dtype_mapper
 dtype_ckan_mapper = {
     "float64": "numeric",
@@ -58,7 +59,7 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
         self.param_replace_nan:bool = True  # option to replace non-authorized nan values by None
         self.param_round_values:bool = True  # option to round values when treating an integer field
         self.param_rename_fields_underscore:bool = True  # option to rename fields beginning with an underscore (in the subs step)
-        self.param_null_numbers: bool = True
+        self.param_empty_str_digital: bool = True  # option to replace empty strings with None for digital column types (real, int, timestamp, bool)
 
     @staticmethod
     def get_class_keyword() -> str:
@@ -73,7 +74,7 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
         dest.param_round_values = self.param_round_values
         dest.param_rename_fields_underscore = self.param_rename_fields_underscore
         dest.param_field_subs = self.param_field_subs.copy()
-        self.param_null_numbers = self.param_null_numbers
+        self.param_empty_str_digital = self.param_empty_str_digital
         return dest
 
     ## field type detection
@@ -248,8 +249,8 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
                     if self.param_cast_types:
                         return value.isoformat(sep=ckan_timestamp_sep)
             elif isinstance(value, str) and value == "":
-                if field_data_type in real_number_types or field_data_type in int_types:
-                    if self.param_null_numbers:
+                if field_data_type in no_empty_str_types:
+                    if self.param_empty_str_digital:
                         new_value = None
             else:
                 new_value = self._replace_non_standard_value(value, field, field_data_type=field_data_type)

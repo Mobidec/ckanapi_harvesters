@@ -121,9 +121,13 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
             df_upload, data_cleaner_fields, data_cleaner_index = self._apply_data_cleaner_before_patch(ckan, df_upload, reupload=reupload)
             df_download = df_upload
             current_fields = set(df_upload.columns)
-            if num_rows_patch_first_upload_partial is not None and len(df_upload) > num_rows_patch_first_upload_partial:
-                df_upload_partial = df_upload.iloc[:num_rows_patch_first_upload_partial]
-                df_upload_upsert = df_upload.iloc[num_rows_patch_first_upload_partial:]
+            if num_rows_patch_first_upload_partial is not None:
+                num_rows_patch_first_upload_partial_apply = min(num_rows_patch_first_upload_partial, ckan.params.default_limit_write)
+            else:
+                num_rows_patch_first_upload_partial_apply = None
+            if num_rows_patch_first_upload_partial_apply is not None and len(df_upload) > num_rows_patch_first_upload_partial_apply:
+                df_upload_partial = df_upload.iloc[:num_rows_patch_first_upload_partial_apply]
+                df_upload_upsert = df_upload.iloc[num_rows_patch_first_upload_partial_apply:]
             else:
                 df_upload_partial, df_upload_upsert = df_upload, None
         empty_datastore = df_download is None or len(df_download) == 0

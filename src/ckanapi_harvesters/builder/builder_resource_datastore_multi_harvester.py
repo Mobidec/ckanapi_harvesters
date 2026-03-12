@@ -53,17 +53,20 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
     def harvester(self, harvester: Union[TableHarvesterABC,None]):
         assert_or_raise(self._harvester is None, RuntimeError("You can only set the harvester once"))
         self._harvester = harvester
-        self._apply_harvester_metadata()
+        self._update_metadata(None)
 
     def initialize_extra_options_string(self, extra_options_string:str, base_dir:str) -> None:
         super().initialize_extra_options_string(extra_options_string, base_dir=base_dir)
         self.harvester = init_table_harvester_from_options_string(self.options_string, file_url_attr=self.file_url_attr, base_dir=base_dir)
 
-    def init_options_from_ckan(self, ckan:CkanApi) -> None:
-        super().init_options_from_ckan(ckan)
+    def init_options_from_ckan(self, ckan:CkanApi, *, override_ckan:bool=False, base_dir:str=None) -> None:
         self.harvester.update_from_ckan(ckan)
+        super().init_options_from_ckan(ckan, override_ckan=override_ckan, base_dir=base_dir)
+        # self._apply_external_metadata(ckan, override_ckan=override_ckan, base_dir=base_dir)
 
-    def _apply_harvester_metadata(self, base_dir:str=None):
+    def _update_metadata(self, ckan: CkanApi, *, override_ckan:bool=False, base_dir:str=None):
+        if self.harvester is None:
+            return
         self.dir_name = self.name  # by default, take the resource name
         if self.harvester.params.output_dir is not None:
             self.dir_name = self.harvester.params.output_dir
@@ -89,6 +92,10 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
             for field_name, field_metadata in table_metadata.fields.items():
                 if field_name in self.field_builders.keys():
                     field_builder = self.field_builders[field_name]
+                    if field_builder.type_override is None:
+                        field_builder.type_override = field_metadata.data_type
+                elif field_name in self.known_resource_info.datastore_info.fields_dict.keys():
+                    field_builder = BuilderField._from_ckan_field(self.known_resource_info.datastore_info.fields_dict[field_name])
                     if field_builder.type_override is None:
                         field_builder.type_override = field_metadata.data_type
                 else:

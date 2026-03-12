@@ -47,6 +47,7 @@ class BuilderResourceABC(ABC):
         self.known_id: Union[str,None] = resource_id
         self.download_url: Union[str,None] = download_url
         self.comment: Union[str,None] = None
+        self.known_resource_info: Union[CkanResourceInfo,None] = None
         # Functions inputs/outputs
         self.sample_data_source: str = ""
         self.reupload_on_update: bool = True
@@ -83,13 +84,26 @@ class BuilderResourceABC(ABC):
         if self.name is None:
             raise MandatoryAttributeError("Resource", "name")
 
-    def init_options_from_ckan(self, ckan:CkanApi) -> None:
+    def init_options_from_ckan(self, ckan:CkanApi, *, override_ckan:bool=False, base_dir:str=None) -> None:
         """
         Function to initialize some parameters from the ckan object
         """
-        pass
+        if self.known_resource_info is None:
+            self.known_resource_info = ckan.get_resource_info_or_request(self.name, self.package_name, error_not_found=False)
+        self._update_metadata(ckan, override_ckan=override_ckan, base_dir=base_dir)
 
     def _apply_options(self, base_dir: str = None) -> None:
+        return
+
+    def _update_metadata(self, ckan: CkanApi, *, override_ckan:bool=False, base_dir:str=None) -> None:
+        """
+        Function to initialize metadata from the data source.
+        The attribute self.known_resource_info must be queried before this call
+        Examples for a DataStore:
+            - List of fields
+            - Detect field types from example DataFrame
+            - Add descriptions from data source
+        """
         return
 
     @abstractmethod

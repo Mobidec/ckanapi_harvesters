@@ -16,13 +16,14 @@ import pandas as pd
 from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC
 from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 from ckanapi_harvesters.builder.builder_aux import positive_end_index
-from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanResourceInfo
+from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanResourceInfo, CkanField
 from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_index_col_name
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestFileMapperABC, default_file_mapper_from_primary_key
 from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiABC, default_progress_callback
+from ckanapi_harvesters.builder.builder_field import BuilderField
 
 # apply last_condition for each upsert request when in a multi-threaded upload on a same DataStore:
 datastore_multi_threaded_always_last_condition:bool = True
@@ -70,6 +71,31 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         super()._load_from_df_row(row=row)
         self.setup_default_file_mapper(self.primary_key)
 
+    def _update_metadata(self, ckan: CkanApi, *, override_ckan:bool=False, base_dir:str=None) -> None:
+        """
+        In certain implementations, the resource & field metadata can be derived from the data source.
+        Normally, the metadata is defined by the user in an Excel worksheet. When a description is left empty,
+        the value left on the CKAN server is left unchanged.
+        The objective here is to propose values that override the Excel worksheet when the description
+        is empty on the CKAN side (still leave CKAN values unchanged, if present).
+
+        :param ckan: CkanApi instance
+        :param override_ckan: when True, override the values from the CKAN server, if present
+        """
+        super()._update_metadata(ckan=ckan, override_ckan=override_ckan, base_dir=base_dir)
+        if self.primary_key is not None and len(self.primary_key) == 1 and self.primary_key[0] == datastore_default_index_col_name:
+            if self.field_builders is None:
+                self.field_builders = {}
+            if datastore_default_index_col_name not in self.field_builders.keys():
+                self.field_builders[datastore_default_index_col_name] = BuilderField(name=datastore_default_index_col_name, type_override="int")
+            field_builder = self.field_builders[datastore_default_index_col_name]
+            known_field = None
+            if self.known_resource_info is not None and self.known_resource_info.datastore_info is not None and self.known_resource_info.datastore_info.fields_dict is not None:
+                if datastore_default_index_col_name in self.known_resource_info.datastore_info.fields_dict.keys():
+                    known_field = self.known_resource_info.datastore_info.fields_dict[datastore_default_index_col_name]
+            if known_field is None or known_field.notes is None:
+                field_builder.description = "Index of the line in the upload process"
+
     def setup_default_file_mapper(self, primary_key:List[str]=None, file_query_list:Collection[Tuple[str, dict]]=None) -> None:
         """
         This function enables the user to define the primary key and initializes the default file mapper.
@@ -80,7 +106,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         if primary_key is not None:
             self.primary_key = primary_key
         if self.primary_key is None or len(self.primary_key) == 0:
-            self.primary_key = datastore_default_index_col_name
+            self.primary_key = [datastore_default_index_col_name]
         self.df_mapper = default_file_mapper_from_primary_key(self.primary_key, file_query_list)
         if file_query_list is not None:
             self.downloaded_file_query_list = file_query_list
