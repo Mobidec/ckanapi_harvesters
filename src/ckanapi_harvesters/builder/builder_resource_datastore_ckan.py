@@ -112,7 +112,7 @@ class BuilderDataStoreCkan(BuilderDataStoreFolder):
         # TODO: update
         return 1
 
-    def get_local_df_chunk_generator(self, resources_base_dir:str, allow_chunks:bool=False,
+    def get_local_df_chunk_generator(self, resources_base_dir:str, allow_chunks:bool=True,
                                      **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         # TODO: pass ckan argument
         for file_index, resource_id in enumerate(self.resource_ids):

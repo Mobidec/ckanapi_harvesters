@@ -146,8 +146,7 @@ If a custom read/write method is defined (see below, columns Read/Write function
   The forbidden wildcard characters in the name of the Excel spreadsheet for field metadata must be replaced by `#`.
 - __Options__: Options in CLI format: 
   - In file mode, use to add specific arguments for file reading/writing functions e.g.
-    - To enable reading a CSV file by chunks, use option `--allow-chunks` or
-    `--chunk-size 1000`
+    - To disable reading a CSV file by chunks, use option `--no-chunks`.
     - For a CSV file, add options to the pandas.read_csv function in key=value format e.g. 
     `--read-kwargs compression=gzip header=10`
   - In mode _DataStore from Requests_, use to configure database connection parameters. 

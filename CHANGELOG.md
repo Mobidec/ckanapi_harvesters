@@ -14,7 +14,7 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 - Support for reading CSV files by chunks using pandas.read_csv `chunksize` argument (only for DataStores). 
 This modification is compatible with multi-threading and returns a more accurate progression indicator.
-It is disabled by default. To enable it, use the `allow_chunks` argument or enter `--allow-chunks` in the __Options__ column of the resources worksheet.
+It is enabled by default. To disable it, use the `allow_chunks=False` argument or enter `--no-chunks` in the __Options__ column of the resources worksheet.
 - Excel builder workbook:
   - Support for user-defined file format loading functions with new Excel columns __Read function__ and __Write function__ per resource.
   - Extra column __Data cleaner__ per DataStore to activate a function which corrects values according to the destination type specified in the fields metadata (only for uploads). 

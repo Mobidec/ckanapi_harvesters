@@ -91,11 +91,12 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                                              epilog=
                                              "Examples: \n"
                                              "- Selecting a Data Cleaner: --data-cleaner GeoJSON \n"
-                                             "- Process one file per primary key combination (first columns of the primary key, except the last one): --one-frame-per-primary-key")
+                                             "- Process one file per primary key combination (first columns of the primary key, except the last one): --one-frame-per-primary-key --no-chunks")
         parser.add_argument("--data-cleaner", type=str,
                             help="Data cleaner to call before uploading data")
         parser.add_argument("--one-frame-per-primary-key",
-                            help="Enabling this option makes the upload process expect one DataFrame per primary key combination (except the last field of the primary key, which could be an index in the file)", action="store_true", default=False)
+                            help="Enabling this option makes the upload process expect one DataFrame per primary key combination (except the last field of the primary key, which could be an index in the file).\n"
+                            "This option should be associated with the file format option --no-chunks to ensure a file is treated at once", action="store_true", default=False)
         return parser
 
     def _setup_cli_parser_external(self, parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:

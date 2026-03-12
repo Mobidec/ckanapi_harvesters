@@ -83,7 +83,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         self.list_local_files(resources_base_dir=resources_base_dir)
         return self.local_file_list[file_index]
 
-    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True, file_index:int=0, allow_chunks:bool=False, **kwargs) -> GeneralDataFrame:
+    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True, file_index:int=0, allow_chunks:bool=True, **kwargs) -> GeneralDataFrame:
         generator = self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, allow_chunks=allow_chunks)
         chunk = next(generator)
         df_local = chunk.df
@@ -95,7 +95,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         else:
             return df_local
 
-    def get_local_df_chunk_generator(self, resources_base_dir:str, allow_chunks:bool=False,
+    def get_local_df_chunk_generator(self, resources_base_dir:str, allow_chunks:bool=True,
                                      **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         self.list_local_files(resources_base_dir=resources_base_dir)
         self.read_line_counter = 0

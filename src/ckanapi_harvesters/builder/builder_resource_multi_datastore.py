@@ -129,7 +129,7 @@ class BuilderMultiDataStore(BuilderMultiFile):
 
     ## Upload ----------------
     def get_local_df_chunk_generator(self, resources_base_dir:str, excluded_files:Set[str]=None,
-                                     allow_chunks:bool=False, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
+                                     allow_chunks:bool=True, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         self.list_local_files(resources_base_dir=resources_base_dir)
         for file_index, file_name in enumerate(self.local_file_list):
             self.file_semaphore.acquire()

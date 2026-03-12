@@ -28,9 +28,9 @@ class CsvFileFormat(FileFormatABC):
         self._apply_options_string()
 
     # read -------------------
-    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=False) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
         kwargs = self.read_kwargs.copy()
-        if allow_chunks or self.allow_chunks:
+        if allow_chunks and self.allow_chunks:
             kwargs["chunksize"] = self.chunk_size
             return pd.read_csv(file_path, **kwargs)
         else:

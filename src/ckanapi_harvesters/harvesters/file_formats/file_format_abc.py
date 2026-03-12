@@ -17,11 +17,11 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import import_args_kwargs_dict
 
 
 class FileFormatABC(ABC):
-    default_read_chunksize: int = 1000
+    default_read_chunksize: int = 10000
 
     def __init__(self, options_string: str=None):
         self.options_string:Union[str,None] = options_string
-        self.allow_chunks:bool = False
+        self.allow_chunks:bool = True
         self.chunk_size:int = FileFormatABC.default_read_chunksize
         self.read_kwargs:dict = {}
         self.write_kwargs:dict = {}
@@ -33,12 +33,14 @@ class FileFormatABC(ABC):
             parser = argparse.ArgumentParser(description="File format reader arguments", add_help=False,
                                              epilog=
                                              "Examples: \n"
-                                             "- Enabling reading files by chunks: --allow-chunks --chunk-size 1000 \n"
+                                             "- Changing chunk size: --chunk-size 10000 \n"
+                                             "- Disabling reading files by chunks: --no-chunks \n"
                                              "- Additional arguments for pandas.read_csv for a CSV file: --read-kwargs compression=gzip header=10")
         parser.add_argument("--chunk-size", type=int,
-                            help="Chunk size for reading files by chunks (number of records). If given, this enables reading files by chunk (option --allow-chunks)")
-        parser.add_argument("--allow-chunks",
-                            help="Option to enable reading files by chunks, with the default chunk size or given with --chunk-size.", action="store_true", default=False)
+                            help="Chunk size for reading files by chunks (number of records).\n"
+                            "The number of lines sent per request is the minimum of chunk size and CKAN parameter ckan.params.default_limit_write")
+        parser.add_argument("--no-chunks",
+                            help="Option to disabling reading files by chunks.", action="store_true", default=False)
         parser.add_argument("--read-kwargs", nargs="*",
                             help="Keyword arguments for the read function in key=value format")
         parser.add_argument("--write-kwargs", nargs="*",
@@ -54,11 +56,10 @@ class FileFormatABC(ABC):
         return buffer.getvalue()
 
     def _apply_arguments(self, args: argparse.Namespace, extra_args: list):
-        if args.allow_chunks is not None:
-            self.allow_chunks = args.allow_chunks
+        if args.no_chunks is not None:
+            self.allow_chunks = not args.no_chunks
         if args.chunk_size is not None:
             self.chunk_size = args.chunk_size
-            self.allow_chunks = True
         self.read_kwargs.update(import_args_kwargs_dict(args.read_kwargs))
         self.write_kwargs.update(import_args_kwargs_dict(args.write_kwargs))
 
@@ -73,7 +74,7 @@ class FileFormatABC(ABC):
 
     # read -------------------
     @abstractmethod
-    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=False) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
         """
         Read a file from the file system, either fully (returning DataFrame or ListRecords) or by chunks (Iterator over a number of records).
         """

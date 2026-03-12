@@ -210,7 +210,7 @@ class BuilderMultiABC(ABC):
 
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
                             threads:int=1, external_stop_event=None, from_line_count:bool=False,
-                            allow_chunks: bool = False,
+                            allow_chunks:bool=True,
                             start_index:int=0, end_index:int=None, **kwargs) -> None:
         """
         Perform all the upload requests.
@@ -277,7 +277,7 @@ class BuilderMultiABC(ABC):
 
     def upload_request_full_multi_threaded(self, ckan:CkanApi, resources_base_dir:str,
                                            threads:int=1, external_stop_event=None,
-                                           allow_chunks: bool = False,
+                                           allow_chunks:bool=True,
                                            start_index:int=0, end_index:int=None, **kwargs):
         """
         Multi-threaded implementation of upload_request_full, using ThreadPoolExecutor.

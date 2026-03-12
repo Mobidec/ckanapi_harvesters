@@ -1025,7 +1025,7 @@ class BuilderPackageBasic:
 
     def upload_large_datasets(self, ckan:CkanApi, *, resources_base_dir:str=None, threads:int=1,
                               progress_callback:Callable=None,
-                              only_missing:bool=False, from_line_count:bool=False, allow_chunks:bool=False) -> None:
+                              only_missing:bool=False, from_line_count:bool=False, allow_chunks:bool=True) -> None:
         """
         Method to upload large datasets of the package.
         The small datasets are to be uploaded with the patch_request_full method.

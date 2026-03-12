@@ -19,12 +19,14 @@ options:
                         Enabling this option makes the upload process expect
                         one DataFrame per primary key combination (except the
                         last field of the primary key, which could be an index
-                        in the file)
+                        in the file). 
+                        This option should be associated with the file format 
+                        option --no-chunks to ensure a file is treated at once
 
 Examples: 
 - Selecting a Data Cleaner: --data-cleaner GeoJSON 
 - Process one file per primary key combination 
-(first columns of the primary key, except the last one): --one-frame-per-primary-key
+(first columns of the primary key, except the last one): --one-frame-per-primary-key --no-chunks
 ```
 
 
@@ -38,10 +40,10 @@ File format reader arguments
 options:
   --chunk-size CHUNK_SIZE
                         Chunk size for reading files by chunks (number of
-                        records). If given, this enables reading files by
-                        chunk (option --allow-chunks)
-  --allow-chunks        Option to enable reading files by chunks, with the
-                        default chunk size or given with --chunk-size.
+                        records). The number of lines sent per request is the
+                        minimum of chunk size and CKAN parameter
+                        ckan.params.default_limit_write
+  --no-chunks           Option to disabling reading files by chunks.
   --read-kwargs [READ_KWARGS ...]
                         Keyword arguments for the read function in key=value
                         format
@@ -50,9 +52,10 @@ options:
                         format
 
 Examples: 
-- Enabling reading files by chunks: --allow-chunks --chunk-size 1000
-- Additional arguments for pandas.read_csv for a CSV file: --read-kwargs
-compression=gzip header=10
+- Changing chunk size: --chunk-size 10000 
+- Disabling reading files by chunks: --no-chunks 
+- Additional arguments for pandas.read_csv 
+for a CSV file: --read-kwargs compression=gzip header=10
 ```
 
 #### User-defined file format I/O functions
@@ -64,7 +67,7 @@ The function prototype should be as follows.
 The positional arguments (before the asterisk `*`) are mandatory. As well as the `**kwargs` argument in order to remain compatible with future versions of the Python package.
 The parameters defined above also apply to the user-defined functions. 
 ```python
-def read_function_example(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=False, params:UserFileFormat = None, **kwargs) -> Union[pd.DataFrame, List[dict]]:
+def read_function_example(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) -> Union[pd.DataFrame, List[dict]]:
     return pd.DataFrame()
 
 def write_function_example(df: Union[pd.DataFrame, List[dict]], file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], append:bool=False, params:UserFileFormat = None, **kwargs) -> None:
