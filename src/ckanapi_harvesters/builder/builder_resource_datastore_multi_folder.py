@@ -56,7 +56,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None) -> None:
         super()._load_from_df_row(row=row)
-        self.dir_name: str = _string_from_element(row["file/url"])
+        self.dir_name: str = _string_from_element(row["file/url"], strip=True)
 
     @staticmethod
     def resource_mode_str() -> str:

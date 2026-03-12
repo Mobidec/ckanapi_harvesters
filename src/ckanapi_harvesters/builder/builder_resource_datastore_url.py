@@ -55,7 +55,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super(BuilderDataStoreFile, self)._load_from_df_row(row=row)
         # super(BuilderUrlABC, self)._load_from_df_row(row=row)
-        self.url: str = _string_from_element(row["file/url"])
+        self.url: str = _string_from_element(row["file/url"], strip=True)
         self.file_name = self.name
 
     @staticmethod

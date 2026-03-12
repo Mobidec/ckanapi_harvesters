@@ -59,7 +59,7 @@ class BuilderDataStoreCkan(BuilderDataStoreFolder):
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row)
-        file_name_field: str = _string_from_element(row["file/url"])
+        file_name_field: str = _string_from_element(row["file/url"], strip=True)
         if file_name_field is not None:
             self.resource_ids = [resource_id.strip() for resource_id in ckan_tags_sep.split(file_name_field)]
         else:

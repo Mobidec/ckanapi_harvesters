@@ -3,7 +3,7 @@
 """
 CKAN error types
 """
-from typing import Iterable
+from typing import Iterable, List
 import requests
 
 # import to make these error codes available from here:
@@ -11,6 +11,11 @@ from ckanapi_harvesters.auxiliary.ckan_action import (CkanActionError, CkanAutho
                                                       CkanSqlCapabilityError)
 from ckanapi_harvesters.auxiliary.path import BaseDirUndefError
 
+
+class MultipleErrors(Exception):
+    def __init__(self, errors: List[Exception]):
+        self.errors = errors
+        super().__init__(f"Multiple errors occurred: \n- " + "\n- ".join([str(e) for e in errors]))
 
 ## Specific error types ------------------
 class ApiKeyFileError(Exception):

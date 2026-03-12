@@ -19,8 +19,6 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanFieldInternalAttrs
 from ckanapi_harvesters.auxiliary.ckan_errors import IntegrityError, MissingIdError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import dict_recursive_update
 
-ckan_package_name_re = "^[0-9a-z-_]*$"
-
 ## Enumerations ------------------
 class UpsertChoice(IntEnum):
     Insert = 1

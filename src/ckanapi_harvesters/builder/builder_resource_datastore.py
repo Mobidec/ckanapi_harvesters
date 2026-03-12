@@ -533,7 +533,7 @@ class BuilderResourceIgnored(BuilderDataStoreABC):
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row)
-        self.file_url: str = _string_from_element(row["file/url"])
+        self.file_url: str = _string_from_element(row["file/url"], strip=True)
         self._check_mandatory_attributes()
 
     def _to_dict(self, include_id:bool=True) -> dict:

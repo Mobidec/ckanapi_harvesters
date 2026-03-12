@@ -45,6 +45,12 @@ from ckanapi_harvesters.harvesters.file_formats.user_format import UserFileForma
 self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 example_package_xls = os.path.join(self_dir, "builder_package_example.xlsx")
 
+def load_help_page_df(*, engine:str=None) -> pd.DataFrame:
+    with pd.ExcelFile(example_package_xls, engine=engine) as help_file:
+        help_df = pd.read_excel(help_file, sheet_name="help", header=None)
+        help_file.close()
+    return help_df
+
 forbidden_resource_names = {"ckan", "info", "package", "resources", "validation", "help"}
 excel_subs_characters_re = r"[:\*\?\/\[\]\\]"  # characters used in wildcards (MultiFile & MultiDataStore), forbidden in Excel sheet names
 excel_subs_dest_character = '#'
@@ -560,9 +566,7 @@ class BuilderPackageBasic:
                 sheet_name = resource_builder.columns_sheet_name if resource_builder.columns_sheet_name is not None else excel_name_of_sheet(name)
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
             if include_help:
-                with pd.ExcelFile(example_package_xls, engine=engine) as help_file:
-                    help_df = pd.read_excel(help_file, sheet_name="help", header=None)
-                    help_file.close()
+                help_df = load_help_page_df()
                 help_df.to_excel(writer, sheet_name="help", index=False, header=False)
             # writer.close()
 
@@ -721,12 +725,13 @@ class BuilderPackageBasic:
         self.resource_builders = OrderedDict()
         for index, row in resources_df.iterrows():
             resource_builder = init_resource_from_df(row, base_dir=base_dir)
-            self._init_resource_from_df_aux_fun(resource_builder)
-            if resource_builder.name in self.resource_builders.keys():
-                raise DuplicateNameError("resource_builder", resource_builder.name)
-            if resource_builder.name.lower() in forbidden_resource_names:
-                raise ForbiddenNameError("resource_builder", resource_builder.name)
-            self.resource_builders[resource_builder.name] = resource_builder
+            if resource_builder is not None:
+                self._init_resource_from_df_aux_fun(resource_builder)
+                if resource_builder.name in self.resource_builders.keys():
+                    raise DuplicateNameError("resource_builder", resource_builder.name)
+                if resource_builder.name.lower() in forbidden_resource_names:
+                    raise ForbiddenNameError("resource_builder", resource_builder.name)
+                self.resource_builders[resource_builder.name] = resource_builder
         # self._update_package_name_resources()  # call after full init in caller function
 
     @staticmethod
@@ -741,6 +746,10 @@ class BuilderPackageBasic:
         """
         mdl = BuilderPackageBasic()
         mdl.builder_source_file = path_or_buffer
+        # if isinstance(path_or_buffer, str):
+        #     buffer = open(path_or_buffer, "rb")
+        # else:
+        #     buffer = path_or_buffer
         with pd.ExcelFile(path_or_buffer, engine=engine, **kwargs) as xls:
             sheet_names = set(xls.sheet_names)
             sheet_names_lower_index = {sheet_name.lower().strip(): sheet_name for sheet_name in sheet_names}

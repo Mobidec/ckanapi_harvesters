@@ -95,7 +95,9 @@ class BuilderResourceABC(ABC):
     @abstractmethod
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         # abstract method because does not take into account file/url field
-        self.name = _string_from_element(row["name"]).strip()
+        self.name = _string_from_element(row["name"], empty_value="", strip=True)
+        if self.name is None:
+            raise MandatoryAttributeError("Resource", "name")
         self.columns_sheet_name = None
         if "datastore columns sheet" in row.keys():
             self.columns_sheet_name = _string_from_element(row["datastore columns sheet"])
@@ -330,7 +332,7 @@ class BuilderFileABC(BuilderResourceABC, ABC):
     @abstractmethod
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row)
-        self.file_name = _string_from_element(row["file/url"])
+        self.file_name = _string_from_element(row["file/url"], strip=True)
 
     def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, resources_base_dir:str=None,
                       payload:Union[bytes, io.BufferedIOBase]=None) -> CkanResourceInfo:
@@ -545,7 +547,7 @@ class BuilderUrlABC(BuilderFileABC, ABC):
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row)
-        self.url: str = _string_from_element(row["file/url"])
+        self.url: str = _string_from_element(row["file/url"], strip=True)
         self.file_name = self.name
         self._check_mandatory_attributes()
 

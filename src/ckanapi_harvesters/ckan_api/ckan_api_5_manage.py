@@ -21,12 +21,11 @@ from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanResourceInfo, CkanViewInfo, CkanField
 from ckanapi_harvesters.auxiliary.ckan_model import CkanState
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, ckan_package_name_re, datastore_id_col
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import dict_recursive_update
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_files_arg, RequestType
 from ckanapi_harvesters.auxiliary.ckan_action import CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import (ReadOnlyError, AdminFeatureLockedError, NoDefaultView,
                                                       InvalidParameterError, CkanMandatoryArgumentError,
-                                                      IntegrityError, NameFormatError)
+                                                      IntegrityError, NameFormatError, MultipleErrors)
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.ckan_api.ckan_api_1_map import use_ckan_owner_org_as_default
@@ -46,6 +45,8 @@ default_alias_hash_len:int = 6
 default_alias_hash_sep:str = ":"
 
 table_name_subs_re = r'[^\w-]|^(?=\d)'
+ckan_package_name_re_with_spaces = "^[0-9a-z-_ ]*$"
+ckan_package_name_re_with_spaces_upper = "^[0-9a-zA-Z-_ ]*$"
 
 def clean_table_name(variable_name: str) -> str:
     """
@@ -910,6 +911,29 @@ class CkanApiManage(CkanApiReadWrite):
 
 
     ## Package creation/deletion/edit ------------------
+    @staticmethod
+    def verify_package_name_format(package_name:str, *, raise_error: bool = True) -> bool:
+        """
+        Verifies that the package name format is correct.
+        """
+        error_messages = []
+        if not re.match(ckan_package_name_re, package_name):
+            if " " in package_name:
+                error_messages.append(NameFormatError(f"Package name cannot contain spaces: '{package_name}'"))
+            if re.match(ckan_package_name_re_with_spaces_upper, package_name):
+                error_messages.append(NameFormatError(f"Package name must be lower case: '{package_name}'"))
+            else:
+                error_messages.append(NameFormatError(f"Package name badly formatted. Only the following characters are allowed: a-z, 0-9, -, _: '{package_name}'"))
+        if not(2 <= len(package_name) <= 100):
+            error_messages.append(NameFormatError(f"Package name must be between 2 and 100 characters: 'package_name'"))
+        if raise_error and len(error_messages) > 0:
+            if len(error_messages) > 1:
+                raise MultipleErrors(error_messages)
+            else:
+                raise error_messages[0]
+        else:
+            return len(error_messages) == 0
+
     def _api_package_patch(self, package_id: str, package_name:str=None, private:bool=None, *, title:str=None, notes:str=None, owner_org:str=None,
                            state:Union[CkanState,str]=None, license_id:str=None, tags:List[str]=None, tags_list_dict:List[Dict[str, str]]=None,
                            url:str=None, version:str=None, custom_fields:dict=None,
@@ -941,14 +965,7 @@ class CkanApiManage(CkanApiReadWrite):
         if owner_org is not None:
             params["owner_org"] = owner_org
         if package_name is not None:
-            assert_or_raise(2 <= len(package_name) <= 100, NameFormatError(f"Package name must be between 2 and 100 characters: 'package_name'"))
-            if not re.match(ckan_package_name_re, package_name):
-                if ' ' in package_name:
-                    raise(NameFormatError(f"Package name cannot contain spaces: '{package_name}'"))
-                elif not package_name.lower() == package_name:
-                    raise(NameFormatError(f"Package name must be lower case: '{package_name}'"))
-                else:
-                    raise(NameFormatError(f"Package name badly formatted. Only the following characters are allowed: a-z, 0-9, -, _: '{package_name}'"))
+            self.verify_package_name_format(package_name)
             params["name"] = package_name
         if title is not None:
             params["title"] = title
@@ -1036,7 +1053,7 @@ class CkanApiManage(CkanApiReadWrite):
         """
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         if params is None: params = {}
-        assert(2 <= len(name) <= 100 and re.match(ckan_package_name_re, name))
+        self.verify_package_name_format(name)
         params["name"] = name
         params["private"] = private
         if owner_org is None and use_ckan_owner_org_as_default:

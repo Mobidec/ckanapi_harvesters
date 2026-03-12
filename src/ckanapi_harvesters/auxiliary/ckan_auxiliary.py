@@ -262,7 +262,7 @@ def _bool_from_string(string:str, default_value:Union[bool,None]=False) -> Union
         else:
             return default_value
 
-def _string_from_element(element: pd.Series, empty_value=None) -> str:
+def _string_from_element(element: pd.Series, empty_value=None, strip:bool=False) -> str:
     if isinstance(element, pd.Series):
         value = element.values[0]
     else:
@@ -271,6 +271,8 @@ def _string_from_element(element: pd.Series, empty_value=None) -> str:
             or (isinstance(value, numbers.Number) and np.isnan(value))
             or (isinstance(value, str) and len(value) == 0)):
         return empty_value
+    elif strip:
+        return value.strip()
     else:
         return value
 
