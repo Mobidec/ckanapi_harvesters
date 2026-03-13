@@ -18,13 +18,14 @@ from ckanapi_harvesters.builder.builder_resource import (BuilderResourceABC, Bui
                                                          BuilderResourceUnmanaged)
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiFile
 from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC, BuilderResourceIgnored
+from ckanapi_harvesters.builder.builder_resource_datastore_multi_abc import BuilderDataStoreMultiABC
+from ckanapi_harvesters.builder.builder_resource_datastore_multi_folder import BuilderDataStoreFolder
+from ckanapi_harvesters.builder.builder_resource_datastore_multi_ckan import BuilderDataStoreCkan
 from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.builder.builder_resource_multi_datastore import BuilderMultiDataStore
 from ckanapi_harvesters.builder.builder_resource_datastore_url import BuilderDataStoreUrl
 from ckanapi_harvesters.builder.builder_resource_datastore_multi_harvester import BuilderDataStoreHarvester
 from ckanapi_harvesters.builder.builder_resource_datastore_unmanaged import BuilderDataStoreUnmanaged
-from ckanapi_harvesters.builder.builder_resource_datastore_multi_abc import BuilderDataStoreMultiABC
-from ckanapi_harvesters.builder.builder_resource_datastore_multi_folder import BuilderDataStoreFolder
 from ckanapi_harvesters.builder.builder_field import BuilderField
 
 
@@ -58,6 +59,8 @@ def init_resource_from_df(row: pd.Series, base_dir:str=None) -> Union[BuilderRes
         resource_builder = BuilderDataStoreUnmanaged()
     elif mode == "multifile":
         resource_builder = BuilderMultiFile()
+    elif mode == "ckan datastore merge":
+        resource_builder = BuilderDataStoreCkan()
     elif mode == "multidatastore":
         resource_builder = BuilderMultiDataStore()
     elif mode == "ignored":

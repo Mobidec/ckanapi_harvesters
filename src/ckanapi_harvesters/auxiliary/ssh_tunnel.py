@@ -169,6 +169,9 @@ class SshTunnel:
     def is_connected(self) -> bool:
         return self.server is not None
 
+    def is_defined(self) -> bool:
+        return self.ssh_host is not None
+
     def close_tunnel(self):
         """
         Close SSH tunnel. Please close underlying connections before.

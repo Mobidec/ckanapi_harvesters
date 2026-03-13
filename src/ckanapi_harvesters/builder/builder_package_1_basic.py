@@ -16,6 +16,7 @@ from collections import OrderedDict
 import pandas as pd
 import numpy as np
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel
 from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.ckan_api import CkanApi, CkanApiMap
@@ -44,6 +45,8 @@ from ckanapi_harvesters.harvesters.file_formats.user_format import UserFileForma
 
 self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 example_package_xls = os.path.join(self_dir, "builder_package_example.xlsx")
+builder_default_package_state:CkanState = CkanState.Active  # CkanState.Draft
+initial_package_building_state:Union[CkanState,None] = None  # CkanState.Draft
 
 def load_help_page_df(*, engine:str=None) -> pd.DataFrame:
     with pd.ExcelFile(example_package_xls, engine=engine) as help_file:
@@ -96,14 +99,15 @@ class BuilderPackageBasic:
                  organization_name:str=None, license_name:str=None, src=None):
         if src is not None:
             src.copy(dest=self)
+        if state is None:
+            state = builder_default_package_state
         self.builder_source_file: Union[str, None] = None
         self.builder_format_version: Union[str, None] = None
         # package attributes
         self.package_attributes: CkanPackageInfo = CkanPackageInfo(package_name=package_name, package_id=package_id,
                                                                    title=title, description=description, private=private, state=state,
                                                                    version=version, url=url, tags=tags)
-        if state is None:
-            self.package_attributes.state = CkanState.Active  # activate by default - if the package was deleted, it reappears
+        self.package_attributes.state = state
         # if private is None:
         #     self.package_attributes.private = True  # package private by default
         self.organization_name: Union[str, None] = organization_name
@@ -221,13 +225,14 @@ class BuilderPackageBasic:
         for resource_builder in self.resource_builders.values():
             resource_builder.package_name = package_name
 
-    def update_ckan_options_name_in_resources(self, ckan:CkanApi):
+    def init_resources_options_and_metadata(self, ckan:CkanApi, *, base_dir:str=None) -> None:
         """
         Update ckan options in resource_builders
         Call before any operation on resources
         """
         for resource_builder in self.resource_builders.values():
-            resource_builder.init_options_from_ckan(ckan)
+            resource_builder.package_name = self.package_name
+            resource_builder.init_options_from_ckan(ckan, base_dir=base_dir)
 
     def _apply_resources_base_dir_src(self, base_dir:str):
         """
@@ -514,7 +519,7 @@ class BuilderPackageBasic:
         :return:
         """
         return {resource.name: resource._get_fields_dict() for resource in self.resource_builders.values()
-                if (isinstance(resource, BuilderDataStoreABC) or isinstance(resource, BuilderMultiDataStore)) and resource.field_builders is not None}
+                if (isinstance(resource, BuilderDataStoreABC) or isinstance(resource, BuilderMultiDataStore)) and resource.field_builders_user is not None}
 
     def _get_datastores_df(self) -> Dict[str, pd.DataFrame]:
         """
@@ -524,7 +529,7 @@ class BuilderPackageBasic:
         :return:
         """
         return {resource.name: resource._get_fields_df() for resource in self.resource_builders.values()
-                if (isinstance(resource, BuilderDataStoreABC) or isinstance(resource, BuilderMultiDataStore)) and resource.field_builders is not None}
+                if (isinstance(resource, BuilderDataStoreABC) or isinstance(resource, BuilderMultiDataStore)) and resource.field_builders_user is not None}
 
     def get_all_df(self, base_dir:str=None, include_id:bool=True) -> Dict[str, pd.DataFrame]:
         """
@@ -614,7 +619,7 @@ class BuilderPackageBasic:
             return json.dumps(builder_dict, ensure_ascii=False, indent=4)
 
     @staticmethod
-    def from_ckan(ckan: CkanApiMap, package_info: Union[CkanPackageInfo, str]) -> "BuilderPackageBasic":
+    def from_ckan(ckan: CkanApiMap, package_info: Union[CkanPackageInfo, str], base_dir:str=None) -> "BuilderPackageBasic":
         """
         Function to initialize a BuilderPackageBasic from information requested by the CKAN API
 
@@ -630,10 +635,10 @@ class BuilderPackageBasic:
         mdl.organization_name = package_info.organization_info.get_owner_org() if package_info.organization_info is not None else None
         mdl.license_name = package_info.license_id if package_info.license_id else None
         mdl.license_name = mdl.get_license_name(ckan)
-        for resource in package_info.package_resources.values():
-            mdl.resource_builders[resource.name] = init_resource_from_ckan(ckan, resource)
+        for resource_info in package_info.package_resources.values():
+            mdl.resource_builders[resource_info.name] = init_resource_from_ckan(ckan, resource_info)
         mdl.update_package_name_in_resources()
-        mdl.update_ckan_options_name_in_resources(ckan)
+        mdl.init_resources_options_and_metadata(ckan, base_dir=base_dir)
         mdl.builder_source_file = "ckan"
         return mdl
 
@@ -913,6 +918,9 @@ class BuilderPackageBasic:
         license_info = self.get_license_info(ckan)
         return license_info.title if license_info is not None else None
 
+    def get_package_page_url(self, ckan:CkanApi, *, error_not_found:bool=True, default_url:bool=False) -> str:
+        return ckan.get_package_page_url(self.package_name, error_not_found=error_not_found, default_url=default_url)
+
     def patch_request_package(self, ckan:CkanApi) -> CkanPackageInfo:
         """
         Function to perform all the necessary requests to initiate/reupload the package on the CKAN server.
@@ -924,7 +932,8 @@ class BuilderPackageBasic:
         """
         owner_org = self.get_owner_org(ckan)
         license_id = self.get_license_id(ckan)
-        return ckan.package_create(self.package_name, private=self.package_attributes.private, state=self.package_attributes.state,
+        return ckan.package_create(self.package_name, private=self.package_attributes.private,
+                                   state=initial_package_building_state if initial_package_building_state is not None else self.package_attributes.state,
                                    title=self.package_attributes.title, notes=self.package_attributes.description, owner_org=owner_org,
                                    tags=self.package_attributes.tags, custom_fields=self.package_attributes.custom_fields,
                                    url=self.package_attributes.url, version=self.package_attributes.version,
@@ -933,9 +942,14 @@ class BuilderPackageBasic:
                                    license_id=license_id,
                                    cancel_if_exists=True, update_if_exists=True)
 
+    def package_delete_resources(self, ckan: CkanApi, *, bypass_admin:bool=False):
+        package_id = self.package_attributes.id
+        ckan.package_delete_resources(package_id, bypass_admin=bypass_admin)
+
     def patch_request_full(self, ckan:CkanApi, *,
-                           reupload:bool=False, resources_base_dir:str=None,
-                           create_default_view:bool=True) \
+                           reupload:bool=False, override_ckan:bool=False, resources_base_dir:str=None,
+                           create_default_view:bool=True, delete_all_resources:bool=False,
+                           progress_callback:Union[CkanProgressCallback,Callable]=None) \
             -> Tuple[CkanPackageInfo, Dict[str, CkanResourceInfo]]:
         """
         Perform necessary requests to initiate/reupload the package and resources on the CKAN server.
@@ -945,6 +959,8 @@ class BuilderPackageBasic:
         :return:
         """
         # call to function update_request of package and update_request of resources
+        if not isinstance(progress_callback, CkanProgressCallback):
+            progress_callback = CkanProgressCallback(progress_callback)
         if ckan.params.policy_check_pre:
             self.local_policy_check()
         resources_base_dir = self.get_resources_base_dir(resources_base_dir)
@@ -953,24 +969,32 @@ class BuilderPackageBasic:
         ckan.map_resources(self.package_name, datastore_info=True)
         package_id = pkg_info.id
         self.package_attributes.id = package_id
+        if delete_all_resources:
+            ckan.package_delete_resources(package_id, bypass_admin=True)
         resource_info_dict: Dict[str, CkanResourceInfo] = {}
         self.update_package_name_in_resources()
-        self.update_ckan_options_name_in_resources(ckan)
-        for resource_builder in self.resource_builders.values():
+        self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
+        for resource_index, resource_builder in enumerate(self.resource_builders.values()):
+            if progress_callback is not None:
+                resource_builder.progress_callback = progress_callback
+                progress_callback.call(resource_index+1, len(self.resource_builders), level=CkanCallbackLevel.Resources)
             if create_default_view is not None:
                 resource_builder.create_default_view = create_default_view
-            resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, resources_base_dir=resources_base_dir)
+            resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
+                                                           resources_base_dir=resources_base_dir)
             resource_info_dict[resource_builder.name] = resource_info
             if resource_info is not None:  # this would be the case for BuilderMultiFile
                 pkg_info.update_resource(resource_info)
-            else:
-                assert(isinstance(resource_builder, BuilderMultiFile))
+            # else:
+            #     assert(isinstance(resource_builder, BuilderMultiFile))
         self.package_resource_reorder(ckan)
         if ckan.params.policy_check_post:
             self.remote_policy_check(ckan)
+        if progress_callback is not None:
+            progress_callback.call(len(self.resource_builders), len(self.resource_builders), level=CkanCallbackLevel.Resources, end_message=True)
         return pkg_info, resource_info_dict
 
-    def _get_mono_resource_used_files(self, resources_base_dir:str):
+    def _get_mono_resource_used_files(self, resources_base_dir:str, ckan:CkanApi):
         """
         List files used by mono-resource builders
 
@@ -981,11 +1005,11 @@ class BuilderPackageBasic:
         for resource_builder in self.resource_builders.values():
             if isinstance(resource_builder, BuilderDataStoreMultiABC):
                 if not isinstance(resource_builder, BuilderDataStoreHarvester):
-                    file_list = resource_builder.init_local_files_list(resources_base_dir=resources_base_dir)
+                    file_list = resource_builder.init_local_files_list(resources_base_dir=resources_base_dir, ckan=ckan)
                     mono_resource_used_files.update(set(file_list))
             elif not (isinstance(resource_builder, BuilderMultiFile)):
-                if resource_builder.get_sample_file_path(resources_base_dir) is not None and not resource_builder.sample_file_path_is_url():
-                    mono_resource_used_files.add(resource_builder.get_sample_file_path(resources_base_dir))
+                if resource_builder.get_sample_file_path(resources_base_dir, ckan) is not None and not resource_builder.sample_file_path_is_url():
+                    mono_resource_used_files.add(resource_builder.get_sample_file_path(resources_base_dir, ckan))
         return mono_resource_used_files
 
     def upload_file_checks(self, resource_name:Union[str, List[str]]=None, *, resources_base_dir:str=None,
@@ -1007,7 +1031,7 @@ class BuilderPackageBasic:
             messages = {}
         self.update_package_name_in_resources()
         resources_base_dir = self.get_resources_base_dir(resources_base_dir)
-        mono_resource_used_files = self._get_mono_resource_used_files(resources_base_dir)
+        mono_resource_used_files = self._get_mono_resource_used_files(resources_base_dir, ckan)
         for resource_builder_name in resource_name:
             resource_builder = self.resource_builders[resource_builder_name]
             if isinstance(resource_builder, BuilderMultiFile):
@@ -1024,7 +1048,7 @@ class BuilderPackageBasic:
         return success
 
     def upload_large_datasets(self, ckan:CkanApi, *, resources_base_dir:str=None, threads:int=1,
-                              progress_callback:Callable=None,
+                              progress_callback:Union[CkanProgressCallback,Callable]=None,
                               only_missing:bool=False, from_line_count:bool=False, allow_chunks:bool=True) -> None:
         """
         Method to upload large datasets of the package.
@@ -1039,36 +1063,47 @@ class BuilderPackageBasic:
         :param allow_chunks: read DataStore files by chunks, when available
         :return:
         """
+        if not isinstance(progress_callback, CkanProgressCallback):
+            progress_callback = CkanProgressCallback(progress_callback)
         self.info_request_package(ckan=ckan)
         resources_base_dir = self.get_resources_base_dir(resources_base_dir)
         self.update_package_name_in_resources()
-        self.update_ckan_options_name_in_resources(ckan)
+        self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         resource_names = [key for key, resource_builder in self.resource_builders.items() if isinstance(resource_builder, BuilderDataStoreMultiABC)]
         self.upload_file_checks(resource_names, resources_base_dir=resources_base_dir, ckan=ckan, verbose=True, raise_error=True)
-        mono_resource_used_files = self._get_mono_resource_used_files(resources_base_dir)
-        for resource_builder in self.resource_builders.values():
+        mono_resource_used_files = self._get_mono_resource_used_files(resources_base_dir, ckan)
+        for resource_index, resource_builder in enumerate(self.resource_builders.values()):
             if isinstance(resource_builder, BuilderDataStoreMultiABC):
                 if progress_callback is not None:
                     resource_builder.progress_callback = progress_callback
+                    progress_callback.call(resource_index, len(self.resource_builders), level=CkanCallbackLevel.Resources)
                 resource_builder.upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir, threads=threads,
                                                      allow_chunks=allow_chunks,
                                                      only_missing=only_missing, from_line_count=from_line_count)
-        for resource_builder in self.resource_builders.values():
+        for index, resource_builder in enumerate(self.resource_builders.values()):
             if isinstance(resource_builder, BuilderMultiFile):
                 if progress_callback is not None:
                     resource_builder.progress_callback = progress_callback
+                    # progress_callback.call(index, len(self.resource_builders), level=CkanCallbackLevel.Resources)
                 resource_builder.upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir, threads=threads,
                                                      only_missing=only_missing, from_line_count=from_line_count,
                                                      allow_chunks=allow_chunks,
                                                      excluded_files=mono_resource_used_files if multi_file_exclude_other_files else None)
         self.package_resource_reorder(ckan)
+        self._patch_request_final(ckan)
+        if progress_callback is not None:
+            progress_callback.call(len(self.resource_builders), len(self.resource_builders), level=CkanCallbackLevel.Resources, end_message=True)
+
+    def _patch_request_final(self, ckan:CkanApi):
+        if initial_package_building_state is not None:
+            ckan.package_patch(self.package_name, state=self.package_attributes.state)
 
     def download_resource_df(self, ckan:CkanApi, resource_name:str, search_all:bool=False, **kwargs) -> pd.DataFrame:
         """
         Proxy for download_sample_df for a DataStore
         """
         self.update_package_name_in_resources()
-        self.update_ckan_options_name_in_resources(ckan)
+        self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         assert(isinstance(self.resource_builders[resource_name], BuilderDataStoreABC))
         return self.resource_builders[resource_name].download_sample_df(ckan=ckan, search_all=search_all, **kwargs)
 
@@ -1077,12 +1112,12 @@ class BuilderPackageBasic:
         Proxy for download_sample for a resource
         """
         self.update_package_name_in_resources()
-        self.update_ckan_options_name_in_resources(ckan)
+        self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         return self.resource_builders[resource_name].download_sample(ckan=ckan, full_download=full_download, **kwargs)
 
     def get_or_query_resource_id(self, ckan:CkanApi, resource_name:str, error_not_found:bool=True) -> str:
         self.update_package_name_in_resources()
-        self.update_ckan_options_name_in_resources(ckan)
+        self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         return self.resource_builders[resource_name].get_or_query_resource_id(ckan, error_not_found=error_not_found)
 
     def _get_mono_resource_names(self):
@@ -1121,7 +1156,7 @@ class BuilderPackageBasic:
         else:
             resource_builders = {resource_name: self.resource_builders[resource_name]}
         self.update_package_name_in_resources()
-        self.update_ckan_options_name_in_resources(ckan)
+        self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         mono_resource_names = self._get_mono_resource_names()
         for resource_builder in resource_builders.values():
             if skip_existing is not None:
@@ -1156,7 +1191,7 @@ class BuilderPackageBasic:
         else:
             resource_builders = {resource_name: self.resource_builders[resource_name]}
         self.update_package_name_in_resources()
-        self.update_ckan_options_name_in_resources(ckan)
+        self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         df_dict = {}
         for resource_builder in resource_builders.values():
             if isinstance(resource_builder, BuilderDataStoreABC):
@@ -1177,7 +1212,7 @@ class BuilderPackageBasic:
         else:
             resource_builders = {resource_name: self.resource_builders[resource_name]}
         self.update_package_name_in_resources()
-        self.update_ckan_options_name_in_resources(ckan)
+        self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         df_dict = {}
         for resource_builder in resource_builders.values():
             if isinstance(resource_builder, BuilderDataStoreABC) and datastores_as_df:
@@ -1194,7 +1229,7 @@ class BuilderPackageBasic:
     def info_request_full(self, ckan:CkanApi) -> Tuple[CkanPackageInfo, List[CkanResourceInfo]]:
         pkg_info = self.info_request_package(ckan)
         self.update_package_name_in_resources()
-        self.update_ckan_options_name_in_resources(ckan)
+        self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         res_info = [resource_builder.resource_info_request(ckan) for resource_builder in self.resource_builders.values()]
         return pkg_info, res_info
 
@@ -1268,7 +1303,7 @@ class BuilderPackageBasic:
         :return:
         """
         self.update_package_name_in_resources()
-        self.update_ckan_options_name_in_resources(ckan)
+        self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         mono_resource_names = {resource_name for resource_name, resource_builder in self.resource_builders.items() if not isinstance(resource_builder, BuilderMultiFile)}
         resource_ids = []
         for resource_builder in self.resource_builders.values():

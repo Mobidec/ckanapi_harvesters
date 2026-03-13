@@ -12,12 +12,14 @@ from warnings import warn
 import copy
 import io
 from collections import OrderedDict
+import argparse
 
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_files_arg
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, _bool_from_string
@@ -27,26 +29,33 @@ from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessag
 
 
 builder_request_default_auth_if_ckan:Union[bool,None] = True  # fill authentification headers for requests with CkanApi requests proxy method if same domain is used by default
+builder_default_resource_state:CkanState = CkanState.Active  # CkanState.Draft
+initial_resource_building_state:Union[CkanState,None] = None  # CkanState.Draft
 
 
 class BuilderResourceABC(ABC):
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
                  state:CkanState=None, enable_download:bool=True,
                  resource_id:str=None, download_url:str=None, options_string:str=None):
-        self.name: Union[str,None] = name
-        self.columns_sheet_name: Union[str, None] = None
-        self.format: Union[str,None] = format
-        self.description: Union[str,None] = description
-        self.state:Union[CkanState,None] = state
+        if options_string is None:
+            options_string = ""
         if state is None:
-            self.state = CkanState.Active  # activate by default
+            state = builder_default_resource_state
+        self.name: Union[str,None] = name
+        self.resource_attributes: Union[CkanResourceInfo,None] = None
+        self.resource_attributes_user: CkanResourceInfo = CkanResourceInfo()
+        self.resource_attributes_data_source: Union[CkanResourceInfo,None] = None
+        self.columns_sheet_name: Union[str, None] = None
+        self.resource_attributes_user.format = format
+        self.resource_attributes_user.description = description
+        self.resource_attributes_user.state = state
         self.enable_download:bool = enable_download
-        self.options_string: Union[str,None] = options_string
+        self.options_string: str = options_string
+        self.comment: Union[str,None] = None
         # Map information, if present
         self.package_name: str = ""  # parent package name (update before any operation)
-        self.known_id: Union[str,None] = resource_id
         self.download_url: Union[str,None] = download_url
-        self.comment: Union[str,None] = None
+        self.known_id: Union[str,None] = resource_id
         self.known_resource_info: Union[CkanResourceInfo,None] = None
         # Functions inputs/outputs
         self.sample_data_source: str = ""
@@ -55,6 +64,7 @@ class BuilderResourceABC(ABC):
         self.download_skip_existing:bool = True  # True: do not overwrite files
         self.download_error_not_found:bool = True
         self.create_default_view:bool = True
+        self.progress_callback = CkanProgressCallback()
 
     def __copy__(self):
         return self.copy()
@@ -63,9 +73,9 @@ class BuilderResourceABC(ABC):
     def copy(self, *, dest=None):
         dest.name = self.name
         dest.columns_sheet_name = self.columns_sheet_name
-        dest.format = self.format
-        dest.description = self.description
-        dest.state = self.state
+        dest.resource_attributes = self.resource_attributes.copy() if self.resource_attributes is not None else None
+        dest.resource_attributes_user = self.resource_attributes_user.copy()
+        dest.resource_attributes_data_source = self.resource_attributes_data_source.copy() if self.resource_attributes_data_source is not None else None
         dest.enable_download = self.enable_download
         dest.options_string = self.options_string
         dest.package_name = self.package_name
@@ -84,18 +94,18 @@ class BuilderResourceABC(ABC):
         if self.name is None:
             raise MandatoryAttributeError("Resource", "name")
 
-    def init_options_from_ckan(self, ckan:CkanApi, *, override_ckan:bool=False, base_dir:str=None) -> None:
+    def init_options_from_ckan(self, ckan:CkanApi, *, base_dir:str=None) -> None:
         """
         Function to initialize some parameters from the ckan object
         """
         if self.known_resource_info is None:
             self.known_resource_info = ckan.get_resource_info_or_request(self.name, self.package_name, error_not_found=False)
-        self._update_metadata(ckan, override_ckan=override_ckan, base_dir=base_dir)
+        self._update_metadata(ckan, base_dir=base_dir)
 
     def _apply_options(self, base_dir: str = None) -> None:
         return
 
-    def _update_metadata(self, ckan: CkanApi, *, override_ckan:bool=False, base_dir:str=None) -> None:
+    def _update_metadata(self, ckan: CkanApi, *, base_dir:str=None) -> None:
         """
         Function to initialize metadata from the data source.
         The attribute self.known_resource_info must be queried before this call
@@ -104,7 +114,10 @@ class BuilderResourceABC(ABC):
             - Detect field types from example DataFrame
             - Add descriptions from data source
         """
-        return
+        self.initialize_from_options_string(base_dir=base_dir)
+
+    def initialize_from_options_string(self, base_dir:str, *, options_string:str=None, parser:argparse.ArgumentParser=None) -> None:
+        pass
 
     @abstractmethod
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
@@ -115,20 +128,20 @@ class BuilderResourceABC(ABC):
         self.columns_sheet_name = None
         if "datastore columns sheet" in row.keys():
             self.columns_sheet_name = _string_from_element(row["datastore columns sheet"])
-        self.format = _string_from_element(row["format"]).upper().strip()
-        self.description = None
+        self.resource_attributes_user.format = _string_from_element(row["format"]).upper().strip()
+        self.resource_attributes_user.description = None
         if "description" in row.keys():
-            self.description = _string_from_element(row["description"])
+            self.resource_attributes_user.description = _string_from_element(row["description"])
         self.enable_download = True
         if "options" in row.keys():
             self.options_string = _string_from_element(row["options"], empty_value="")
         if "download" in row.keys():
             self.enable_download = _bool_from_string(row["download"])
-        self.state = None
+        self.resource_attributes_user.state = None
         if "state" in row.keys():
             state = _string_from_element(row["state"])
             if state is not None:
-                self.state = CkanState.from_str(state)
+                self.resource_attributes_user.state = CkanState.from_str(state)
         # Map information, if present
         self.known_id = None
         self.download_url = None
@@ -175,13 +188,13 @@ class BuilderResourceABC(ABC):
         d = OrderedDict([
             ("Name", self.name),
             ("DataStore Columns Sheet", self.columns_sheet_name),
-            ("Format", self.format if self.format else ""),
-            ("State", self.state.name if self.state is not None else ""),
+            ("Format", self.resource_attributes_user.format if self.resource_attributes_user.format else ""),
+            ("State", self.resource_attributes_user.state.name if self.resource_attributes_user.state is not None else ""),
             ("Mode", self.resource_mode_str()),
             ("File/URL", None),  # concrete implementations must fill this field
             ("Options", self.options_string),
             ("Download", str(self.enable_download)),
-            ("Description", self.description if self.description else ""),
+            ("Description", self.resource_attributes_user.description if self.resource_attributes_user.description else ""),
             ("Primary key", ""),
             ("Indexes", ""),
             ("Upload function", ""),
@@ -195,6 +208,13 @@ class BuilderResourceABC(ABC):
             d["Known URL"] = self.download_url
         return d
 
+    def _merge_resource_attributes(self, *, override_ckan:bool=False):
+        self.resource_attributes = self.resource_attributes_user.copy()
+        if not override_ckan and self.known_resource_info is not None:
+            self.resource_attributes.update_missing(self.known_resource_info)
+        if self.resource_attributes_data_source is not None:
+            self.resource_attributes.update_missing(self.resource_attributes_data_source)
+
     def _to_row(self) -> pd.Series:
         row = pd.Series(self._to_dict())
         row.index = row.index.map(str.lower)
@@ -207,7 +227,7 @@ class BuilderResourceABC(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def get_sample_file_path(self, resources_base_dir:str) -> Union[str,None]:
+    def get_sample_file_path(self, resources_base_dir:str, ckan:Union[CkanApi,None]) -> Union[str,None]:
         """
         Function returning the local resource file name for the sample file.
 
@@ -238,7 +258,8 @@ class BuilderResourceABC(ABC):
 
     @abstractmethod
     def patch_request(self, ckan:CkanApi, package_id:str, *,
-                      reupload:bool=None, resources_base_dir:str=None) -> CkanResourceInfo:
+                      reupload:bool=None, override_ckan:bool=False,
+                      resources_base_dir:str=None) -> CkanResourceInfo:
         """
         Function to perform all the necessary requests to initiate/reupload the resource on the CKAN server.
 
@@ -255,6 +276,11 @@ class BuilderResourceABC(ABC):
         # might be dead code
         # this function (patch_request) gets specialized in certain cases
         return self.patch_request(ckan, package_id, resources_base_dir=resources_base_dir, reupload=True)
+
+    def upload_request_final(self, ckan:CkanApi, *, force:bool=False) -> None:
+        if initial_resource_building_state is not None:
+            resource_id = self.get_or_query_resource_id(ckan)
+            ckan.resource_patch(resource_id, state=self.resource_attributes.state)
 
     @abstractmethod
     def download_sample(self, ckan:CkanApi, full_download:bool=True, **kwargs) -> bytes:
@@ -300,7 +326,9 @@ class BuilderResourceABC(ABC):
         resource_info.id = self.known_id
         resource_info.package_id = package_id
         resource_info.name = self.name
-        resource_info.description = self.description
+        resource_info.description = self.resource_attributes.description
+        resource_info.state = self.resource_attributes.state
+        resource_info.format = self.resource_attributes.format
         resource_info.download_url = self.download_url
         return resource_info
 
@@ -345,10 +373,11 @@ class BuilderFileABC(BuilderResourceABC, ABC):
 
     @abstractmethod
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
-        super()._load_from_df_row(row=row)
+        super()._load_from_df_row(row=row, base_dir=base_dir)
         self.file_name = _string_from_element(row["file/url"], strip=True)
 
-    def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, resources_base_dir:str=None,
+    def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, override_ckan:bool=False,
+                      resources_base_dir:str=None,
                       payload:Union[bytes, io.BufferedIOBase]=None) -> CkanResourceInfo:
         """
         Perform a patch of the resource on the CKAN server.
@@ -362,15 +391,19 @@ class BuilderFileABC(BuilderResourceABC, ABC):
         :param payload:
         :return:
         """
+        self._merge_resource_attributes(override_ckan=override_ckan)
         if reupload is None: reupload = self.reupload_on_update
         if payload is None:
             payload = self.load_sample_data(resources_base_dir=resources_base_dir)
         payload_file_name = self.file_name
         files = upload_prepare_requests_files_arg(payload=payload, payload_name=payload_file_name)
-        res_info = ckan.resource_create(package_id, name=self.name, format=self.format, description=self.description, state=self.state,
+        res_info = ckan.resource_create(package_id, name=self.name, format=self.resource_attributes.format,
+                                        description=self.resource_attributes.description,
+                                        state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                         files=files, datastore_create=False, auto_submit=False, create_default_view=self.create_default_view,
                                         cancel_if_exists=True, update_if_exists=True, reupload=reupload)
         self.known_id = res_info.id
+        self.upload_request_final(ckan)
         return res_info
 
     def download_sample(self, ckan:CkanApi, full_download:bool=True, **kwargs) -> Union[bytes, None]:
@@ -414,7 +447,7 @@ class BuilderFileABC(BuilderResourceABC, ABC):
 #         return dest
 #
 #     def _load_from_df_row(self, row: pd.Series):
-#         super()._load_from_df_row(row=row)
+#         super()._load_from_df_row(row=row, base_dir=base_dir)
 #         self.file_name = self.name
 #         self._check_mandatory_attributes()
 #
@@ -450,7 +483,7 @@ class BuilderResourceUnmanaged(BuilderFileABC):  #, BuilderResourceUnmanagedABC)
         return "Unmanaged"
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
-        super()._load_from_df_row(row=row)
+        super()._load_from_df_row(row=row, base_dir=base_dir)
         self.file_name = self.name
         self._check_mandatory_attributes()
 
@@ -463,7 +496,7 @@ class BuilderResourceUnmanaged(BuilderFileABC):  #, BuilderResourceUnmanagedABC)
     def sample_file_path_is_url() -> bool:
         return False
 
-    def get_sample_file_path(self, resources_base_dir:str) -> Union[str,None]:
+    def get_sample_file_path(self, resources_base_dir:str, ckan:Union[CkanApi,None]=None) -> Union[str,None]:
         return None
 
     def load_sample_data(self, resources_base_dir:str) -> Union[bytes,None]:
@@ -473,17 +506,21 @@ class BuilderResourceUnmanaged(BuilderFileABC):  #, BuilderResourceUnmanagedABC)
         return None
 
     def patch_request(self, ckan:CkanApi, package_id:str, *,
-                      reupload:bool=None, resources_base_dir:str=None,
+                      reupload:bool=None, override_ckan:bool=False, resources_base_dir:str=None,
                       payload:Union[bytes, io.BufferedIOBase]=None) -> CkanResourceInfo:
+        self._merge_resource_attributes(override_ckan=override_ckan)
         if payload is None:
             payload = self.default_payload
         if reupload is None: reupload = self.reupload_on_update and payload is not None
         payload_file_name = self.file_name
         files = upload_prepare_requests_files_arg(payload=payload, payload_name=payload_file_name) if payload is not None else None
-        res_info = ckan.resource_create(package_id, name=self.name, format=self.format, description=self.description, state=self.state,
+        res_info = ckan.resource_create(package_id, name=self.name, format=self.resource_attributes.format,
+                                        description=self.resource_attributes.description,
+                                        state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                         files=files, datastore_create=False, auto_submit=False, create_default_view=self.create_default_view,
                                         cancel_if_exists=True, update_if_exists=True, reupload=reupload)
         self.known_id = res_info.id
+        self.upload_request_final(ckan)
         return res_info
 
 
@@ -501,7 +538,7 @@ class BuilderFileBinary(BuilderFileABC):
     def sample_file_path_is_url() -> bool:
         return False
 
-    def get_sample_file_path(self, resources_base_dir:str) -> str:
+    def get_sample_file_path(self, resources_base_dir:str, ckan:Union[CkanApi,None]=None) -> str:
         return resolve_rel_path(resources_base_dir, self.file_name, field=f"File/URL of resource {self.name}")
 
     def load_sample_data(self, resources_base_dir:str) -> bytes:
@@ -523,7 +560,7 @@ class BuilderFileBinary(BuilderFileABC):
         return "File"
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
-        super()._load_from_df_row(row=row)
+        super()._load_from_df_row(row=row, base_dir=base_dir)
         self._check_mandatory_attributes()
 
     def _to_dict(self, include_id:bool=True) -> dict:
@@ -560,7 +597,7 @@ class BuilderUrlABC(BuilderFileABC, ABC):
             raise MandatoryAttributeError(self.resource_mode_str(), "URL")
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
-        super()._load_from_df_row(row=row)
+        super()._load_from_df_row(row=row, base_dir=base_dir)
         self.url: str = _string_from_element(row["file/url"], strip=True)
         self.file_name = self.name
         self._check_mandatory_attributes()
@@ -596,7 +633,7 @@ class BuilderUrl(BuilderUrlABC):
     def sample_file_path_is_url() -> bool:
         return True
 
-    def get_sample_file_path(self, resources_base_dir: str) -> str:
+    def get_sample_file_path(self, resources_base_dir: str, ckan:Union[CkanApi,None]=None) -> str:
         return self.url
 
     def load_sample_data(self, resources_base_dir:str, *, ckan:CkanApi=None,
@@ -606,12 +643,18 @@ class BuilderUrl(BuilderUrlABC):
             raise FunctionMissingArgumentError("BuilderDataStoreUrl.load_sample_data", "ckan")
         return ckan.download_url_proxy(self.url, proxies=proxies, headers=headers, auth_if_ckan=builder_request_default_auth_if_ckan).content
 
-    def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, resources_base_dir:str=None,
+    def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, override_ckan:bool=False,
+                      resources_base_dir:str=None,
                       payload:Union[bytes, io.BufferedIOBase]=None) -> CkanResourceInfo:
+        self._merge_resource_attributes(override_ckan=override_ckan)
         if reupload is None: reupload = self.reupload_on_update
         if payload is not None:
             raise CkanArgumentError("payload", "resource defined from URL patch")
-        return ckan.resource_create(package_id, name=self.name, format=self.format, description=self.description, state=self.state,
+        resource_info = ckan.resource_create(package_id, name=self.name, format=self.resource_attributes.format,
+                                    description=self.resource_attributes.description,
+                                    state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                     url=self.url, auto_submit=False, datastore_create=False, create_default_view=self.create_default_view,
                                     cancel_if_exists=True, update_if_exists=True, reupload=reupload)
+        self.upload_request_final(ckan)
+        return resource_info
 

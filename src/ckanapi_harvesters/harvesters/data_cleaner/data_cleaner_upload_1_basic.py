@@ -41,11 +41,35 @@ dtype_ckan_mapper = {
 }
 
 
-def _pd_series_type_detect(values: pd.Series, test_type:Type):
+def _pd_series_type_instance_detect(values: pd.Series, test_type:Type):
     """
     This function checks that the test_type matches all rows which are not NaN/None/NA in a pandas Series.
     """
     return values.map(lambda x: isinstance(x, test_type)).where(values.notna(), True).all()
+
+def _pd_str_series_type_detect(values: pd.Series) -> str:
+    # remove NA values
+    series = values.where(values.notna(), None)
+    if len(series) == 0:
+        return "text"  # could not determine data type
+
+    # Check for booleans
+    if series.str.strip().str.lower().isin(['true', 'false']).all():
+        return 'bool'
+
+    # Check for integers
+    if pd.to_numeric(series, errors='coerce').apply(float.is_integer).all():
+        return 'int'
+
+    # Check for floats
+    if pd.to_numeric(series, errors='coerce').notna().all():
+        return 'float'
+
+    # Check for timestamps
+    if pd.to_datetime(series, errors='coerce').notna().all():
+        return 'timestamp'
+
+    return 'text'
 
 
 class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
@@ -89,19 +113,24 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
                     field_info = self._detect_standard_field_bypass(field_name, values)
                     if field_info is not None:
                         return field_info
-                    elif _pd_series_type_detect(values, str):
-                        return CkanField(field_name, "text")
-                    elif _pd_series_type_detect(values, bool):
+                    elif _pd_series_type_instance_detect(values, str):
+                        data_type = _pd_str_series_type_detect(values)
+                        return CkanField(field_name, data_type)
+                    elif _pd_series_type_instance_detect(values, bool):
                         return CkanField(field_name, "bool")
-                    elif (_pd_series_type_detect(values, dict)
-                          or _pd_series_type_detect(values, list)):
+                    elif (_pd_series_type_instance_detect(values, dict)
+                          or _pd_series_type_instance_detect(values, list)):
                         if self.param_json_as_text:
                             return CkanField(field_name, "text")
                         else:
                             return CkanField(field_name, "json")
-                    elif (_pd_series_type_detect(values, datetime.datetime)
-                          or _pd_series_type_detect(values, pd.Timestamp)):
+                    elif (_pd_series_type_instance_detect(values, datetime.datetime)
+                          or _pd_series_type_instance_detect(values, pd.Timestamp)):
                         return CkanField(field_name, "timestamp")
+                    elif _pd_series_type_instance_detect(values, int):
+                        return CkanField(field_name, "int")
+                    elif _pd_series_type_instance_detect(values, float):
+                        return CkanField(field_name, "float")
                     else:
                         return self._detect_non_standard_field(field_name, values)
                 elif dtype in dtype_ckan_mapper.keys():

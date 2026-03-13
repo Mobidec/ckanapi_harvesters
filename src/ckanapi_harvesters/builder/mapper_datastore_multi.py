@@ -269,8 +269,8 @@ def default_file_mapper_from_primary_key(primary_key:List[str]=None, file_query_
         if (len(primary_key) == 1 and datastore_default_index_col_name is not None
                 and primary_key[0].strip() == datastore_default_index_col_name):
             # user can explicitly specify he wants to rely on the index created by default
-            mapper.upload_add_index_column = datastore_default_index_col_name
+            mapper.upload_upload_index_column = datastore_default_index_col_name
         elif len(primary_key) > 0:
-            mapper.upload_add_index_column = ""  # do not create an extra index if the primary key is defined
+            mapper.upload_upload_index_column = ""  # do not create an extra index if the primary key is defined
     return mapper
 

@@ -48,7 +48,7 @@ class BuilderDataStoreCkan(BuilderDataStoreFolder):
                          download_url=download_url, dir_name="", options_string=options_string, base_dir=base_dir)
         self.upsert_method: UpsertChoice = UpsertChoice.Upsert
         self.resource_ids: List[str] = [resource_id.strip() for resource_id in ckan_tags_sep.split(file_name)]
-        raise NotImplementedError()
+        raise NotImplementedError()  # not tested
 
     def copy(self, *, dest=None):
         if dest is None:
@@ -58,7 +58,7 @@ class BuilderDataStoreCkan(BuilderDataStoreFolder):
         return dest
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
-        super()._load_from_df_row(row=row)
+        super()._load_from_df_row(row=row, base_dir=base_dir)
         file_name_field: str = _string_from_element(row["file/url"], strip=True)
         if file_name_field is not None:
             self.resource_ids = [resource_id.strip() for resource_id in ckan_tags_sep.split(file_name_field)]
@@ -80,41 +80,44 @@ class BuilderDataStoreCkan(BuilderDataStoreFolder):
 
     ## upload chunks ----------------
     def upload_file_checks(self, *, resources_base_dir:str=None, ckan: CkanApi=None, **kwargs) -> Union[None,ContextErrorLevelMessage]:
-        # TODO: check resource ids exist on CKAN
-        file_path = self.get_sample_file_path(resources_base_dir=resources_base_dir)
-        if os.path.isfile(file_path):
+        # check resource ids exist on CKAN
+        missing_resources = []
+        for resource_id in self.resource_ids:
+            if ckan.get_resource_info_or_request(resource_id, error_not_found=False) is None:
+                missing_resources.append(resource_id)
+        if len(missing_resources) == 0:
             return None
         else:
-            return ResourceFileNotExistMessage(self.name, ErrorLevel.Error, f"Missing file for resource {self.name}: {file_path}")
+            return ResourceFileNotExistMessage(self.name, ErrorLevel.Error, f"Missing source resources for {self.name}: {','.join(missing_resources)}")
 
-    def get_sample_file_path(self, resources_base_dir:str, file_index:int=0) -> str:
-        # TODO: return URL of first resource
-        return resolve_rel_path(resources_base_dir, self.file_name, field=f"File/URL of resource {self.name}")
+    def get_sample_file_path(self, resources_base_dir:str, ckan:Union[CkanApi,None]=None, file_index:int=0) -> str:
+        return None
 
-    def list_local_files(self, resources_base_dir:str, cancel_if_present:bool=True) -> List[str]:
-        # TODO: obtain row count of each resource
-        file_path = self.get_sample_file_path(resources_base_dir=resources_base_dir)
-        self.file_size = os.path.getsize(file_path)
-        self.local_file_list = [file_path]
-        self.local_file_size = [self.file_size]
-        self.local_file_size_sum = self.file_size
+    def list_local_files(self, resources_base_dir:str, ckan:CkanApi, cancel_if_present:bool=True) -> List[str]:
+        # obtain row count of each resource
+        self.local_file_size = [0] * len(self.resource_ids)
+        for index, resource_id in enumerate(self.resource_ids):
+            resource_info = ckan.get_resource_info_or_request(resource_id, error_not_found=False, datastore_info=True)
+            if resource_info is not None and resource_info.datastore_info is not None and resource_info.datastore_info.row_count is not None:
+                self.local_file_size[index] = resource_info.datastore_info.row_count
+        self.local_file_size_sum = sum(self.local_file_size,0)
         return self.local_file_list
 
-    def get_local_file_offset(self, file_chunk: FileChunkDataFrame) -> int:
-        # TODO: update
-        return file_chunk.file_position
+    def _update_metadata(self, ckan: CkanApi, *, base_dir:str=None):
+        # obtain metadata from first resource of list
+        super()._update_metadata(ckan, base_dir=base_dir)
+        resource_info = ckan.get_resource_info_or_request(self.resource_ids[0], error_not_found=True, datastore_info=True)
+        self.resource_attributes_data_source = None
+        self.field_builders_data_source = None
+        if resource_info is not None:
+            self.resource_attributes_data_source = resource_info.copy()
+            if resource_info.datastore_info is not None and resource_info.datastore_info.fields_dict is not None:
+                self.field_builders_data_source = OrderedDict()
+                for field_info in resource_info.datastore_info.fields_dict:
+                    self.field_builders_data_source[field_info.field_name] = BuilderField._from_ckan_field(field_info)
 
-    def get_local_file_total_size(self) -> int:
-        # TODO: update
-        return self.file_size
-
-    def get_local_file_count(self) -> int:
-        # TODO: update
-        return 1
-
-    def get_local_df_chunk_generator(self, resources_base_dir:str, allow_chunks:bool=True,
+    def get_local_df_chunk_generator(self, resources_base_dir:str, ckan:CkanApi, allow_chunks:bool=True,
                                      **kwargs) -> Generator[FileChunkDataFrame, None, None]:
-        # TODO: pass ckan argument
         for file_index, resource_id in enumerate(self.resource_ids):
             self.file_semaphore.acquire()
             file_position = 0

@@ -22,14 +22,14 @@ import requests
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path, glob_rm_glob, glob_name
 from ckanapi_harvesters.builder.builder_aux import positive_end_index
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
 from ckanapi_harvesters.builder.builder_resource_multi_abc import BuilderMultiABC, FileChunkDataFrame
-from ckanapi_harvesters.builder.builder_resource_multi_abc import default_progress_callback
-from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC
+from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC, initial_resource_building_state
 
 multi_file_exclude_other_files:bool = True
 
@@ -52,8 +52,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         # BuilderMultiABC:
         self.stop_event = threading.Event()
         self.thread_ckan: Dict[str, CkanApi] = {}
-        self.progress_callback: Union[Callable[[int, int, Any], None], None] = default_progress_callback
-        self.progress_callback_kwargs: dict = {}
+        self.progress_callback = CkanProgressCallback()
         self.enable_multi_threaded_upload:bool = True
         self.enable_multi_threaded_download:bool = True
         self.file_semaphore = Semaphore()
@@ -68,15 +67,14 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         super().copy(dest=dest)
         dest.dir_name = self.dir_name
         # BuilderMultiABC:
-        dest.progress_callback = self.progress_callback
-        dest.progress_callback_kwargs = copy.deepcopy(self.progress_callback_kwargs)
+        dest.progress_callback = self.progress_callback.copy()
         dest.enable_multi_threaded_upload = self.enable_multi_threaded_upload
         dest.enable_multi_threaded_download = self.enable_multi_threaded_download
         # do not copy stop_event
         return dest
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
-        super()._load_from_df_row(row=row)
+        super()._load_from_df_row(row=row, base_dir=base_dir)
         self.dir_name = _string_from_element(row["file/url"], empty_value="", strip=True)
 
     def _to_dict(self, include_id:bool=True) -> dict:
@@ -89,7 +87,8 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
 
 
     ## upload --------------------------------------------------------------------
-    def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, resources_base_dir:str=None,
+    def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, override_ckan:bool=False,
+                      resources_base_dir:str=None,
                       payload:Union[bytes, io.BufferedIOBase]=None) -> Union[None, CkanResourceInfo]:
         return None
 
@@ -100,7 +99,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
     def sample_file_path_is_url() -> bool:
         return False
 
-    def get_sample_file_path(self, resources_base_dir:str, file_index:int=0) -> Union[str,None]:
+    def get_sample_file_path(self, resources_base_dir:str, ckan:Union[CkanApi,None]=None, file_index:int=0) -> Union[str,None]:
         self.list_local_files(resources_base_dir=resources_base_dir)
         return self.local_file_list[file_index]
 
@@ -160,7 +159,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         for file_name in self.local_file_list:
             yield file_name
 
-    def get_local_df_chunk_generator(self, resources_base_dir:str, excluded_files:Set[str]=None, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
+    def get_local_df_chunk_generator(self, resources_base_dir:str, ckan:CkanApi, excluded_files:Set[str]=None, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         for file_index, file_name in enumerate(self.get_local_file_generator(resources_base_dir=resources_base_dir)):
             yield FileChunkDataFrame(None, file_name, file_index, 0, 0, 0)
 
@@ -177,7 +176,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
                 f"Missing directory for multi-file resource {self.name}: {os.path.join(resources_base_dir, self.dir_name)}")
 
     def upload_file_chunk(self, ckan:CkanApi, package_id:str, file_chunk:FileChunkDataFrame, *,
-                          reupload:bool=False, cancel_if_present:bool=True) -> CkanResourceInfo:
+                          reupload:bool=False, override_ckan:bool=False, cancel_if_present:bool=True) -> CkanResourceInfo:
         """
         Upload a file, using its name as resource name
         """
@@ -185,13 +184,22 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         file_path = file_chunk.file_path
         _, resource_name = os.path.split(file_path)
         resource_info = ckan.map.get_resource_info(resource_name, package_name=package_id, error_not_mapped=False)
+        self.known_resource_info = resource_info
+        self.known_id = resource_info.id
+        self._merge_resource_attributes(override_ckan=override_ckan)
         if resource_info is not None and cancel_if_present and not reupload:
             resource_info.newly_created = False
             resource_info.newly_updated = False
             return resource_info
-        return ckan.resource_create(package_id, resource_name, format=self.format, description=self.description,
-                                    state=self.state, file_path=file_path, reupload=reupload, cancel_if_exists=True, update_if_exists=True,
+        resource_info = ckan.resource_create(package_id, resource_name, format=self.resource_attributes.format, description=self.resource_attributes.description,
+                                    state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
+                                    file_path=file_path, reupload=reupload, cancel_if_exists=True, update_if_exists=True,
                                     create_default_view=True, auto_submit=False)
+        self.upload_request_final(ckan)
+        self.known_resource_info = None
+        self.known_id = None
+        return resource_info
+
 
     def _unit_upload_apply(self, *, ckan:CkanApi, file_chunk:FileChunkDataFrame,
                            overall_chunk_index:int, start_index:int, end_index:int, file_count:int,
@@ -201,13 +209,13 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         _, file_name = os.path.split(file_path)
         index = file_chunk.file_index
         if start_index <= index and index < end_index and file_path not in excluded_files:
-            self._call_progress_callback(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(), info=file_path,
+            self.progress_callback.call(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(), info=file_path,
                                          file_index=file_chunk.file_index, file_count=self.get_local_file_count(),
-                                         context=f"{ckan.identifier} upload")
+                                         context=f"{ckan.identifier} upload", level=CkanCallbackLevel.MultiFileResource)
             self.upload_file_chunk(ckan=ckan, package_id=package_id, file_chunk=file_chunk,
                                    reupload=reupload, cancel_if_present=only_missing)
         else:
-            # self._call_progress_callback(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip")
+            # self.progress_callback.call(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip", level=CkanCallbackLevel.MultiFileResource)
             pass
 
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
@@ -391,14 +399,15 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
             yield self.download_file_query_item(ckan=ckan, out_dir=out_dir, file_query_item=file_query_item)
 
     def _unit_download_apply(self, ckan:CkanApi, file_query_item:Any, out_dir:str,
-                           index:int, start_index:int, end_index:int, total:int, excluded_resource_names:Set[str]) -> Any:
+                             index:int, start_index:int, end_index:int, total:int,
+                             excluded_resource_names:Set[str]) -> Any:
         if start_index <= index and index < end_index and file_query_item not in excluded_resource_names:
-            self._call_progress_callback(index, total, info=file_query_item,
-                                         context=f"{ckan.identifier} single-thread download")
+            self.progress_callback.call(index, total, info=file_query_item,
+                                         context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.MultiFileResource)
             self.download_file_query_item(ckan=ckan, out_dir=out_dir, file_query_item=file_query_item)
         else:
             pass
-            # self._call_progress_callback(index, total, info=file_query_item, context=f"{ckan.identifier} single-thread skip")
+            # self.progress_callback.call(index, total, info=file_query_item, context=f"{ckan.identifier} single-thread skip", level=CkanCallbackLevel.MultiFileResource)
 
     def download_request_full(self, ckan: CkanApi, out_dir: str, threads:int=1, external_stop_event=None,
                               start_index:int=0, end_index:int=None, force:bool=False,

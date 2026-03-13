@@ -11,6 +11,7 @@ import argparse
 
 import pandas as pd
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanState
@@ -264,7 +265,8 @@ class CkanApiReadWrite(CkanApiPolicy):
                          dry_run:bool=False, limit:int=None, offset:int=0, force:bool=None,
                          method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                          always_last_condition:bool=None, return_df:bool=None,
-                         data_cleaner:CkanDataCleanerABC=None, params:dict=None) -> Union[pd.DataFrame, List[dict]]:
+                         data_cleaner:CkanDataCleanerABC=None,
+                         progress_callback:CkanProgressCallback=None, params:dict=None) -> Union[pd.DataFrame, List[dict]]:
         """
         Encapsulation of _api_datastore_upsert to cut the requests to a limited number of rows.
 
@@ -295,6 +297,8 @@ class CkanApiReadWrite(CkanApiPolicy):
             mode_df = False
         else:
             assert(isinstance(records, pd.DataFrame))
+        if progress_callback is not None:
+            progress_callback.call(0, len(records), level=CkanCallbackLevel.Request)
         if data_cleaner is None:
             data_cleaner = self.data_cleaner_upload
         if data_cleaner is not None:
@@ -310,10 +314,13 @@ class CkanApiReadWrite(CkanApiPolicy):
             # direct API call with one request
             if self.params.store_last_response_debug_info:
                 self.debug.multi_requests_last_successful_offset = offset
-            return self._api_datastore_upsert(records, return_df=return_df,
+            value = self._api_datastore_upsert(records, return_df=return_df,
                                               method=method_str, dry_run=dry_run, resource_id=resource_id,
                                               force=force, params=params,
                                               last_insertion=apply_last_condition or always_last_condition)
+            if progress_callback is not None:
+                progress_callback.call(len(records), len(records), level=CkanCallbackLevel.Request, end_message=True)
+            return value
         assert_or_raise(limit > 0, InvalidParameterError("limit"))
         n = len(records)
         if self.params.store_last_response_debug_info:
@@ -344,6 +351,8 @@ class CkanApiReadWrite(CkanApiPolicy):
                                                 force=force, params=params,
                                                 last_insertion=(last_insertion and apply_last_condition) or always_last_condition)
             n_cum += len(df_add)
+            if progress_callback is not None:
+                progress_callback.call(n_cum, len(records), level=CkanCallbackLevel.Request, end_message=last_insertion)
             assert_or_raise(len(df_add) == n_add, IntegrityError("Second check on response len failed in datastore_upsert"))  # consistency check, in double of _api_datastore_upsert
             if self.params.store_last_response_debug_info:
                 self.debug.multi_requests_last_successful_offset = offset

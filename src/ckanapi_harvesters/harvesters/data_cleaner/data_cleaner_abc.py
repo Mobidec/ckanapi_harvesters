@@ -117,7 +117,8 @@ class CkanDataCleanerABC(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def detect_field_types_and_subs(self, records: Union[List[dict], pd.DataFrame]) -> OrderedDict[str, str]:
+    def detect_field_types_and_subs(self, records: Union[List[dict], pd.DataFrame],
+                                    known_fields:OrderedDict[str, CkanField]=None) -> OrderedDict[str, str]:
         """
         This function detects the initial fields and necessary field renamings
         """
@@ -283,6 +284,7 @@ class DataCleanerNone(CkanDataCleanerABC):
         else:
             raise KeyError(f"Field {field_name} does not exist")
 
-    def detect_field_types_and_subs(self, records: Union[List[dict], pd.DataFrame]) -> OrderedDict[str, str]:
+    def detect_field_types_and_subs(self, records: Union[List[dict], pd.DataFrame],
+                                    known_fields:OrderedDict[str, CkanField]=None) -> OrderedDict[str, str]:
         raise NotImplementedError()
 

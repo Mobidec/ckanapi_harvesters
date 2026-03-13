@@ -720,14 +720,32 @@ class CkanResourceInfo(CkanConfigurableObjectABC):
             self.views[view_info_update.id] = view_info_update
         self.view_is_full_list = self.view_is_full_list or view_list  # bool indicating if the list comes from full view list API
 
-    def update(self, refresh) -> None:
-        refresh: CkanResourceInfo
+    def update(self, refresh: "CkanResourceInfo") -> None:
         self.id = refresh.id
         self.name = refresh.name
         self.state = refresh.state
+        self.format = refresh.format
+        self.description = refresh.description
         self.package_id = refresh.package_id
         self.datastore_active = refresh.datastore_active
         self.details = refresh.details
+
+    def update_missing(self, refresh: "CkanResourceInfo") -> None:
+        if self.id is None:
+            self.id = refresh.id
+        if self.name is None:
+            self.name = refresh.name
+        if self.state is None:
+            self.state = refresh.state
+        if self.format is None:
+            self.format = refresh.format
+        if self.description is None:
+            self.description = refresh.description
+        if self.details is not None:
+            if refresh.details is not None:
+                self.details.update(refresh.details)
+        else:
+            self.details = refresh.details
 
     def to_dict(self, include_details:bool=True) -> dict:
         d = dict()

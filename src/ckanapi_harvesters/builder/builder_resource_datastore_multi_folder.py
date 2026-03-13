@@ -55,7 +55,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         return dest
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None) -> None:
-        super()._load_from_df_row(row=row)
+        super()._load_from_df_row(row=row, base_dir=base_dir)
         self.dir_name: str = _string_from_element(row["file/url"], strip=True)
 
     @staticmethod
@@ -70,7 +70,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
     ## upload ---------------------------------------------------
     def upload_file_checks(self, *, resources_base_dir:str=None, ckan: CkanApi=None, **kwargs) -> Union[None,ContextErrorLevelMessage]:
         if os.path.isdir(resolve_rel_path(resources_base_dir, glob_rm_glob(self.dir_name), field=f"File/URL of resource {self.name}")):
-            if len(self.list_local_files(resources_base_dir=resources_base_dir)) > 0:
+            if len(self.list_local_files(resources_base_dir=resources_base_dir, ckan=ckan)) > 0:
                 return None
             else:
                 return ResourceFileNotExistMessage(self.name, ErrorLevel.Error,
@@ -79,12 +79,12 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
             return ResourceFileNotExistMessage(self.name, ErrorLevel.Error,
                 f"Missing directory for resource {self.name}: {os.path.join(resources_base_dir, self.dir_name)}")
 
-    def get_sample_file_path(self, resources_base_dir:str, file_index:int=0) -> Union[str,None]:
-        self.list_local_files(resources_base_dir=resources_base_dir)
+    def get_sample_file_path(self, resources_base_dir:str, ckan:CkanApi=None, file_index:int=0) -> Union[str,None]:
+        self.list_local_files(resources_base_dir=resources_base_dir, ckan=ckan)
         return self.local_file_list[file_index]
 
     def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True, file_index:int=0, allow_chunks:bool=True, **kwargs) -> GeneralDataFrame:
-        generator = self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, allow_chunks=allow_chunks)
+        generator = self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, ckan=None, allow_chunks=allow_chunks)
         chunk = next(generator)
         df_local = chunk.df
         generator.close()
@@ -95,9 +95,9 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         else:
             return df_local
 
-    def get_local_df_chunk_generator(self, resources_base_dir:str, allow_chunks:bool=True,
+    def get_local_df_chunk_generator(self, resources_base_dir:str, ckan:CkanApi, allow_chunks:bool=True,
                                      **kwargs) -> Generator[FileChunkDataFrame, None, None]:
-        self.list_local_files(resources_base_dir=resources_base_dir)
+        self.list_local_files(resources_base_dir=resources_base_dir, ckan=ckan)
         self.read_line_counter = 0
         for file_index, file_name in enumerate(self.local_file_list):
             df_file = self.local_file_format.read_file(file_name, self._get_fields_info(), allow_chunks=allow_chunks)
@@ -128,7 +128,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
                         previous_file_position = file_position
                         chunk_index = chunk_index + 1
 
-    def list_local_files(self, resources_base_dir:str, cancel_if_present:bool=True) -> List[str]:
+    def list_local_files(self, resources_base_dir:str, ckan:CkanApi, cancel_if_present:bool=True) -> List[str]:
         if cancel_if_present and self.local_file_list is not None and self.local_file_list_base_dir == resources_base_dir:
             return self.local_file_list
         dir_search_path = resolve_rel_path(resources_base_dir, self.dir_name, field=f"File/URL of resource {self.name}")
@@ -152,8 +152,8 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
     def get_local_file_total_size(self) -> int:
         return self.local_file_size_sum
 
-    def init_local_files_list(self, resources_base_dir:str, cancel_if_present:bool=True, **kwargs) -> List[str]:
-        return self.list_local_files(resources_base_dir=resources_base_dir, cancel_if_present=cancel_if_present)
+    def init_local_files_list(self, resources_base_dir:str, ckan:CkanApi, cancel_if_present:bool=True, **kwargs) -> List[str]:
+        return self.list_local_files(resources_base_dir=resources_base_dir, ckan=ckan, cancel_if_present=cancel_if_present)
 
     def get_local_file_count(self) -> int:
         if self.local_file_list is None:
@@ -191,13 +191,17 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
                 print(f"Starting transfer from index {i_restart}")
             ret_df = ckan.datastore_upsert(df_upload_transformed.iloc[i_restart:], resource_id, method=method,
                                            apply_last_condition=apply_last_condition,
-                                           always_last_condition=always_last_condition, data_cleaner=self.data_cleaner_upload)
+                                           always_last_condition=always_last_condition,
+                                           data_cleaner=self.data_cleaner_upload,
+                                           progress_callback=self.progress_callback)
         elif 0 <= row_count and row_count < len(df_row):
             msg = f"Sending full dataframe because it was shorter on server side"
             warn(msg)
             ret_df = ckan.datastore_upsert(df_upload_transformed, resource_id, method=method,
                                            apply_last_condition=apply_last_condition,
-                                           always_last_condition=always_last_condition, data_cleaner=self.data_cleaner_upload)
+                                           always_last_condition=always_last_condition,
+                                           data_cleaner=self.data_cleaner_upload,
+                                           progress_callback=self.progress_callback)
         else:
             if ckan.params.verbose_extra:
                 print(f"File/chunk up to date on server side")

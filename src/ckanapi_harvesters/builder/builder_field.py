@@ -30,6 +30,30 @@ class BuilderField:
         self.internal_attrs: CkanFieldInternalAttrs = CkanFieldInternalAttrs()
         self.comment: Union[str,None] = None
 
+    def update_missing(self, other: "BuilderField") -> None:
+        if self.name is None:
+            self.name = other.name
+        if self.type_override is None:
+            self.type_override = other.type_override
+        if self.label is None:
+            self.label = other.label
+        if self.description is None:
+            self.description = other.description
+        if self.is_index is None:
+            self.is_index = other.is_index
+        if self.uniquekey is None:
+            self.uniquekey = other.uniquekey
+        if self.notnull is None:
+            self.notnull = other.notnull
+        if self.options_string is None:
+            self.options_string = other.options_string
+        if self.internal_attrs is None:
+            self.internal_attrs = other.internal_attrs
+        elif other.internal_attrs is not None:
+            self.internal_attrs = self.internal_attrs.merge(other.internal_attrs)
+        if self.comment is None:
+            self.comment = other.comment
+
     def __str__(self):
         return f"Field builder for {self.name}"
 
@@ -108,6 +132,11 @@ class BuilderField:
 
     @staticmethod
     def _from_ckan_field(field_info: CkanField) -> "BuilderField":
+        field_builder = BuilderField()
+        field_builder.update_from_ckan(field_info)
+        return field_builder
+
+    def update_from_ckan(self, field_info: CkanField) -> None:
         field_row = pd.Series({"field name": field_info.name,
                                "type override": str(field_info.data_type),  # if field_info.type_override else "",
                                "label": field_info.label,
@@ -116,8 +145,7 @@ class BuilderField:
                                "unique": field_info.uniquekey,
                                "not null": field_info.notnull,
                                })
-        field_builder = BuilderField()
-        field_builder._load_from_df_row(field_row)
-        field_builder.internal_attrs = field_info.internal_attrs.copy()
-        return field_builder
+        self._load_from_df_row(field_row)
+        self.internal_attrs = field_info.internal_attrs.copy()
+
 

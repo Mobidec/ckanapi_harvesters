@@ -17,6 +17,7 @@ from . import mapper_datastore_multi
 from . import builder_resource_datastore
 from . import builder_resource_datastore_multi_abc
 from . import builder_resource_datastore_multi_folder
+from . import builder_resource_datastore_multi_ckan
 from . import builder_resource_datastore_file
 from . import builder_resource_multi_datastore
 from . import builder_resource_datastore_multi_harvester

@@ -21,6 +21,7 @@ from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.harvesters.file_formats.file_format_init import FileFormatABC, init_file_format_datastore
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanCallbackLevel
 from ckanapi_harvesters.builder.builder_field import BuilderField
 from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
@@ -32,6 +33,8 @@ class BuilderMultiDataStore(BuilderMultiFile):
                  resource_id:str=None, download_url:str=None):
         super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
         self.field_builders: Union[Dict[str, BuilderField],None] = None
+        self.field_builders_user: Union[Dict[str, BuilderField],None] = None
+        self.field_builders_data_source: Union[Dict[str, BuilderField],None] = None
         self.primary_key: Union[List[str],None] = None
         self.indexes: Union[List[str],None] = None
         self.aux_upload_fun_name:str = ""
@@ -39,7 +42,7 @@ class BuilderMultiDataStore(BuilderMultiFile):
         self.aux_read_fun_name:str = ""
         self.aux_write_fun_name:str = ""
         self.data_cleaner_upload:Union[CkanDataCleanerABC,None] = None
-        self.local_file_format: FileFormatABC = init_file_format_datastore(self.format, self.options_string, self.aux_read_fun_name, self.aux_write_fun_name)
+        self.local_file_format: FileFormatABC = init_file_format_datastore(self.resource_attributes_user.format, self.options_string, self.aux_read_fun_name, self.aux_write_fun_name)
         self.read_line_counter: int = 0
 
     def copy(self, *, dest=None):
@@ -47,6 +50,8 @@ class BuilderMultiDataStore(BuilderMultiFile):
             dest = BuilderMultiDataStore()
         super().copy(dest=dest)
         dest.field_builders = copy.deepcopy(self.field_builders)
+        dest.field_builders_user = copy.deepcopy(self.field_builders_user)
+        dest.field_builders_data_source = copy.deepcopy(self.field_builders_data_source)
         dest.primary_key = copy.deepcopy(self.primary_key)
         dest.indexes = copy.deepcopy(self.indexes)
         dest.aux_upload_fun_name = self.aux_upload_fun_name
@@ -55,7 +60,7 @@ class BuilderMultiDataStore(BuilderMultiFile):
         return dest
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
-        super()._load_from_df_row(row=row)
+        super()._load_from_df_row(row=row, base_dir=base_dir)
         primary_keys_string: str = _string_from_element(row["primary key"])
         indexes_string: str = _string_from_element(row["indexes"])
         if primary_keys_string is not None:
@@ -76,29 +81,32 @@ class BuilderMultiDataStore(BuilderMultiFile):
     def _load_fields_df(self, fields_df: pd.DataFrame):
         fields_df.columns = fields_df.columns.map(str.lower)
         fields_df.columns = fields_df.columns.map(str.strip)
-        self.field_builders = {}
+        self.field_builders_user = {}
         for index, row in fields_df.iterrows():
             field_builder = BuilderField()
             field_builder._load_from_df_row(row=row)
-            self.field_builders[field_builder.name] = field_builder
+            self.field_builders_user[field_builder.name] = field_builder
 
     def _check_field_duplicates(self):
-        duplicates = find_duplicates([field_builder.name for field_builder in self.field_builders.values()])
+        duplicates = find_duplicates([field_builder.name for field_builder in self.field_builders_user.values()])
         if len(duplicates) > 0:
             raise DuplicateNameError("Field", duplicates)
 
     def _get_fields_dict(self) -> Dict[str, dict]:
         self._check_field_duplicates()
-        if self.field_builders is not None:
-            fields_dict = {field_builder.name: field_builder._to_dict() for field_builder in self.field_builders.values()}
+        if self.field_builders_user is not None:
+            fields_dict = {field_builder.name: field_builder._to_dict() for field_builder in self.field_builders_user.values()}
         else:
             fields_dict = None
         return fields_dict
 
-    def _get_fields_df(self) -> pd.DataFrame:
-        fields_dict_list = [value for value in self._get_fields_dict().values()]
-        fields_df = pd.DataFrame.from_records(fields_dict_list)
-        return fields_df
+    def _get_fields_df(self) -> Union[pd.DataFrame,None]:
+        if self.field_builders_user is not None:
+            fields_dict_list = [value for value in self._get_fields_dict().values()]
+            fields_df = pd.DataFrame.from_records(fields_dict_list)
+            return fields_df
+        else:
+            return None
 
     @staticmethod
     def resource_mode_str() -> str:
@@ -112,8 +120,8 @@ class BuilderMultiDataStore(BuilderMultiFile):
 
     def _data_store_builder_of_file(self, file_path:str) -> Tuple[BuilderDataStoreFile, str]:
         file_dir, file_name = os.path.split(file_path)
-        ds_builder = BuilderDataStoreFile(name=file_name, description=self.description, download_url=self.download_url,
-                                          format=self.format, file_name=file_name)
+        ds_builder = BuilderDataStoreFile(name=file_name, description=self.resource_attributes_user.description, download_url=self.download_url,
+                                          format=self.resource_attributes_user.format, file_name=file_name)
         ds_builder.field_builders = self.field_builders
         ds_builder.primary_key = self.primary_key
         ds_builder.indexes = self.indexes
@@ -123,12 +131,12 @@ class BuilderMultiDataStore(BuilderMultiFile):
         ds_builder.aliases = None
         ds_builder.data_cleaner_upload = self.data_cleaner_upload
         ds_builder.local_file_format = self.local_file_format
-        ds_builder.process_level = 3  # file of a multi-file resource
+        ds_builder.process_level = CkanCallbackLevel.MultiFileResource  # file of a multi-file resource
         return ds_builder, file_dir
 
 
     ## Upload ----------------
-    def get_local_df_chunk_generator(self, resources_base_dir:str, excluded_files:Set[str]=None,
+    def get_local_df_chunk_generator(self, resources_base_dir:str, ckan:CkanApi, excluded_files:Set[str]=None,
                                      allow_chunks:bool=True, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         self.list_local_files(resources_base_dir=resources_base_dir)
         for file_index, file_name in enumerate(self.local_file_list):
@@ -163,7 +171,7 @@ class BuilderMultiDataStore(BuilderMultiFile):
                         previous_file_position = file_position
 
     def upload_file_chunk(self, ckan:CkanApi, package_id:str, file_chunk:FileChunkDataFrame, *,
-                          reupload:bool=False, cancel_if_present:bool=True) -> CkanResourceInfo:
+                          reupload:bool=False, override_ckan:bool=False, cancel_if_present:bool=True) -> CkanResourceInfo:
         file_path = file_chunk.file_path
         ds_builder, file_dir = self._data_store_builder_of_file(file_path=file_path)
         if file_chunk.is_first_chunk:

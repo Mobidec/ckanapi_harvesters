@@ -14,8 +14,9 @@ from warnings import warn
 
 import pandas as pd
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
-from ckanapi_harvesters.builder.builder_resource import builder_request_default_auth_if_ckan
+from ckanapi_harvesters.builder.builder_resource import builder_request_default_auth_if_ckan, initial_resource_building_state
 from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
 from ckanapi_harvesters.auxiliary.ckan_errors import NotMappedObjectNameError, DataStoreNotFoundError
@@ -62,7 +63,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
     def sample_file_path_is_url() -> bool:
         return True
 
-    def get_sample_file_path(self, resources_base_dir: str) -> str:
+    def get_sample_file_path(self, resources_base_dir: str, ckan:Union[CkanApi,None]=None, file_index:int=0) -> str:
         return self.url
 
     def init_local_files_list(self, resources_base_dir:str, cancel_if_present:bool=True, **kwargs) -> List[str]:
@@ -80,7 +81,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
             raise FunctionMissingArgumentError("BuilderDataStoreUrl.load_sample_data", "ckan")
         return ckan.download_url_proxy(self.url, proxies=proxies, headers=headers, auth_if_ckan=builder_request_default_auth_if_ckan).content
 
-    def get_local_df_chunk_generator(self, resources_base_dir:str, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
+    def get_local_df_chunk_generator(self, resources_base_dir:str, ckan:CkanApi, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         payload = self.load_sample_data(resources_base_dir=resources_base_dir)
         buffer = io.StringIO(payload.decode())
         self.read_line_counter = 0
@@ -134,7 +135,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
 
     def patch_request(self, ckan: CkanApi, package_id: str, *,
                       df_upload:pd.DataFrame=None, payload:Union[bytes, io.BufferedIOBase]=None,
-                      reupload: bool = None, resources_base_dir:str=None) -> CkanResourceInfo:
+                      reupload: bool = None, override_ckan:bool=False, resources_base_dir:str=None) -> CkanResourceInfo:
         """
         Specific implementation of patch_request which does not upload any data and only updates the fields currently present in the database
         :param resources_base_dir:
@@ -143,6 +144,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
         :param reupload:
         :return:
         """
+        self._merge_resource_attributes(override_ckan=override_ckan)
         if reupload is None: reupload = self.reupload_on_update
         if payload is not None or df_upload is not None:
             raise CkanArgumentError("payload", "datastore defined from URL patch")
@@ -152,31 +154,33 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
             if df_download is None:
                 assert_or_raise(resource_id is None, RuntimeError("Unexpected: resource_id should be None"))
                 raise NotMappedObjectNameError(self.name)
-            current_fields = set(df_download.columns)
+            current_df_fields = set(df_download.columns)
         except NotMappedObjectNameError as e:
             df_download = None
-            current_fields = set()
+            current_df_fields = set()
         except DataStoreNotFoundError as e:
             df_download = None
-            current_fields = set()
+            current_df_fields = set()
         empty_datastore = df_download is None or len(df_download) == 0
         data_cleaner_fields = None
         data_cleaner_index = set()
-        current_fields -= {datastore_id_col}  # _id does not require documentation
+        current_df_fields -= {datastore_id_col}  # _id does not require documentation
         aliases = self._get_alias_list(ckan)
-        self._check_necessary_fields(current_fields, raise_error=False, empty_datastore=empty_datastore)
-        self._check_undocumented_fields(current_fields)
-        primary_key, indexes = self._get_primary_key_indexes(data_cleaner_index, current_fields=current_fields,
+        self._check_necessary_fields(current_df_fields, raise_error=False, empty_datastore=empty_datastore)
+        self._check_undocumented_fields(current_df_fields)
+        primary_key, indexes = self._get_primary_key_indexes(data_cleaner_index, current_df_fields=current_df_fields,
                                                              error_missing=False, empty_datastore=empty_datastore)
-        fields_update = self._get_fields_update(ckan, current_fields, data_cleaner_fields, reupload=reupload)
+        fields_update = self._get_fields_update(ckan, current_df_fields=current_df_fields, data_cleaner_fields=data_cleaner_fields,
+                                                reupload=reupload, override_ckan=override_ckan)
         fields = list(fields_update.values()) if len(fields_update) > 0 else None
-        resource_info = ckan.resource_create(package_id, name=self.name, format=self.format, description=self.description, state=self.state,
+        resource_info = ckan.resource_create(package_id, name=self.name, format=self.resource_attributes.format, description=self.resource_attributes.description,
+                                             state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                              url=self.url,
                                              datastore_create=False, auto_submit=False, create_default_view=self.create_default_view,
                                              cancel_if_exists=True, update_if_exists=True, aliases=aliases, reupload=False, data_cleaner=self.data_cleaner_upload)
         resource_id = resource_info.id
         self.known_id = resource_id
-        self._compare_fields_to_datastore_info(resource_info, current_fields, ckan)
+        self._compare_fields_to_datastore_info(resource_info, current_df_fields, ckan)
         if reupload:
             # re-initialize datastore to reupload from url
             # normally, data was automatically submitted to DataStore on resource_create (not needed)

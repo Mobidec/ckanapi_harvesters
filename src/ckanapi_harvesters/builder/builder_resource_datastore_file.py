@@ -58,7 +58,7 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
         return dest
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
-        super()._load_from_df_row(row=row)
+        super()._load_from_df_row(row=row, base_dir=base_dir)
         self.file_name: str = _string_from_element(row["file/url"], strip=True)
 
     @staticmethod
@@ -89,10 +89,10 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
         else:
             return ResourceFileNotExistMessage(self.name, ErrorLevel.Error, f"Missing file for resource {self.name}: {file_path}")
 
-    def get_sample_file_path(self, resources_base_dir:str, file_index:int=0) -> str:
+    def get_sample_file_path(self, resources_base_dir:str, ckan:Union[CkanApi,None]=None, file_index:int=0) -> str:
         return resolve_rel_path(resources_base_dir, self.file_name, field=f"File/URL of resource {self.name}")
 
-    def list_local_files(self, resources_base_dir:str, cancel_if_present:bool=True) -> List[str]:
+    def list_local_files(self, resources_base_dir:str, ckan:CkanApi, cancel_if_present:bool=True) -> List[str]:
         file_path = self.get_sample_file_path(resources_base_dir=resources_base_dir)
         self.file_size = os.path.getsize(file_path)
         self.local_file_list = [file_path]

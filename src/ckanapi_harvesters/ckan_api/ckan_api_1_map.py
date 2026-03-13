@@ -784,18 +784,26 @@ class CkanApiMap(CkanApiBase):
             return False
         return True
 
-    def get_package_page_url(self, package_name:str, *, error_not_found:bool=True) -> str:
+    def get_package_page_url(self, package_name:str, *, error_not_found:bool=True, default_url:bool=False) -> str:
         """
         Get URL of package presentation page in CKAN (landing page).
 
         :param package_name:
         :param error_not_found:
+        :param default_url: return url based on package name, even if it was not found.
         :return:
         """
         self._error_empty_url()
+        initial_url = url_join(self.url, "dataset" + urlsep + package_name)
+        if default_url and error_not_found:
+            return initial_url
         package_info = self.get_package_info_or_request(package_name, error_not_found=error_not_found)
         if package_info is not None:
             url = url_join(self.url, "dataset" + urlsep + package_info.name)
+        elif default_url:
+            msg = f"Package {package_name} not found. Returning default URL {initial_url}."
+            warn(msg)
+            return initial_url
         else:
             url = None
         return url

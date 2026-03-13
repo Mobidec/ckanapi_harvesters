@@ -17,16 +17,17 @@ data_cleaner_dict = {
     "geojson": CkanDataCleanerUploadGeom,
     "check": CkanDataCleanerUploadCheckOnly,
     "none": DataCleanerNone,
+    # NB: member "mongo" is added when loading ckanapi_harvesters.harvesters.pymongo_data_cleaner
 }
 
 def init_data_cleaner(data_cleaner_string:Union[str,None]) -> Union[CkanDataCleanerABC,None]:
     if data_cleaner_string is None or data_cleaner_string == "":
         return None
     data_cleaner_name = data_cleaner_string.lower().strip()
-    if format in data_cleaner_dict.keys():
+    if data_cleaner_name in data_cleaner_dict.keys():
         data_cleaner_class = data_cleaner_dict[data_cleaner_name]
         return data_cleaner_class()
     else:
-        raise NotImplementedError('Data cleaner {} not implemented'.format(data_cleaner_name))
+        raise NotImplementedError(f'Data cleaner {data_cleaner_name} not implemented')
 
 

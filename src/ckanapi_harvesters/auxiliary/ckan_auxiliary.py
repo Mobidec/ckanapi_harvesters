@@ -17,6 +17,7 @@ import pandas as pd
 import numpy as np
 
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir, make_path_relative
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame, ListRecords
 
 
 ckan_package_name_re = "^[0-9a-z-_]*$"
@@ -251,7 +252,9 @@ def dict_recursive_update(d:dict,u:dict) -> dict:
     return d
 
 def _bool_from_string(string:str, default_value:Union[bool,None]=False) -> Union[bool,None]:
-    if isinstance(string, bool):
+    if string is None:
+        return None
+    elif isinstance(string, bool):
         return string
     else:
         keyword = string.lower().strip()
@@ -335,3 +338,27 @@ def import_args_kwargs_dict(args_kwargs:str) -> dict:
                 raise ValueError(f"Invalid format for keyword argument: {item}. Use key=value format.")
     return kwargs_dict
 
+
+class FileChunkDataFrame:
+    """
+    Class to hold a chunk of a DataFrame of a file (only for DataStores), with the file name, index and an indication of the position in the file
+    """
+    def __init__(self, df: Union[GeneralDataFrame,None], file_path: str, file_index: int, chunk_index: int, file_position: int, read_line_counter: int) -> None:
+        """
+        :param df: the data of the file chunk (leave None if not loaded)
+        :param file_path: the path to the source
+        :param file_index: the index of the file in the list
+        :param chunk_index: counter of chunks read within the file
+        :param file_position: the position within the file itself (approximation)
+        """
+        self.df: Union[GeneralDataFrame,None] = df
+        if isinstance(df, pd.DataFrame) or isinstance(df, ListRecords):
+            df.attrs["source"] = file_path
+            df.attrs["read_line_counter"] = read_line_counter
+            df.attrs["chunk_index"] = chunk_index
+        self.file_path: str = file_path
+        self.file_index: int = file_index
+        self.chunk_index: int = chunk_index
+        self.file_position: int = file_position
+        self.is_first_chunk: bool = chunk_index == 0  # boolean indicating if the chunk is the first chunk of the file or not
+        self.read_line_counter: int = read_line_counter  # number of lines read since the beginning of reading of the resource (including the current DataFrame)
