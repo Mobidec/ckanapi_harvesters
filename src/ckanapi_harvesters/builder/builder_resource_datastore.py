@@ -28,7 +28,7 @@ from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC, initial_resource_building_state
 from ckanapi_harvesters.auxiliary.ckan_errors import DuplicateNameError
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path
-from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, ResourceFileNotExistMessage, IncompletePatchError
+from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, GroupByError, IncompletePatchError
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, find_duplicates, datastore_id_col
@@ -123,6 +123,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         parser.add_argument("--one-frame-per-primary-key",
                             help="Enabling this option makes the upload process expect one DataFrame per primary key combination (except the last field of the primary key, which could be an index in the file).\n"
                             "This option should be associated with the file format option --no-chunks to ensure a file is treated at once", action="store_true", default=False)
+        parser.add_argument("--group-by", type=str,
+                            help="Fields of the primary key defining the request to reconstruct a file, in --one-frame-per-primary-key mode, separated by a comma (no spaces). \n"
+                                 "By default, the first columns of the primary, except the last one is used. \n"
+                                 "At least one field of the primary key must be unused here. \n")
         return parser
 
     def _setup_cli_parser_external(self, parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
@@ -142,11 +146,15 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         if args.data_cleaner is not None:
             self.data_cleaner_upload = init_data_cleaner(args.data_cleaner)
         if args.one_frame_per_primary_key is not None and args.one_frame_per_primary_key:
-            self.apply_one_frame_per_primary_key()
+            self.apply_one_frame_per_primary_key(args.group_by)
+        elif args.group_by is not None:
+            msg = GroupByError("Argument --group-by cannot be used with option --one-frame-per-primary-key")
+            warn(msg)
 
-    def apply_one_frame_per_primary_key(self):
+    def apply_one_frame_per_primary_key(self, group_by_argument:Union[str, List[str]]=None):
         """
         Enables mode --one-frame-per-primary-key
+        and applies option --group-by
 
         In this mode, the upload process expect one DataFrame per primary key combination
         (except the last field of the primary key, which could be an index in the file).
@@ -154,7 +162,26 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         Downloads fill files according to unique combinations of the first columns of the primary key.
         """
         assert (self.primary_key is not None and len(self.primary_key) > 1)
-        self.df_mapper = RequestFileMapperIndexKeys(group_by_keys=self.primary_key[:-1], sort_by_keys=self.primary_key)
+        if group_by_argument is None:
+            # default mode
+            group_by_keys = self.primary_key[:-1]
+            # sort_by_keys = self.primary_key[-1:]
+            sort_by_keys = self.primary_key
+        else:
+            # custom --group-by argument
+            if isinstance(group_by_argument, str):
+                group_by_keys = group_by_argument.split(ckan_tags_sep)
+            else:
+                group_by_keys = group_by_argument
+            group_by_keys =  [key.strip() for key in group_by_keys]
+            extra_keys_primary = set(group_by_keys) - set(self.primary_key)
+            if len(extra_keys_primary) > 0:
+                raise GroupByError("--group-by argument must contain only columns of the primary key")
+            elif len(group_by_keys) == len(self.primary_key):
+                raise GroupByError("--group-by argument must not contain all columns of the primary key")
+            # sort_by_keys = list(set(self.primary_key) - set(group_by_keys))
+            sort_by_keys = self.primary_key
+        self.df_mapper = RequestFileMapperIndexKeys(group_by_keys=group_by_keys, sort_by_keys=sort_by_keys)
 
     def initialize_extra_options_string(self, extra_options_string:str, base_dir:str) -> None:
         self.local_file_format = init_file_format_datastore(self.resource_attributes_user.format, extra_options_string, self.aux_read_fun_name, self.aux_write_fun_name)  # default file format is CSV (user can change)

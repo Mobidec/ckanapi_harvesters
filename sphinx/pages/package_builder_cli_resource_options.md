@@ -22,6 +22,12 @@ options:
                         in the file). 
                         This option should be associated with the file format 
                         option --no-chunks to ensure a file is treated at once
+  --group-by GROUP_BY   Fields of the primary key defining the request to
+                        reconstruct a file, in --one-frame-per-primary-key
+                        mode, separated by a comma (no spaces). By default,
+                        the first columns of the primary, except the last one
+                        is used. At least one field of the primary key must be
+                        unused here.
 
 Examples: 
 - Selecting a Data Cleaner: --data-cleaner GeoJSON 

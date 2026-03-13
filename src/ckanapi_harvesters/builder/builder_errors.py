@@ -34,3 +34,5 @@ class ResourceFileNotExistMessage(ContextErrorLevelMessage):
 class IncompletePatchError(Exception):
     pass
 
+class GroupByError(Exception):
+    pass
