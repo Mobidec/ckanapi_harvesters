@@ -429,6 +429,17 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
         return records
 
 
+class CkanDataCleanerUploadDigitalColumns(CkanDataCleanerUploadBasic):
+    def __init__(self):
+        super().__init__()
+        self.param_replace_nan = False
+        self.param_round_values = False
+        self.param_rename_fields_underscore = False
+
+    @staticmethod
+    def get_class_keyword() -> str:
+        return "DigitalColumns"
+
 
 def default_cleaner() -> CkanDataCleanerABC:
     return CkanDataCleanerUploadBasic()

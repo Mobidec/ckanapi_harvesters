@@ -28,7 +28,7 @@ from . import builder
 from . import reports
 
 # usage shortcuts
-from .auxiliary import CkanMap, RequestType, CkanField
+from .auxiliary import CkanMap, RequestType, CkanField, CkanState, CkanProgressCallback, CkanCallbackLevel
 from .policies import CkanPackageDataFormatPolicy
 from .ckan_api import CkanApi, CkanApiParams, CKAN_API_VERSION
 from .builder import BUILDER_FILE_FORMAT_VERSION
