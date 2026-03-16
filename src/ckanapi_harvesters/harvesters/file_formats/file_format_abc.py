@@ -18,14 +18,29 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import import_args_kwargs_dict
 
 class FileFormatABC(ABC):
     default_read_chunksize: int = 10000
+    default_read_kwargs:dict = {}
+    default_write_kwargs:dict = {}
 
-    def __init__(self, options_string: str=None):
+    def __init__(self, options_string: str=None, *, read_kwargs:dict=None, write_kwargs:dict=None):
+        if read_kwargs is None: read_kwargs = self.default_read_kwargs
+        if write_kwargs is None: write_kwargs = self.default_write_kwargs
         self.options_string:Union[str,None] = options_string
         self.allow_chunks:bool = True
-        self.chunk_size:int = FileFormatABC.default_read_chunksize
-        self.read_kwargs:dict = {}
-        self.write_kwargs:dict = {}
+        self.chunk_size:int = self.default_read_chunksize
+        self.read_kwargs:dict = read_kwargs
+        self.write_kwargs:dict = write_kwargs
         self._apply_options_string()
+        self.allow_chunks = self.allow_chunks and self.read_by_chunks_allowed()  # override
+
+    def _get_read_kwargs(self, allow_chunks:bool=True) -> dict:
+        kwargs = self.default_read_kwargs.copy()
+        kwargs.update(self.read_kwargs)
+        return kwargs
+
+    def _get_write_kwargs(self) -> dict:
+        kwargs = self.default_write_kwargs.copy()
+        kwargs.update(self.write_kwargs)
+        return kwargs
 
     @staticmethod
     def _setup_cli_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
@@ -38,9 +53,12 @@ class FileFormatABC(ABC):
                                              "- Additional arguments for pandas.read_csv for a CSV file: --read-kwargs compression=gzip header=10")
         parser.add_argument("--chunk-size", type=int,
                             help="Chunk size for reading files by chunks (number of records).\n"
-                            "The number of lines sent per request is the minimum of chunk size and CKAN parameter ckan.params.default_limit_write")
+                            "The number of lines sent per request is the minimum of chunk size and CKAN parameter ckan.params.default_limit_write\n"
+                            "Enabling this option activates reading by chunks (if supported by the file format)")
         parser.add_argument("--no-chunks",
-                            help="Option to disabling reading files by chunks.", action="store_true", default=False)
+                            help="Option to disabling reading files by chunks", action="store_true", default=False)
+        parser.add_argument("--allow-chunks",
+                            help="Option to enable reading files by chunks (useful for file formats not enabling this feature by default)", action="store_true", default=False)
         parser.add_argument("--read-kwargs", nargs="*",
                             help="Keyword arguments for the read function in key=value format")
         parser.add_argument("--write-kwargs", nargs="*",
@@ -58,8 +76,11 @@ class FileFormatABC(ABC):
     def _apply_arguments(self, args: argparse.Namespace, extra_args: list):
         if args.no_chunks is not None:
             self.allow_chunks = not args.no_chunks
+        if args.allow_chunks is not None:
+            self.allow_chunks = args.allow_chunks
         if args.chunk_size is not None:
             self.chunk_size = args.chunk_size
+            self.allow_chunks = True
         self.read_kwargs.update(import_args_kwargs_dict(args.read_kwargs))
         self.write_kwargs.update(import_args_kwargs_dict(args.write_kwargs))
 
@@ -73,6 +94,13 @@ class FileFormatABC(ABC):
         self._apply_arguments(args, extra_args)
 
     # read -------------------
+    @abstractmethod
+    def read_by_chunks_allowed(self) -> bool:
+        raise NotImplementedError()
+
+    def read_by_chunks_enabled(self, allow_chunks:bool=True) -> bool:
+        return self.read_by_chunks_allowed() and self.allow_chunks and allow_chunks
+
     @abstractmethod
     def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
         """
@@ -95,9 +123,8 @@ class FileFormatABC(ABC):
         """
         raise NotImplementedError()
 
-    @staticmethod
     @abstractmethod
-    def append_allowed() -> bool:
+    def append_allowed(self) -> bool:
         """
         This function announces that the file format is allowed to be written in append mode, and that the function append_file is implemented.
         """
@@ -116,7 +143,6 @@ class FileFormatABC(ABC):
         """
         raise NotImplementedError()
 
-    @abstractmethod
     def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
         """
         This function writes a DataFrame or ListRecords to a file in memory, appending its to the end of the buffer.

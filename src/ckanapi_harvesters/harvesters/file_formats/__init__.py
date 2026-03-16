@@ -8,4 +8,6 @@ from . import file_format_abc
 from . import user_format
 from . import csv_format
 from . import shp_format
+from . import xls_format
+from . import json_format
 from . import file_format_init

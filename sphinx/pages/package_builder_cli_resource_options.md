@@ -48,8 +48,12 @@ options:
                         Chunk size for reading files by chunks (number of
                         records). The number of lines sent per request is the
                         minimum of chunk size and CKAN parameter
-                        ckan.params.default_limit_write
-  --no-chunks           Option to disabling reading files by chunks.
+                        ckan.params.default_limit_write Enabling this option
+                        activates reading by chunks (if supported by the file
+                        format)
+  --no-chunks           Option to disabling reading files by chunks
+  --allow-chunks        Option to enable reading files by chunks (useful for
+                        file formats not enabling this feature by default)
   --read-kwargs [READ_KWARGS ...]
                         Keyword arguments for the read function in key=value
                         format
