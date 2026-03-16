@@ -152,13 +152,21 @@ class BuilderMultiDataStore(BuilderMultiFile):
                 yield FileChunkDataFrame(df_file, file_name, file_index, 0, 0, line_counter)
             else:  # iterator
                 with df_file:
-                    file_handle = df_file.handles.handle
+                    if hasattr(df_file, "handles"):
+                        file_handle = df_file.handles.handle
+                    else:
+                        file_handle = None
                     previous_file_position = 0
                     # for chunk_index, df in enumerate(df_file):
                     chunk_index = 0
                     while True:
                         self.file_semaphore.acquire()
-                        file_position = file_handle.buffer.tell()  # approximative position in file
+                        if file_handle is not None:
+                            file_position = file_handle.buffer.tell()  # approximative position in file
+                        elif hasattr(df_file, "attrs") and "file_position" in df_file.attrs:
+                            file_position = df_file.attrs["file_position"]
+                        else:
+                            file_position = 0  # no position tracking available
                         try:
                             df = next(df_file)
                             self.read_line_counter += len(df)
