@@ -871,8 +871,11 @@ class CkanPackageInfo(CkanConfigurableObjectABC):
                     self.resources_id_index_counts[resource_info.name] += 1
             self.organization_info = None
             if "organization" in d.keys():
-                self.organization_info = CkanOrganizationInfo(d["organization"])
-                assert_or_raise(self.organization_info.id == d["owner_org"], IntegrityError("Unexpected: organization != owner_org"))
+                if d["organization"] is not None:
+                    self.organization_info = CkanOrganizationInfo(d["organization"])
+                    assert_or_raise(self.organization_info.id == d["owner_org"], IntegrityError("Unexpected: organization != owner_org"))
+                else:
+                    assert_or_raise(d["owner_org"] is None, IntegrityError("Unexpected: organization != owner_org"))
             else:
                 assert_or_raise("owner_org" not in d.keys() or d["owner_org"] == "", IntegrityError("Unexpected: organization is not present but owner_org was found"))
             self.groups = [CkanGroupInfo(info) for info in d["groups"]]

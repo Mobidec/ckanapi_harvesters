@@ -464,7 +464,7 @@ class CkanApiMap(CkanApiBase):
     ## API calls needed to make the map and auxiliary API functions  ------------------
     def _api_package_search(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
                             include_private:bool=True, include_drafts:bool=False, sort:str=None,
-                            facet:bool=False, limit:int=None, offset:int=None) -> List[CkanPackageInfo]:
+                            facet:bool=None, limit:int=None, offset:int=None) -> List[CkanPackageInfo]:
         """
         API call to package_search.
 
@@ -501,7 +501,7 @@ class CkanApiMap(CkanApiBase):
         if sort is not None:
             params["sort"] = sort
         if facet is not None:
-            params["facet"] = facet  # what are facets?
+            params["facet"] = facet  # what are facets? default was False in previous versions
         if include_private is not None:
             params["include_private"] = include_private
         if include_drafts is not None:
@@ -518,7 +518,7 @@ class CkanApiMap(CkanApiBase):
 
     def _api_package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
                                 include_private:bool=True, include_drafts:bool=False, sort:str=None,
-                                facet:bool=False, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
+                                facet:bool=None, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
         """
         API call to package_search until an empty list is received.
 
@@ -545,7 +545,7 @@ class CkanApiMap(CkanApiBase):
 
     def package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
                                 include_private:bool=True, include_drafts:bool=False, sort:str=None,
-                                facet:bool=False, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
+                                facet:bool=None, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
         # function alias
         return self._api_package_search_all(params=params, owner_org=owner_org, filter=filter, q=q,
                                             include_private=include_private, include_drafts=include_drafts, sort=sort,
