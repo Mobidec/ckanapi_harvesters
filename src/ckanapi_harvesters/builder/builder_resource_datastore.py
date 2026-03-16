@@ -148,7 +148,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         if args.one_frame_per_primary_key is not None and args.one_frame_per_primary_key:
             self.apply_one_frame_per_primary_key(args.group_by)
         elif args.group_by is not None:
-            msg = GroupByError("Argument --group-by cannot be used with option --one-frame-per-primary-key")
+            msg = GroupByError("Argument --group-by cannot be used without option --one-frame-per-primary-key")
             warn(msg)
 
     def apply_one_frame_per_primary_key(self, group_by_argument:Union[str, List[str]]=None):
@@ -182,6 +182,9 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             # sort_by_keys = list(set(self.primary_key) - set(group_by_keys))
             sort_by_keys = self.primary_key
         self.df_mapper = RequestFileMapperIndexKeys(group_by_keys=group_by_keys, sort_by_keys=sort_by_keys)
+        if self.local_file_format.allow_chunks:
+            msg = "Mode --one-frame-per-primary-key is not compatible with reading files by chunks"
+            warn(msg)
 
     def initialize_extra_options_string(self, extra_options_string:str, base_dir:str) -> None:
         self.local_file_format = init_file_format_datastore(self.resource_attributes_user.format, extra_options_string, self.aux_read_fun_name, self.aux_write_fun_name)  # default file format is CSV (user can change)
@@ -206,7 +209,6 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         if self.field_builders is not None:
             for field_builder in self.field_builders.values():
                 field_builder.internal_attrs.update_from_ckan(ckan)
-
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row, base_dir=base_dir)
@@ -427,7 +429,13 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
 
     def _get_fields_update(self, ckan: CkanApi, *, current_df_fields:Union[Set[str],None], data_cleaner_fields:Union[List[dict],None],
                            reupload:bool, override_ckan:bool) -> OrderedDict[str, CkanField]:
-        # merge field builders
+        """
+        Merge field builders in the following order of priority:
+        1. Existing metadata from CKAN (can be ignored with option override_ckan)
+        2. Metadata specified by the user in the Excel worksheet
+        3. Metadata found automatically from the data source (e.g. in file header or database)
+        4. Metadata found automatically by the data cleaner, especially for field typing
+        """
         self.field_builders = OrderedDict()
         # 1. Information specified by user in Excel, for preserving field specified order
         if self.field_builders_user is not None:

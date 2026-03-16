@@ -6,6 +6,7 @@ The metadata is defined by the user in an Excel worksheet
 This file implements the package definition.
 """
 from typing import Dict, List, Tuple, Union, Callable
+import warnings
 from warnings import warn
 import os
 import shutil
@@ -455,6 +456,8 @@ class BuilderPackageBasic:
             "License": "License title or ID",
             "URL": "A URL for the dataset's source",
             "Tags": "Comma-separated list of tags (refer to data format policy)",
+            "Author": "Recommended to specify author/maintainer to communicate on the dataset",
+            "Maintainer": "Recommended to specify author/maintainer to communicate on the dataset",
         }
         if self.package_attributes.id:
             package_help_dict["Known Id"] = "ID of the resource in the CKAN database, last requested"
@@ -749,6 +752,7 @@ class BuilderPackageBasic:
         openpyxl makes part of this package's optional requirements
         :return:
         """
+        warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')  # openpyxl produces warnings concerning data validation
         mdl = BuilderPackageBasic()
         mdl.builder_source_file = path_or_buffer
         # if isinstance(path_or_buffer, str):

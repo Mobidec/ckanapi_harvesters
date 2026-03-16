@@ -231,6 +231,14 @@ class CkanApiBase(CkanApiABC):
         self.params.default_limit_read = limit_read
         self.params.default_limit_list = limit_read
 
+    def set_requests_delay(self, time_between_requests:int) -> None:
+        """
+        Set delay between requests in seconds.
+
+        :param time_between_requests: delay between requests in seconds
+        """
+        self.params.multi_requests_time_between_requests = time_between_requests
+
     def set_verbosity(self, verbosity:bool=True, verbose_extra:bool=None) -> None:
         """
         Enable/disable full verbose output

@@ -209,6 +209,12 @@ class BuilderResourceABC(ABC):
         return d
 
     def _merge_resource_attributes(self, *, override_ckan:bool=False):
+        """
+        Merge resource attributes into self.resource_attributes in the following priority order:
+        1. Existing metadata from CKAN server. This can be ignored using the override_ckan argument.
+        2. Metadata provided by the user in the Excel worksheet
+        3. Metadata found automatically from the data source (e.g. in file header or database)
+        """
         self.resource_attributes = self.resource_attributes_user.copy()
         if not override_ckan and self.known_resource_info is not None:
             self.resource_attributes.update_missing(self.known_resource_info)

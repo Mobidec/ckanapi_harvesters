@@ -24,6 +24,8 @@ The names are not case-sensitive.
 The package builder can also be exported in a JSON file. The organization of the JSON file is similar.
 For DataStores, the field list with metadata is located under the associated resource rather than at the top level.
 
+Fields left empty are not interpreted by the upload scripts. Values from CKAN are prioritary on values which could be deduced from the data source, except if option `override_ckan` is used in the function call.
+
 
 ### Sheet "info"
 

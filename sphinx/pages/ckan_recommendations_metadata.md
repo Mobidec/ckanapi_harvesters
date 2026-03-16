@@ -3,6 +3,14 @@ Recommendations for metadata
 
 ## Dataset metadata [Section under construction]
 
+### Pre-defined attributes
+
+- Descriptions can use Markdown format.
+- Field `URL` of dataset can be used to refer the origin of the data.
+- `Tags` should be defined at the level of the CKAN database. See the data format policy recommendations to setup constraints which can be monitored using a dedicated report.
+- Fields `Author` or `Maintainer` should not be left empty to enable communication on the dataset.
+
+
 ### Dataset time span
 
 When the dataset contains data within a given time period, the following custom fields should be filled 
