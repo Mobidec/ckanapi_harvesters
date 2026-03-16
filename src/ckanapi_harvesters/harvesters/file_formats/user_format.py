@@ -6,6 +6,7 @@ The basic file format for DataStore: CSV
 from typing import Union, Dict, Callable, Any, List, Generator
 import io
 import argparse
+from contextlib import contextmanager
 
 import pandas as pd
 
@@ -20,8 +21,14 @@ from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileForma
 def read_function_example(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True, params:"UserFileFormat" = None, **kwargs) -> Union[Union[pd.DataFrame, List[dict]], Generator[Union[pd.DataFrame, List[dict]], None, None]]:
     return pd.DataFrame()
 
+# use of a context manager when returning a custom DataFrame iterator in order to properly close the file if the process is interrupted (use of a with statement)
+@contextmanager
 def read_function_chunk_example(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True, params:"UserFileFormat" = None, **kwargs) -> Generator[Union[pd.DataFrame, List[dict]], None, None]:
-    yield pd.DataFrame()
+    file_handle = open(file_path_or_buffer, 'r')
+    try:
+        yield pd.DataFrame()
+    finally:
+        file_handle.close()
 
 def write_function_example(df: Union[pd.DataFrame, List[dict]], file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], append:bool=False, params:"UserFileFormat" = None, **kwargs) -> None:
     raise NotImplementedError()
@@ -40,7 +47,7 @@ class UserFileFormat(FileFormatABC):
 
     @staticmethod
     def _setup_cli_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
-        parser = super()._setup_cli_parser(parser)
+        parser = FileFormatABC._setup_cli_parser(parser)
         parser.add_argument("--allow-append",
                             help="Option to signal the append mode is available for the write function", action="store_true", default=False)
         return parser
@@ -110,9 +117,8 @@ class UserFileFormat(FileFormatABC):
     # misc ------------------
     def copy(self, dest=None):
         if dest is None:
-            dest = UserFileFormat(self.options_string, read_kwargs=self.read_kwargs, write_kwargs=self.write_kwargs)
+            dest = UserFileFormat(self.options_string, read_kwargs=self.read_kwargs, write_kwargs=self.write_kwargs,
+                                  df_read_fun=self.df_read_fun, df_write_fun=self.df_write_fun)
         super().copy(dest=dest)
-        dest.df_read_fun = self.df_read_fun
-        dest.df_write_fun = self.df_write_fun
         return dest
 

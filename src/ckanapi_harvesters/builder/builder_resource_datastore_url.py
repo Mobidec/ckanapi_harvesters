@@ -100,16 +100,17 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
                 previous_file_position = 0
                 # for chunk_index, df in enumerate(df_file):
                 chunk_index = 0
+                file_position = 0
                 while True:
                     self.file_semaphore.acquire()
                     if file_handle is not None:
                         file_position = file_handle.buffer.tell()  # approximative position in file
-                    elif hasattr(df_file, "attrs") and "file_position" in df_file.attrs:
-                        file_position = df_file.attrs["file_position"]
                     else:
                         file_position = 0  # no position tracking available
                     try:
                         df = next(df_file)
+                        if file_handle is None and hasattr(df, "attrs") and "file_position" in df.attrs:
+                            file_position = df.attrs["file_position"]
                         self.read_line_counter += len(df)
                         line_counter = self.read_line_counter
                     except StopIteration:

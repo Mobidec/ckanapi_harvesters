@@ -234,6 +234,7 @@ class BuilderPackageBasic:
         for resource_builder in self.resource_builders.values():
             resource_builder.package_name = self.package_name
             resource_builder.init_options_from_ckan(ckan, base_dir=base_dir)
+            self._init_resource_from_df_aux_fun(resource_builder)
 
     def _apply_resources_base_dir_src(self, base_dir:str):
         """
