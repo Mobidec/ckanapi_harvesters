@@ -198,7 +198,7 @@ class CkanApiPolicy(CkanApiReadOnly):
             success &= policy.policy_check_package(package_info, display_message=verbose,
                                                    package_buffer=package_buffer, raise_error=raise_error)
             if auto_update:
-                policy.package_update_scores(self, package_info, package_buffer)
+                policy.package_update_scores(self, package_info, package_buffer, raise_error=raise_error)
             if buffer is not None:
                 buffer[package_info.name] = package_buffer
         if verbose:

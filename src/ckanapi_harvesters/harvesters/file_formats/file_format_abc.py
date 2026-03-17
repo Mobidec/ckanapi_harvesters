@@ -11,7 +11,7 @@ import io
 
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.ckan_model import CkanField
+from ckanapi_harvesters.auxiliary.ckan_model import CkanField, CkanResourceInfo
 from ckanapi_harvesters.auxiliary.list_records import ListRecords
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import import_args_kwargs_dict
 
@@ -30,6 +30,7 @@ class FileFormatABC(ABC):
         self.read_kwargs:dict = read_kwargs
         self.write_kwargs:dict = write_kwargs
         self.extra_args: Union[list,None] = None
+        self.resource_attributes_from_file: Union[CkanResourceInfo,None] = None  # destination for resource attributes extracted from data source, if any
         self._apply_options_string()
         self.allow_chunks = self.allow_chunks and self.read_by_chunks_allowed()  # override
 

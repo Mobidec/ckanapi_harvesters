@@ -17,6 +17,7 @@ from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_errors import DuplicateNameError
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path, glob_rm_glob
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
+from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.harvesters.file_formats.file_format_init import FileFormatABC, init_file_format_datastore
@@ -28,7 +29,7 @@ from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataF
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiFile
 
 
-class BuilderMultiDataStore(BuilderMultiFile):
+class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None):
         super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
@@ -144,6 +145,8 @@ class BuilderMultiDataStore(BuilderMultiFile):
             self.read_line_counter = 0
             self.file_semaphore.release()
             df_file = self.local_file_format.read_file(file_name, self.field_builders, allow_chunks=allow_chunks)
+            if file_index == 0:
+                self._merge_resource_attributes_from_file()
             if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
                 self.file_semaphore.acquire()
                 self.read_line_counter += len(df_file)
@@ -178,6 +181,18 @@ class BuilderMultiDataStore(BuilderMultiFile):
                         self.file_semaphore.release()
                         yield FileChunkDataFrame(df, file_name, file_index, chunk_index, previous_file_position, line_counter)
                         previous_file_position = file_position
+
+    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True, file_index:int=0, allow_chunks:bool=True, **kwargs) -> GeneralDataFrame:
+        generator = self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, ckan=None, allow_chunks=allow_chunks)
+        chunk = next(generator)
+        df_local = chunk.df
+        generator.close()
+        if upload_alter:
+            df_upload = self.df_mapper.df_upload_alter(df_local, fields=self._get_fields_info(),
+                                                       total_lines_read=chunk.read_line_counter, file_name=chunk.file_path)
+            return df_upload
+        else:
+            return df_local
 
     def upload_file_chunk(self, ckan:CkanApi, package_id:str, file_chunk:FileChunkDataFrame, *,
                           reupload:bool=False, override_ckan:bool=False, cancel_if_present:bool=True) -> CkanResourceInfo:

@@ -189,6 +189,25 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
     def initialize_extra_options_string(self, extra_options_string:str, base_dir:str) -> None:
         self.local_file_format = init_file_format_datastore(self.resource_attributes_user.format, extra_options_string, self.aux_read_fun_name, self.aux_write_fun_name)  # default file format is CSV (user can change)
 
+    def _merge_resource_attributes_from_file(self) -> None:
+        """
+        This function merges metadata which could have been extracted from a file reading function into the attributes from data source.
+        Call after self.local_file_format.read_file()
+        """
+        resource_attributes_from_file = self.local_file_format.resource_attributes_from_file
+        if resource_attributes_from_file is not None:
+            if self.resource_attributes_data_source is None:
+                self.resource_attributes_data_source = resource_attributes_from_file
+            else:
+                self.resource_attributes_data_source.update_missing(resource_attributes_from_file)
+                if resource_attributes_from_file.datastore_info is not None and resource_attributes_from_file.datastore_info.fields_dict is not None:
+                    if self.resource_attributes_data_source.datastore_info is None:
+                        self.resource_attributes_data_source.datastore_info = resource_attributes_from_file.datastore_info
+                    elif self.resource_attributes_data_source.datastore_info.fields_dict is None:
+                        self.resource_attributes_data_source.datastore_info.fields_dict = resource_attributes_from_file.datastore_info.fields_dict
+                    else:
+                        self.resource_attributes_data_source.datastore_info.fields_dict.update(resource_attributes_from_file.datastore_info.fields_dict)
+
     def initialize_from_options_string(self, base_dir:str, *, options_string:str=None, parser:argparse.ArgumentParser=None) -> None:
         if options_string is None:
             options_string = self.options_string

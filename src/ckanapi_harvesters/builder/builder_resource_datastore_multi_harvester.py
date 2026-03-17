@@ -44,6 +44,11 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
                          name=name, format=format, description=description, resource_id=resource_id,
                          download_url=download_url, options_string=options_string, base_dir=base_dir)
 
+    def clear_secrets_and_disconnect(self) -> None:
+        if self._harvester is not None:
+            self._harvester.disconnect()
+            self._harvester.clear_secrets()
+
     @property
     def harvester(self) -> Union[TableHarvesterABC,None]:
         return self._harvester

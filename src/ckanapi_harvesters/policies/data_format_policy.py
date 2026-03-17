@@ -285,7 +285,8 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
             raise DataPolicyError(context, ErrorLevel.Error, error_count.error_count_message())
         return success
 
-    def package_update_scores(self, ckan, package_info: CkanPackageInfo, package_buffer:List[DataPolicyError]):
+    def package_update_scores(self, ckan, package_info: CkanPackageInfo, package_buffer:List[DataPolicyError],
+                              raise_error:bool=True):
         """
         Update the package scores on the CKAN server in package custom fields.
         For this function to work, you
@@ -312,7 +313,14 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
             package_info.custom_fields[self.output_custom_fields.package_report_field] = package_report_str
         package_info.updated = package_update_needed
         if package_update_needed and ckan is not None:
-            ckan.package_patch(package_info.id, custom_fields=package_info.custom_fields)
+            try:
+                ckan.package_patch(package_info.id, custom_fields=package_info.custom_fields)
+            except Exception as e:
+                if raise_error:
+                    raise e from e
+                else:
+                    msg = "Could not update policy scores: " + str(e)
+                    warn(msg)
 
 
 

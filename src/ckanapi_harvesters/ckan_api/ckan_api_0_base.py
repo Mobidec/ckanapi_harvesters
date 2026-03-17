@@ -92,6 +92,18 @@ class CkanApiBase(CkanApiABC):
         self.disconnect()
         self.apikey.__del__()
 
+    # Context Manager behavior ----------
+    # to use CkanApi in a "with" statement
+    def __enter__(self):
+        self.disconnect()  # start new sessions
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.disconnect()
+        self.apikey.__del__()
+        return True
+    # -------------
+
     def __copy__(self):
         return self.copy()
 

@@ -69,6 +69,22 @@ class BuilderResourceABC(ABC):
     def __copy__(self):
         return self.copy()
 
+    def clear_secrets_and_disconnect(self) -> None:
+        return
+
+    def __del__(self):
+        self.clear_secrets_and_disconnect()
+
+    # Context Manager behavior ----------
+    # to use ResourceBuilder in a "with" statement
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.clear_secrets_and_disconnect()
+        return True
+    # -------------
+
     @abstractmethod
     def copy(self, *, dest=None):
         dest.name = self.name

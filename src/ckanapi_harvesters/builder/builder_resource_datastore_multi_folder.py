@@ -101,6 +101,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         self.read_line_counter = 0
         for file_index, file_name in enumerate(self.local_file_list):
             df_file = self.local_file_format.read_file(file_name, self._get_fields_info(), allow_chunks=allow_chunks)
+            self._merge_resource_attributes_from_file()
             if isinstance(df_file, pd.DataFrame) or isinstance(df_file, list):
                 self.file_semaphore.acquire()
                 self.read_line_counter += len(df_file)

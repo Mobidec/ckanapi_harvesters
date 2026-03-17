@@ -18,6 +18,11 @@ from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanData
 class HarvesterConnectABC(ABC):
     def __del__(self):
         self.disconnect()
+        self.clear_secrets()
+
+    @abstractmethod
+    def clear_secrets(self):
+        raise NotImplementedError()
 
     @abstractmethod
     def connect(self, *, cancel_if_connected:bool=True) -> Any:
@@ -43,12 +48,29 @@ class HarvesterConnectABC(ABC):
     def update_from_ckan(self, ckan):
         raise NotImplementedError()
 
+    # Context Manager behavior ----------
+    # to use Harvester in a "with" statement
+    def __enter__(self):
+        self.disconnect()  # start new sessions
+        self.connect()  # connect at once
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.disconnect()
+        self.clear_secrets()
+        return True
+    # -------------
+
 
 class DatabaseHarvesterABC(HarvesterConnectABC, ABC):
     def __init__(self, params:DatabaseParams=None):
         if params is None:
             params = DatabaseParams()
         self.params: DatabaseParams = params
+
+    def clear_secrets(self):
+        if self.params.login is not None:
+            self.params.login.clear()
 
     @abstractmethod
     def copy(self, *, dest=None):
@@ -83,9 +105,6 @@ class DatasetHarvesterABC(DatabaseHarvesterABC, ABC):
         super().__init__(params)
         self.params: DatasetParams = params
         self.dataset_metadata: Union[DatasetMetadata, None] = None
-
-    def __del__(self):
-        self.disconnect()
 
     @abstractmethod
     def _finalize_connection(self):
@@ -137,9 +156,6 @@ class TableHarvesterABC(DatasetHarvesterABC, ABC):
         super().__init__(params)
         self.params: TableParams = params
         self.table_metadata: Union[TableMetadata, None] = None
-
-    def __del__(self):
-        self.disconnect()
 
     @abstractmethod
     def copy(self, *, dest=None):

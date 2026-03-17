@@ -3,39 +3,19 @@
 """
 The basic file format for DataStore: CSV
 """
-from typing import Union, Dict, Callable, Any, List, Generator
+from typing import Union, Dict, Callable, Any
 import io
 import argparse
-from contextlib import contextmanager
 
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.ckan_model import CkanField
+from ckanapi_harvesters.auxiliary.ckan_model import CkanField, CkanResourceInfo
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.auxiliary.ckan_errors import MissingCodeFileError, MissingIOFunctionError
 from ckanapi_harvesters.auxiliary.external_code_import import PythonUserCode
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 
 
-# user custom IO function examples
-def read_function_example(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True, params:"UserFileFormat" = None, **kwargs) -> Union[Union[pd.DataFrame, List[dict]], Generator[Union[pd.DataFrame, List[dict]], None, None]]:
-    return pd.DataFrame()
-
-# use of a context manager when returning a custom DataFrame iterator in order to properly close the file if the process is interrupted (use of a with statement)
-@contextmanager
-def read_function_chunk_example(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True, params:"UserFileFormat" = None, **kwargs) -> Generator[Union[pd.DataFrame, List[dict]], None, None]:
-    file_handle = open(file_path_or_buffer, 'r')
-    try:
-        yield pd.DataFrame()
-    finally:
-        file_handle.close()
-
-def write_function_example(df: Union[pd.DataFrame, List[dict]], file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], append:bool=False, params:"UserFileFormat" = None, **kwargs) -> None:
-    raise NotImplementedError()
-    df.to_csv(file_path_or_buffer)
-
-
-# class implementation
 class UserFileFormat(FileFormatABC):
     def __init__(self, options_string: str, *, df_read_fun:Callable[[Any], GeneralDataFrame] = None,
                  df_write_fun:Callable[[GeneralDataFrame, Any], Any] = None,
@@ -72,13 +52,26 @@ class UserFileFormat(FileFormatABC):
         if self.df_read_fun is None:
             raise MissingIOFunctionError("Read function")
         read_kwargs = self._get_read_kwargs(allow_chunks=allow_chunks)
-        return self.df_read_fun(file_path, fields=fields, allow_chunks=self.read_by_chunks_enabled(allow_chunks=allow_chunks), params=self, **read_kwargs)
+        self.resource_attributes_from_file = None
+        output = self.df_read_fun(file_path, fields=fields, allow_chunks=self.read_by_chunks_enabled(allow_chunks=allow_chunks), params=self, **read_kwargs)
+        if isinstance(output, tuple):
+            self.resource_attributes_from_file = output[1]
+            return output[0]
+        else:
+            return output
 
     def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
         if self.df_read_fun is None:
             raise MissingIOFunctionError("Read function")
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
-        return self.df_read_fun(buffer, fields=fields, allow_chunks=False, params=self, **read_kwargs)
+        self.resource_attributes_from_file = None
+        output = self.df_read_fun(buffer, fields=fields, allow_chunks=False, params=self, **read_kwargs)
+        if isinstance(output, tuple):
+            assert(isinstance(output[1], CkanResourceInfo))
+            self.resource_attributes_from_file = output[1]
+            return output[0]
+        else:
+            return output
 
     # write ------------------
     def write_file(self, df: pd.DataFrame, file_path: str, fields: Union[Dict[str, CkanField],None]) -> None:

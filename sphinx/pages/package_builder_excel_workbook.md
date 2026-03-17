@@ -185,13 +185,14 @@ Paths of resources are necessarily relative to the resources directory because t
 will reconstruct the same hierarchy as the upload directory, in a different location.
 
 
-#### Data upload steps
+#### Data upload process steps
 
 When uploading data, the steps are the following:
 1) Read file: the selected method depends on the indicated format or, if specified, the custom __Read function__. 
 This function returns either a DataFrame or a list of dicts. The function can also return a generator of these objects.
 2) Add index: if no primary key is defined, an extra column named `_upload_index` is added to the DataFrame. 
-3) Alter function: the __Upload function__ is called, if defined by user.
+3) Alter function: the __Upload function__ is called, if defined by user. 
+See below for function prototypes.
 4) Sort lines by the primary key, if it is defined by more than one column. 
 When multiple primary keys were provided, the default behavior is to associate a file with the values of the primary key except its last column (when downloading a resource).  
 5) Data cleaner: the selected __Data cleaner__ is executed, if specified (GeoJSON selected by default for mode ___DataStore from Harvester___).
@@ -230,4 +231,68 @@ Field specification:
 - __Options__: CLI arguments for additional attributes of a field conversion, notably:
   - `--epsg-src` is used to specify the original EPSG of a geometric object (integer). 
   If provided, the geometry can be converted to the destination EPSG if a data cleaner is specified.
+
+
+## Auxiliary function prototypes
+
+
+### Upload/Download function
+
+An intermediary data editing function can be inserted between the reading from the data source and the upload request.
+These steps are described in a [section above](Data-upload-process-steps).
+This function must be referenced by the user in the __Upload function__ column of the resources attribute.
+
+In the other way, a __Download function__ can be referenced. This function may be used to restore the data format of the original data source.
+
+The arguments before the asterisk (`*`) are positional and mandatory. The keyword arguments can be used to display more information.
+The `**kwargs` argument must be implemented in order to ensure compatibility with future versions.
+
+```python
+from typing import Union, List, Dict
+import pandas as pd
+from ckanapi_harvesters import CkanField
+
+...
+
+def upload_function_example(df_local: Union[pd.DataFrame, List[dict]], *,
+                            fields:Dict[str, CkanField], file_name:str=None, total_lines_read:int=None, **kwargs) \
+        -> Union[pd.DataFrame, List[dict]]:
+    return df_local
+
+def download_function_example(df_download: pd.DataFrame, *,
+                              fields:Dict[str, CkanField], file_query:str=None, **kwargs) \
+        -> Union[pd.DataFrame, List[dict]]:
+    return df_download
+```
+
+
+### Progress callback
+
+By default, progress is printed in the command line output. 
+The progress display may be customized such as in this example (used in Jupyter Notebooks).
+The arguments before the asterisk (`*`) are positional and mandatory. The keyword arguments can be used to display more information.
+The `**kwargs` argument must be implemented in order to ensure compatibility with future versions.
+
+```python
+from ckanapi_harvesters import CkanCallbackLevel
+from typing import Any
+
+...
+
+from ipywidgets import IntProgress
+from IPython.display import display
+f = IntProgress(min=0,max=100)
+
+def progress_callback_example(position:int, total:int, info:Any=None, *, context:str=None,
+                              file_index:int=None, file_count:int=None,
+                              lines_chunk:int=None, total_lines_read:int=None,
+                              canceled_upload: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+                              **kwargs) -> None:
+    if level == CkanCallbackLevel.ResourceChunks:
+        f.value = int(position/total*100)
+
+...
+
+display(f)
+```
 

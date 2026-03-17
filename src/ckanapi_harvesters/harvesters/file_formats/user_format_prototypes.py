@@ -3,13 +3,13 @@
 """
 User custom IO function examples
 """
-from typing import Union, Dict, List, Generator
+from typing import Union, Dict, List, Generator, Tuple
 import io
 from contextlib import contextmanager
 
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.ckan_model import CkanField
+from ckanapi_harvesters.auxiliary.ckan_model import CkanField, CkanResourceInfo
 from ckanapi_harvesters.harvesters.file_formats.user_format import UserFileFormat
 
 
@@ -20,7 +20,16 @@ def read_function_example_df(file_path_or_buffer:Union[str, io.IOBase], *, field
     Read a file/IO buffer and return a unique DataFrame.
     This case is the simplest implementation.
     """
-    return pd.DataFrame()
+    return pd.read_csv(file_path_or_buffer)
+
+def read_function_example_df_with_metadata(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
+                                           allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) \
+        -> Tuple[Union[pd.DataFrame, List[dict]], CkanResourceInfo]:
+    """
+    Read a file/IO buffer and return a unique DataFrame.
+    This case returns as well metadata which can be read from the file.
+    """
+    return pd.read_csv(file_path_or_buffer), CkanResourceInfo()
 
 # use of a context manager when returning a custom DataFrame iterator in order to properly close the file if the process is interrupted (use of a with statement)
 @contextmanager

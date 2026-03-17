@@ -148,6 +148,26 @@ class BuilderPackageBasic:
             dest.external_python_code = self.external_python_code.copy()
         return dest
 
+    def __copy__(self):
+        return self.copy()
+
+    def __del__(self):
+        self.clear_secrets_and_disconnect()
+
+    # Context Manager behavior ----------
+    # to use PackageBuilder in a "with" statement
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.clear_secrets_and_disconnect()
+        return True
+    # -------------
+
+    def clear_secrets_and_disconnect(self) -> None:
+        for resource_builder in self.resource_builders.values():
+            resource_builder.clear_secrets_and_disconnect()
+
     def _check_mandatory_attributes(self):
         if self.package_name is None:
             raise MandatoryAttributeError("Package", "name")

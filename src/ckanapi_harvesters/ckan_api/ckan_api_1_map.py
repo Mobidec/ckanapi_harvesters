@@ -1052,15 +1052,18 @@ class CkanApiMap(CkanApiBase):
         Map user and group access rights to the packages currently mapped by CKAN
         :return:
         """
+        current_user = self.query_current_user()
         self.group_list_all(cancel_if_present=cancel_if_present)
         self.user_list(cancel_if_present=cancel_if_present)
         for package_id, package_info in self.map.packages.items():
-            self.package_collaborator_list(package_id, cancel_if_present=cancel_if_present)
+            if current_user is not None:
+                self.package_collaborator_list(package_id, cancel_if_present=cancel_if_present)
             # merge collaborators with groups of the package
-            package_info.user_access = package_info.collaborators.copy()
-            for group in package_info.groups:
-                group_info = self.map.groups[group.id]
-                for user_id, user_capacity in group_info.user_members.items():
-                    if user_id not in package_info.user_access:
-                        package_info.user_access[user_id] = CkanCollaboration(user_capacity, None, group_id=group.id)
+            if package_info.collaborators is not None:
+                package_info.user_access = package_info.collaborators.copy()
+                for group in package_info.groups:
+                    group_info = self.map.groups[group.id]
+                    for user_id, user_capacity in group_info.user_members.items():
+                        if user_id not in package_info.user_access.keys():
+                            package_info.user_access[user_id] = CkanCollaboration(user_capacity, None, group_id=group.id)
         return self.map

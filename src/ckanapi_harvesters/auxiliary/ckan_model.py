@@ -421,21 +421,30 @@ class CkanAliasInfo:
 
 ## Users and groups ------------------
 class CkanUserInfo:
-    def __init__(self, d: dict):
-        self.id: str = d["id"]
-        self.name: str = d["name"]
-        self.display_name: str = d["display_name"]
-        self.fullname: str = d["fullname"]
-        self.about: str = d["about"]
-        self.sysadmin: bool = d["sysadmin"]
-        self.state: CkanState = CkanState.from_str(d["state"])
-        self.email_hash: Union[str,None] = d["email_hash"] if "email_hash" in d.keys() else None  # MD5 hash
-        self.created: Union[datetime.datetime, None] = datetime.datetime.fromisoformat(
-            d["created"]) if "created" in d.keys() else None
-        self.last_active: Union[datetime.datetime, None] = datetime.datetime.fromisoformat(
-            d["last_active"]) if "last_active" in d.keys() else None
+    def __init__(self, d: dict = None):
+        self.id: Union[str,None] = None
+        self.name: Union[str,None] = None
+        self.display_name: Union[str,None] = None
+        self.fullname: Union[str,None] = None
+        self.about: Union[str,None] = None
+        self.sysadmin: bool = False
+        self.state: Union[CkanState,None] = None
+        self.email_hash: Union[str,None] = None
+        self.created: Union[datetime.datetime, None] = None
+        self.last_active: Union[datetime.datetime, None] = None
+        if d is not None:
+            self.id = d["id"]
+            self.name = d["name"]
+            self.display_name = d["display_name"]
+            self.fullname = d["fullname"]
+            self.about = d["about"]
+            self.sysadmin = d["sysadmin"]
+            self.state = CkanState.from_str(d["state"])
+            self.email_hash = d["email_hash"] if "email_hash" in d.keys() else None  # MD5 hash
+            self.created = datetime.datetime.fromisoformat(d["created"]) if "created" in d.keys() else None
+            self.last_active = datetime.datetime.fromisoformat(d["last_active"]) if "last_active" in d.keys() else None
         self.organizations: Union[None,List[str]] = None  # used by consolidate (detailed_report)
-        self.details: dict = d
+        self.details: Union[dict,None] = d
 
     def __str__(self):
         return f"User '{self.name}' ({self.id})"
@@ -592,7 +601,7 @@ class CkanLicenseInfo:
         self.family:str = d["family"]
         self.domain:CkanLicenseDomain = CkanLicenseDomain.from_bool(domain_software=_bool_from_string(d["domain_software"]),
                                                         domain_data=_bool_from_string(d["domain_data"]), domain_content=_bool_from_string(d["domain_content"]))
-        self.is_generic:bool = _bool_from_string(d["is_generic"])
+        self.is_generic:Union[bool,None] = _bool_from_string(d["is_generic"]) if "is_generic" in d.keys() else None
         self.url:str = d["url"]
         self.details:dict = d
 
@@ -1001,15 +1010,4 @@ class CkanOrganizationInfo:
     @staticmethod
     def from_dict(d:dict) -> "CkanOrganizationInfo":
         return CkanOrganizationInfo(d)
-
-
-class PackageShortDescriptor:
-    """
-    Class to define more stable names to describe a package
-    """
-    def __init__(self, package_name:str, owner_org:str, resource_names: Dict[str,str]):
-        self.name: str = package_name
-        self.owner_org: str = owner_org
-        self.resource_names: Dict[str,str] = resource_names
-
 

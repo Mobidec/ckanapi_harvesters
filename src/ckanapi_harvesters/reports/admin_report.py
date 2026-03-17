@@ -11,6 +11,7 @@ import os
 from warnings import warn
 
 from ckanapi_harvesters.ckan_api import CkanApi
+from ckanapi_harvesters.auxiliary.ckan_errors import CkanAuthorizationError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import to_jsons_indent_lists_single_line
 from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanUserInfo, CkanPackageInfo
 from ckanapi_harvesters.policies.data_format_policy_errors import ErrorCount, DataPolicyError
@@ -25,7 +26,8 @@ def size_str_mb(size_mb:float) -> str:
 
 class CkanAdminReport:
     def __init__(self, package_list:List[str]=None, cancel_if_present:bool=True,
-                 package_custom_fields:List[str]=None, ckan:CkanApi=None, full_report:bool=False):
+                 package_custom_fields:List[str]=None, ckan:CkanApi=None, full_report:bool=False,
+                 auto_exec:bool=True):
         if package_custom_fields is None:
             package_custom_fields = []  # option to include specific custom fields in the report e.g. a end of license date
         if isinstance(package_list, str):
@@ -41,8 +43,9 @@ class CkanAdminReport:
         self.report_date: Union[datetime.datetime, None] = None
         self._elapsed_time_requests: Union[float,None] = None
         self._request_count: Union[int,None] = None
+        self.allow_downgraded_queries:bool = False
         self.report: Union[dict,None] = None  # report output
-        if ckan is not None:
+        if auto_exec and ckan is not None:
             self.execute(ckan)
 
     def _date_format_str(self, date:datetime.datetime) -> str:
@@ -57,15 +60,39 @@ class CkanAdminReport:
         start = time.time()
         self.report_date = datetime.datetime.now()
         request_count_init = ckan.debug.ckan_request_counter
-        self._connected_user = ckan.query_current_user()
-        if not self._connected_user.sysadmin:
+        try:
+            self._connected_user = ckan.query_current_user()
+        except CkanAuthorizationError as e:
+            if not self.allow_downgraded_queries:
+                raise e from e
+            self._connected_user = None
+            msg = "query_current_user raised an authorization error: " + str(e)
+            warn(msg)
+        if self._connected_user is None:
+            msg = f"It is recommended to run the report with a user with sysadmin rights. You are not currently connected."
+            warn(msg)
+        elif not self._connected_user.sysadmin:
             msg = f"It is recommended to run the report with a user with sysadmin rights. Current user: {self._connected_user.name}"
             warn(msg)
         ckan.map_resources(self.package_list, datastore_info=True, only_missing=self.cancel_if_present)
-        ckan.organization_list_all(cancel_if_present=False, include_users=True)
+        try:
+            ckan.organization_list_all(cancel_if_present=False, include_users=True)
+        except CkanAuthorizationError as e:
+            if not self.allow_downgraded_queries:
+                raise e from e
+            msg = "organization_list_all with include_users=True raised an authorization error. Organization users will not show in report: " + str(e)
+            warn(msg)
+            ckan.organization_list_all(cancel_if_present=False, include_users=False)
         ckan.license_list(cancel_if_present=self.cancel_if_present)
         ckan.map_file_resource_sizes(cancel_if_present=self.cancel_if_present)
-        ckan.map_user_rights(cancel_if_present=self.cancel_if_present)
+        try:
+            ckan.map_user_rights(cancel_if_present=self.cancel_if_present)
+        except CkanAuthorizationError as e:
+            if not self.allow_downgraded_queries:
+                raise e from e
+            msg = "map_user_rights with include_users=True raised an authorization error. Organization users will not show in report: " + str(e)
+            warn(msg)
+            ckan.group_list_all(include_users=False)
         self._elapsed_time_requests = time.time() - start
         self._request_count = ckan.debug.ckan_request_counter - request_count_init
         if ckan.params.verbose_extra:
@@ -75,8 +102,9 @@ class CkanAdminReport:
         for user_info in ckan.map.users.values():
             user_info.organizations = []
         for organization_info in ckan.map.organizations.values():
-            for user_id in organization_info.user_members.keys():
-                ckan.map.users[user_id].organizations.append(organization_info.name)
+            if organization_info.user_members is not None:
+                for user_id in organization_info.user_members.keys():
+                    ckan.map.users[user_id].organizations.append(organization_info.name)
 
     def _create_report(self, ckan: CkanApi) -> None:
         start = time.time()
@@ -88,8 +116,8 @@ class CkanAdminReport:
             ("title", "Admin report on packages and resources"),
             ("date", self._date_format_str(self.report_date)),
             ("ckan", ckan.url),
-            ("user", self._connected_user.name),
-            ("user_sysadmin", self._connected_user.sysadmin),
+            ("user", self._connected_user.name if self._connected_user is not None else None),
+            ("user_sysadmin", self._connected_user.sysadmin if self._connected_user is not None else None),
             ("package_selection", self.package_list if self.package_list is not None else "All"),
         ])
         packages_report = {}
@@ -148,7 +176,8 @@ class CkanAdminReport:
                         if global_last_modified_metadata else resource_modified
                 if resource_info.download_url:
                     if internal_filestore:
-                        package_filestore_size_mb += resource_info.download_size_mb
+                        if resource_info.download_size_mb is not None:
+                            package_filestore_size_mb += resource_info.download_size_mb
                     else:
                         if resource_info.download_size_mb is not None:
                             package_external_size_mb += resource_info.download_size_mb
@@ -162,13 +191,14 @@ class CkanAdminReport:
                     package_datastore_lines += resource_info.datastore_info.row_count
                     package_datastore_count += 1
                 resources_report.append(resource_report)
+            license_info = ckan.map.licenses[package_info.license_id] if package_info.license_id and package_info.license_id in ckan.map.licenses.keys() else None
             package_report = OrderedDict([
                 ("package_title", package_info.title),
                 ("state", str(package_info.state)),
                 ("organization", package_info.organization_info.name if package_info.organization_info else None),
                 ("version", package_info.version),
-                ("license", ckan.map.licenses[package_info.license_id].title if package_info.license_id else None),
-                ("license_domain", ckan.map.licenses[package_info.license_id].domain.to_dict() if package_info.license_id else None),
+                ("license", license_info.title if license_info else None),
+                ("license_domain", license_info.domain.to_dict() if license_info else None),
                 ("author", package_info.author),
                 ("maintainer", package_info.maintainer),
                 ("metadata_modified", self._date_format_str(package_info.metadata_modified)),
@@ -241,7 +271,7 @@ class CkanAdminReport:
         groups_report = {group_info.name: OrderedDict([
             ("group_title", group_info.title),
             ("package_count", group_info.package_count),
-            ("users_count", len(group_info.user_members)),
+            ("users_count", len(group_info.user_members) if group_info.user_members is not None else None),
             ("users", OrderedDict(sorted({ckan.map.users[user_id].name: str(capacity) for user_id, capacity in group_info.user_members.items()}.items())) if group_info.user_members is not None else None),
         ]) for group_info in ckan.map.groups.values()}
         groups_report = OrderedDict(sorted(groups_report.items()))
@@ -330,9 +360,12 @@ class CkanAdminReport:
 
 
 if __name__ == '__main__':
+    deauthenticate = False
     ckan = CkanApi()
     ckan.initialize_from_cli_args()
     ckan.input_missing_info(input_args_if_necessary=True, input_owner_org=False)
+    if deauthenticate:
+        ckan.apikey.clear()
 
     package_list = None  # use this argument or no argument to make a full report
     # package_list = ["builder-example-py"]  # limit to the example package
@@ -340,7 +373,10 @@ if __name__ == '__main__':
     ckan.load_default_policy()
     ckan.params.verbose_extra = True
 
-    report = CkanAdminReport(ckan=ckan, package_list=package_list, full_report=True)
+    report = CkanAdminReport(ckan=ckan, package_list=package_list, full_report=True, auto_exec=False)
+    if deauthenticate:
+        report.allow_downgraded_queries = True
+    report.execute(ckan)
     print(report.to_jsons())
 
     self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
