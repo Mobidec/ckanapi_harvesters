@@ -68,20 +68,112 @@ Examples:
 for a CSV file: --read-kwargs compression=gzip header=10
 ```
 
-#### User-defined file format I/O functions
+
+### Pre-defined file format I/O functions
+
+The following section lists the pre-defined file format I/O functions. 
+The choice of the function is determined by the __Format__ attribute.
+The __Options__ attribute described above can be used to customize the functions behavior according to the documentation of the underlying functions.
+
+
+#### CSV: delimited text file format
+
+This method can read text tabular file formats with the underlying function, which is 
+[`pandas.read_csv`](https://pandas.pydata.org/docs/reference/api/pandas.read_csv.html#pandas.read_csv).
+The default read parameters are `dtype=str, keep_default_na=False, sep=None, engine='python'`. 
+For the write parameters, `index=False` is imposed.
+
+
+#### SHP: shape file format
+
+This method can read geographic file formats manages by `geopandas`. The underlying function is 
+[`geopandas.read_file`](https://geopandas.org/en/latest/docs/reference/api/geopandas.read_file.html).
+The default arguments for read/write are `encoding='utf-8'`.
+
+
+#### XLS: Excel/ODS file format
+
+This method reads the following file formats: xls, xlsx, xlsm, xlsb, odf, ods and odt. 
+The underlying function is 
+[`pandas.read_excel`](https://pandas.pydata.org/docs/reference/api/pandas.read_excel.html#pandas.read_excel).
+It accepts a special CLI argument to specify the sheet name: `--sheet-name`.
+This argument can also be set using the `--read-kwargs` argument such as in `--read-kwargs sheet_name=YourSheetName`.
+The default arguments of the read/write functions are those of the `pandas` documentation.
+
+
+#### JSON: JSON file format
+
+This method enables reading JSON files. It relies on
+[`pandas.read_json`](https://pandas.pydata.org/docs/user_guide/io.html#io-json-reader).
+The I/O functions are configured by default to write one line per record. 
+This mode enables reading the file by chunks and appending lines to an existing file.
+The corresponding default read/write arguments are `orient="records", lines=True`. 
+These can be changed with the CLI arguments `--read-kwargs` and `--write-kwargs`. 
+
+
+### User-defined file format I/O functions
 
 In addition to these parameters, the user can specify his own read/write functions 
 with the __Read function__ / __Write function__ columns in the _resources_ sheet.
 If one function is defined, the reciprocal function must be defined, if used (there is no fallback to the default file format function).
+
+
+#### Extra argument to enable append mode
+
+An extra CLI argument enables writing a file in append mode. In this case, the DataFrames can be written to disk as they are received.
+The option is called `--allow-append`.
+
+
+#### Basic I/O prototypes
+
 The function prototype should be as follows. 
 The positional arguments (before the asterisk `*`) are mandatory. As well as the `**kwargs` argument in order to remain compatible with future versions of the Python package.
-The parameters defined above also apply to the user-defined functions. 
+The parameters defined above also apply to the user-defined functions. The example below returns a DataFrame for the read function.
 ```python
-def read_function_example(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) -> Union[pd.DataFrame, List[dict]]:
+from typing import Union, Dict, List, Generator
+import io
+import pandas as pd
+from ckanapi_harvesters.auxiliary.ckan_model import CkanField
+from ckanapi_harvesters.harvesters.file_formats.user_format import UserFileFormat
+
+...
+
+def read_function_example_df(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
+                             allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) \
+        -> Union[pd.DataFrame, List[dict]]:
     return pd.DataFrame()
 
-def write_function_example(df: Union[pd.DataFrame, List[dict]], file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], append:bool=False, params:UserFileFormat = None, **kwargs) -> None:
-    raise NotImplementedError()
+def write_function_example(df: Union[pd.DataFrame, List[dict]], file_path_or_buffer:Union[str, io.IOBase],
+                           *, fields: Union[Dict[str, CkanField],None], append:bool=False,
+                           params:UserFileFormat = None, **kwargs) -> None:
+    mode = 'a' if append else 'w'
+    df.to_csv(file_path_or_buffer, mode=mode, index=False)
+```
+
+
+#### Reading a file by chunks
+
+Returning a DataFrame generator requires implementing a `ContextManager` such as in the example below.
+
+```python
+from contextlib import contextmanager
+
+...
+
+@contextmanager
+def read_function_example_by_chunks(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
+                                    allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) \
+        -> Generator:
+    file_handle = open(file_path_or_buffer, 'r')
+    try:
+        yield read_function_example_by_chunks_generator(file_handle)
+    finally:
+        file_handle.close()
+
+def read_function_example_by_chunks_generator(file_handle) -> Generator[Union[pd.DataFrame, List[dict]], None, None]:
+    # function called by read_function_example_by_chunks
+    for df_chunk in pd.read_csv(file_handle, chunksize=100):
+        yield df_chunk
 ```
 
 

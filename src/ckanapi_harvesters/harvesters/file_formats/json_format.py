@@ -24,8 +24,8 @@ class JsonFileFormat(FileFormatABC):
     Recommended: use with CLI argument `--allow-chunks --read-kwargs orient=records,lines=True`
     """
     # NB: default is orient=records
-    default_read_kwargs = dict(typ="frame", orient="records")
-    default_write_kwargs = dict(orient="records")
+    default_read_kwargs = dict(orient="records", lines=True)
+    default_write_kwargs = dict(orient="records", lines=True)
 
     # read -------------------
     def read_by_chunks_allowed(self) -> bool:
@@ -41,11 +41,11 @@ class JsonFileFormat(FileFormatABC):
 
     def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
         read_kwargs = self._get_read_kwargs(allow_chunks=allow_chunks)
-        return pd.read_json(file_path, **read_kwargs)
+        return pd.read_json(file_path, typ="frame", **read_kwargs)
 
     def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
-        return pd.read_json(buffer, **read_kwargs)
+        return pd.read_json(buffer, typ="frame", **read_kwargs)
 
     # write ------------------
     def write_file(self, df: pd.DataFrame, file_path: str, fields: Union[Dict[str, CkanField],None]) -> None:

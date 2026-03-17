@@ -17,7 +17,7 @@ from ckanapi_harvesters.auxiliary.external_code_import import PythonUserCode
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 
 
-# user custom IO function prototypes
+# user custom IO function examples
 def read_function_example(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True, params:"UserFileFormat" = None, **kwargs) -> Union[Union[pd.DataFrame, List[dict]], Generator[Union[pd.DataFrame, List[dict]], None, None]]:
     return pd.DataFrame()
 
@@ -35,6 +35,7 @@ def write_function_example(df: Union[pd.DataFrame, List[dict]], file_path_or_buf
     df.to_csv(file_path_or_buffer)
 
 
+# class implementation
 class UserFileFormat(FileFormatABC):
     def __init__(self, options_string: str, *, df_read_fun:Callable[[Any], GeneralDataFrame] = None,
                  df_write_fun:Callable[[GeneralDataFrame, Any], Any] = None,
@@ -43,7 +44,6 @@ class UserFileFormat(FileFormatABC):
         self.df_read_fun:Union[Callable[[Any], GeneralDataFrame], None] = df_read_fun
         self.df_write_fun:Union[Callable[[pd.DataFrame, Any], pd.DataFrame], None] = df_write_fun
         self.option_append_allowed: bool = False
-        self.extra_args: Union[list,None] = None
 
     @staticmethod
     def _setup_cli_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
@@ -55,7 +55,6 @@ class UserFileFormat(FileFormatABC):
     def _apply_arguments(self, args: argparse.Namespace, extra_args: list):
         super()._apply_arguments(args, extra_args)
         self.option_append_allowed = args.allow_append
-        self.extra_args = extra_args
 
     def _connect_aux_functions(self, module: PythonUserCode, aux_read_fun_name:str, aux_write_fun_name:str) -> None:
         if (aux_read_fun_name or aux_write_fun_name) and module is None:

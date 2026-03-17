@@ -26,7 +26,7 @@ class ExcelFileFormat(FileFormatABC):
 
     @staticmethod
     def _setup_cli_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
-        parser = super()._setup_cli_parser(parser)
+        parser = FileFormatABC._setup_cli_parser(parser)
         parser.add_argument("--sheet-name", type=str,
                             help="The name of the sheet to use (defaults to first sheet)")
         return parser

@@ -6,6 +6,7 @@ Classes to read specific file formats to load DataStore DataFrame/records from a
 
 from . import file_format_abc
 from . import user_format
+from . import user_format_prototypes
 from . import csv_format
 from . import shp_format
 from . import xls_format

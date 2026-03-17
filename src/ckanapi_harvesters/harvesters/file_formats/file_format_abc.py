@@ -29,6 +29,7 @@ class FileFormatABC(ABC):
         self.chunk_size:int = self.default_read_chunksize
         self.read_kwargs:dict = read_kwargs
         self.write_kwargs:dict = write_kwargs
+        self.extra_args: Union[list,None] = None
         self._apply_options_string()
         self.allow_chunks = self.allow_chunks and self.read_by_chunks_allowed()  # override
 
@@ -81,6 +82,7 @@ class FileFormatABC(ABC):
         if args.chunk_size is not None:
             self.chunk_size = args.chunk_size
             self.allow_chunks = True
+        self.extra_args = extra_args
         self.read_kwargs.update(import_args_kwargs_dict(args.read_kwargs))
         self.write_kwargs.update(import_args_kwargs_dict(args.write_kwargs))
 

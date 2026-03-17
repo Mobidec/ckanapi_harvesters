@@ -93,33 +93,34 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
                 self.file_semaphore.release()
                 yield FileChunkDataFrame(df_file, self.url, 0, 0, 0, line_counter)
             else:  # iterator
-                if hasattr(df_file, "handles"):
-                    file_handle = df_file.handles.handle
-                else:
-                    file_handle = None
-                previous_file_position = 0
-                # for chunk_index, df in enumerate(df_file):
-                chunk_index = 0
-                file_position = 0
-                while True:
-                    self.file_semaphore.acquire()
-                    if file_handle is not None:
-                        file_position = file_handle.buffer.tell()  # approximative position in file
+                with df_file as df_generator:
+                    if hasattr(df_file, "handles"):
+                        file_handle = df_file.handles.handle
                     else:
-                        file_position = 0  # no position tracking available
-                    try:
-                        df = next(df_file)
-                        if file_handle is None and hasattr(df, "attrs") and "file_position" in df.attrs:
-                            file_position = df.attrs["file_position"]
-                        self.read_line_counter += len(df)
-                        line_counter = self.read_line_counter
-                    except StopIteration:
+                        file_handle = None
+                    previous_file_position = 0
+                    # for chunk_index, df in enumerate(df_generator):
+                    chunk_index = 0
+                    file_position = 0
+                    while True:
+                        self.file_semaphore.acquire()
+                        if file_handle is not None:
+                            file_position = file_handle.buffer.tell()  # approximative position in file
+                        else:
+                            file_position = 0  # no position tracking available
+                        try:
+                            df = next(df_generator)
+                            if file_handle is None and hasattr(df, "attrs") and "file_position" in df.attrs:
+                                file_position = df.attrs["file_position"]
+                            self.read_line_counter += len(df)
+                            line_counter = self.read_line_counter
+                        except StopIteration:
+                            self.file_semaphore.release()
+                            break
                         self.file_semaphore.release()
-                        break
-                    self.file_semaphore.release()
-                    yield FileChunkDataFrame(df, self.url, 0, chunk_index, previous_file_position, line_counter)
-                    previous_file_position = file_position
-                    chunk_index = chunk_index + 1
+                        yield FileChunkDataFrame(df, self.url, 0, chunk_index, previous_file_position, line_counter)
+                        previous_file_position = file_position
+                        chunk_index = chunk_index + 1
 
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
                             threads:int=1, external_stop_event=None,
