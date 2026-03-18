@@ -986,7 +986,7 @@ class BuilderPackageBasic:
             author=self.package_attributes.author, author_email=self.package_attributes.author_email,
             maintainer=self.package_attributes.maintainer, maintainer_email=self.package_attributes.maintainer_email,
             license_id=license_id,
-            cancel_if_exists=True, update_if_exists=True)
+            cancel_if_exists=True, update_if_exists=True, clear_if_deleted_state=None)
         if ckan.params.verbose_extra:
             print("Package created. URL:", self.get_package_page_url(ckan))
         return package_info

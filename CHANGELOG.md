@@ -34,8 +34,9 @@ It is enabled by default. To disable it, use the `allow_chunks=False` argument o
 
 ### Changed
 
-- Datasets are uploaded in _Draft_ state by default. When the upload is finished, the state specified in the Excel workbook is applied.
-Datasets with _Draft_ state are visible by clicking on your profile name at the top of the CKAN web interface.
+- Datasets are uploaded in ___Draft___ state by default. When the upload is finished, the state specified in the Excel workbook is applied.
+Datasets with ___Draft___ state are visible by clicking on your profile name at the top of the CKAN web interface (if you originally created it).
+  - Upon dataset creation, if was found in ___Deleted___ state, its ressources are deleted. 
 - Primary key when uploading to a DataStore:
   - When no primary key is specified, the program adds a new column named _upload_index as a primary key. 
   - The default behavior when a multi-column primary key has changed. It is specified is to systematically upsert all records

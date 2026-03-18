@@ -58,6 +58,7 @@ def clean_table_name(variable_name: str) -> str:
 class CkanApiManageParams(CkanApiReadWriteParams):
     default_enable_admin: bool = False  # False: disable advanced admin operations by default such as resource/package deletion
     default_alias_enforce: bool = False  # if True, always add the default alias when calling datastore_create
+    package_create_default_clear_if_deleted_state: bool = True
 
     def __init__(self, *, proxies:Union[str,dict,ProxyConfig]=None,
                  ckan_headers:dict=None, http_headers:dict=None):
@@ -1106,7 +1107,8 @@ class CkanApiManage(CkanApiReadWrite):
                        url: str = None, version: str = None, custom_fields: dict = None,
                        author: str = None, author_email: str = None,
                        maintainer: str = None, maintainer_email: str = None,
-                       params:dict=None, cancel_if_exists:bool=True, update_if_exists=True) -> CkanPackageInfo:
+                       params:dict=None, cancel_if_exists:bool=True, update_if_exists=True,
+                       clear_if_deleted_state:bool=None) -> CkanPackageInfo:
         """
         Helper function to create a new package. This first checks if the package already exists.
 
@@ -1121,13 +1123,21 @@ class CkanApiManage(CkanApiReadWrite):
         :param params:
         :param cancel_if_exists:
         :param update_if_exists:
+        :param clear_if_deleted_state: Option to clear the resources of a package if it was found in Deleted state. Default behavior is set in params.
         :return:
         """
+        if clear_if_deleted_state is None:
+            clear_if_deleted_state = self.params.package_create_default_clear_if_deleted_state
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         if package_name is None or package_name == "":
             raise CkanMandatoryArgumentError("package_create", "package_name")
         self.map_resources(package_name, only_missing=True, error_not_found=False)
         pkg_info = self.map.get_package_info(package_name, error_not_mapped=False)
+        if pkg_info is not None and clear_if_deleted_state:
+            if pkg_info.state == CkanState.Deleted:
+                if self.params.verbose_request_error:
+                    print(f"Package {package_name} was found in Delete state. All ressources will be deleted before updating it.")
+                self.package_delete_resources(package_name, bypass_admin=True)
         if pkg_info is not None and cancel_if_exists:
             if update_if_exists:
                 pkg_info = self.package_patch(pkg_info.id, package_name, private=private, title=title, notes=notes,

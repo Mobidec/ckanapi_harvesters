@@ -83,15 +83,20 @@ The `proxy_auth` argument can be also used in your script. Additional headers ca
 This sheet contains the definition of the package. Help for each field is given in the sheet.
 
 Field specification:
-- __Name in URL__: Name of the package used in the urls to refer to the package (_mandatory_). The package name should be specific. Characters allowed are lowercase letters (a-z), digits (0-9), `-` and `_`, no accents, no spaces. Length must be 2-100 characters.
+- __Name in URL__: Name of the package used in the urls to refer to the package (_mandatory_). The package name should be specific. 
+Characters allowed are lowercase letters (a-z), digits (0-9), `-` and `_`, no accents, no spaces. Length must be 2-100 characters.
 - __Title__: Title appearing in the CKAN interface. 
 - __Description__: Some text describing the package. Markdown features are allowed. 
 - __Version__: Packages can be versioned, which enables tracking of data updates. 
 - __Visibility__: The package can be exposed to all users (Public) or a subset of authentified users, defined by CKAN groups (Private). Values accepted:
   - ___Private___
   - ___Public___
-- __State__: The state field enables to prepare a package without making visible to all users. Available states are:
-  - ___Active___ (_default_)
+- __State__: The state field enables to prepare a package without making it visible to all users. 
+By default, during the package upload, it has the state ___Draft___. 
+And if not specified here, the state remains ___Draft___. 
+However, this behavior can be changed with `BuilderPackage.setup_auto_draft_state`.
+Available states are:
+  - ___Active___
   - ___Draft___
   - ___Deleted___ (step before definitive deletion)
 - __Organization__: This field holds the owner organization name, ID or title. It is mandatory to initialize a package. 
