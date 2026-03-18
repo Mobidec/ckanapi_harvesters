@@ -15,7 +15,7 @@ import traceback
 
 import requests
 from requests.auth import AuthBase
-from requests.exceptions import ProxyError
+from requests.exceptions import ProxyError, ReadTimeout
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
@@ -720,9 +720,9 @@ class CkanApiBase(CkanApiABC):
             current_traceback = traceback.format_exc()
             _attempt_traceback.append(f"Attempt {_attempt_counts}: \n{current_traceback}")
             self._error_print_debug_response(response, url=url, params=params, headers=headers, json=json, error=e)
-            if (response is not None and _attempt_counts <= self.params.max_requests_attempts
-                    and (response.status_code in HTTP_STATUS_CODE_RETRY
-                        or isinstance(e, ProxyError))):
+            is_retry_case = (response.status_code in HTTP_STATUS_CODE_RETRY
+                            or isinstance(e, ProxyError) or isinstance(e, ReadTimeout))
+            if (is_retry_case and response is not None and _attempt_counts <= self.params.max_requests_attempts):
                 # current_response = CkanActionResponse(response, self.params.dry_run)
                 if self.params.verbose_request_error:
                     msg = f"Waiting to retry API call to {action} after server error (attempt {_attempt_counts}): {str(e)}"
