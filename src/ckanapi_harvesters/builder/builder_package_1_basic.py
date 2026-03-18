@@ -46,8 +46,8 @@ from ckanapi_harvesters.harvesters.file_formats.user_format import UserFileForma
 
 self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 example_package_xls = os.path.join(self_dir, "builder_package_example.xlsx")
-builder_default_package_state:CkanState = CkanState.Active  # CkanState.Draft
-initial_package_building_state:Union[CkanState,None] = None  # CkanState.Draft
+builder_default_package_state:CkanState = CkanState.Draft
+initial_package_building_state:Union[CkanState,None] = CkanState.Draft
 
 def load_help_page_df(*, engine:str=None) -> pd.DataFrame:
     with pd.ExcelFile(example_package_xls, engine=engine) as help_file:
