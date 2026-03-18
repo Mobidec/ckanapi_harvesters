@@ -15,6 +15,7 @@ import traceback
 
 import requests
 from requests.auth import AuthBase
+from requests.exceptions import ProxyError
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
@@ -28,7 +29,8 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, max_len_deb
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse, CkanActionError, CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import (MaxRequestsCountError, UnexpectedError, InvalidParameterError,
-                                                      ExternalUrlLockedError, UrlError, MaxAttemptsError, RequestError)
+                                                      ExternalUrlLockedError, UrlError, MaxAttemptsError, RequestError,
+                                                      HttpRetryCodeError)
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic, CkanApiDebug
 
@@ -711,12 +713,16 @@ class CkanApiBase(CkanApiABC):
                 response = self.ckan_session.post(url, data=data, headers=headers, params=params, files=files, json=json,
                                                   timeout=timeout,
                                                   proxies=self.params.proxies, verify=self.params.ckan_ca, auth=self.params.proxy_auth)
+            if response.status_code in HTTP_STATUS_CODE_RETRY:
+                raise HttpRetryCodeError(response.status_code)
         except Exception as e:
             _attempt_counts += 1
             current_traceback = traceback.format_exc()
             _attempt_traceback.append(f"Attempt {_attempt_counts}: \n{current_traceback}")
             self._error_print_debug_response(response, url=url, params=params, headers=headers, json=json, error=e)
-            if response is not None and response.status_code in HTTP_STATUS_CODE_RETRY and _attempt_counts <= self.params.max_requests_attempts:
+            if (response is not None and _attempt_counts <= self.params.max_requests_attempts
+                    and (response.status_code in HTTP_STATUS_CODE_RETRY
+                        or isinstance(e, ProxyError))):
                 # current_response = CkanActionResponse(response, self.params.dry_run)
                 if self.params.verbose_request_error:
                     msg = f"Waiting to retry API call to {action} after server error (attempt {_attempt_counts}): {str(e)}"

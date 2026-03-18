@@ -164,6 +164,27 @@ class BuilderPackageBasic:
         return True
     # -------------
 
+    @staticmethod
+    def setup_auto_draft_state(mode_auto:bool=None, *, draft_state_by_default:bool=None) -> None:
+        """
+        By default, packages are created in Draft state. This function disables this feature.
+        Call before instantiating any package builder (BuilderPackage).
+
+        :param mode_auto: set to True/False to setup at the same time the package state during upload
+        and the default package state, applied at the end of the upload, if not specified by the user in the Excel workbook.
+        :param draft_state_by_default: specific setting for the default package state (applied at the end of the upload).
+        """
+        global builder_default_package_state, initial_package_building_state
+        if mode_auto is not None:
+            if mode_auto:
+                builder_default_package_state = CkanState.Draft
+                initial_package_building_state = CkanState.Draft
+            else:
+                builder_default_package_state = CkanState.Active
+                initial_package_building_state = None
+        if draft_state_by_default is not None:
+            builder_default_package_state = CkanState.Draft if draft_state_by_default else CkanState.Active
+
     def clear_secrets_and_disconnect(self) -> None:
         for resource_builder in self.resource_builders.values():
             resource_builder.clear_secrets_and_disconnect()
@@ -957,15 +978,18 @@ class BuilderPackageBasic:
         """
         owner_org = self.get_owner_org(ckan)
         license_id = self.get_license_id(ckan)
-        return ckan.package_create(self.package_name, private=self.package_attributes.private,
-                                   state=initial_package_building_state if initial_package_building_state is not None else self.package_attributes.state,
-                                   title=self.package_attributes.title, notes=self.package_attributes.description, owner_org=owner_org,
-                                   tags=self.package_attributes.tags, custom_fields=self.package_attributes.custom_fields,
-                                   url=self.package_attributes.url, version=self.package_attributes.version,
-                                   author=self.package_attributes.author, author_email=self.package_attributes.author_email,
-                                   maintainer=self.package_attributes.maintainer, maintainer_email=self.package_attributes.maintainer_email,
-                                   license_id=license_id,
-                                   cancel_if_exists=True, update_if_exists=True)
+        package_info = ckan.package_create(self.package_name, private=self.package_attributes.private,
+            state=initial_package_building_state if initial_package_building_state is not None else self.package_attributes.state,
+            title=self.package_attributes.title, notes=self.package_attributes.description, owner_org=owner_org,
+            tags=self.package_attributes.tags, custom_fields=self.package_attributes.custom_fields,
+            url=self.package_attributes.url, version=self.package_attributes.version,
+            author=self.package_attributes.author, author_email=self.package_attributes.author_email,
+            maintainer=self.package_attributes.maintainer, maintainer_email=self.package_attributes.maintainer_email,
+            license_id=license_id,
+            cancel_if_exists=True, update_if_exists=True)
+        if ckan.params.verbose_extra:
+            print("Package created. URL:", self.get_package_page_url(ckan))
+        return package_info
 
     def package_delete_resources(self, ckan: CkanApi, *, bypass_admin:bool=False):
         package_id = self.package_attributes.id

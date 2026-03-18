@@ -58,9 +58,9 @@ class FileFormatABC(ABC):
                             "The number of lines sent per request is the minimum of chunk size and CKAN parameter ckan.params.default_limit_write\n"
                             "Enabling this option activates reading by chunks (if supported by the file format)")
         parser.add_argument("--no-chunks",
-                            help="Option to disabling reading files by chunks", action="store_true", default=False)
+                            help="Option to disabling reading files by chunks", action="store_true", default=None)
         parser.add_argument("--allow-chunks",
-                            help="Option to enable reading files by chunks (useful for file formats not enabling this feature by default)", action="store_true", default=False)
+                            help="Option to enable reading files by chunks (useful for file formats not enabling this feature by default)", action="store_true", default=None)
         parser.add_argument("--read-kwargs", nargs="*",
                             help="Keyword arguments for the read function in key=value format")
         parser.add_argument("--write-kwargs", nargs="*",
