@@ -13,7 +13,7 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ## [0.0.13] - 2026-03-18
 
-Version 0.0.12 was not successfully published because of a wrong test configuration. This version replaces it.
+NB: version 0.0.12 was not successfully published because of a wrong test configuration. This version replaces it.
 
 ### Added
 
@@ -44,7 +44,7 @@ It is enabled by default. To disable it, use the `allow_chunks=False` argument o
 Datasets with ___Draft___ state are visible by clicking on your profile name at the top of the CKAN web interface (if you originally created it).
   - Upon dataset creation, if was found in ___Deleted___ state, its ressources are deleted. 
 - Primary key when uploading to a DataStore:
-  - When no primary key is specified, the program adds a new column named _upload_index as a primary key. 
+  - When no primary key is specified, the program adds a new column named `py_upload_index` as a primary key. 
   - The default behavior when a multi-column primary key has changed. It is specified is to systematically upsert all records
   (update existing, add new primary key combinations). 
   The mode `--one-frame-per-primary-key` checks the last record corresponding to the columns designated by the `--group-by` argument. 

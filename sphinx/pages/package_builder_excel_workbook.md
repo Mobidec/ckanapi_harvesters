@@ -196,7 +196,7 @@ will reconstruct the same hierarchy as the upload directory, in a different loca
 When uploading data, the steps are the following:
 1) Read file: the selected method depends on the indicated format or, if specified, the custom __Read function__. 
 This function returns either a DataFrame or a list of dicts. The function can also return a generator of these objects.
-2) Add index: if no primary key is defined, an extra column named `_upload_index` is added to the DataFrame. 
+2) Add index: if no primary key is defined, an extra column named `py_upload_index` is added to the DataFrame. 
 3) Alter function: the __Upload function__ is called, if defined by user. 
 See below for function prototypes.
 4) Sort lines by the primary key, if it is defined by more than one column. 
