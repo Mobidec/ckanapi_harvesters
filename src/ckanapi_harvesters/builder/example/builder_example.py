@@ -13,9 +13,5 @@ def load_example_package() -> BuilderPackage:
     mdl = BuilderPackage.from_excel(example_package_xls)
     return BuilderPackage(src=mdl)
 
-def load_help_page_df(*, engine:str=None) -> pd.DataFrame:
-    with pd.ExcelFile(example_package_xls, engine=engine) as help_file:
-        help_df = pd.read_excel(help_file, sheet_name="help", header=None)
-        help_file.close()
-    return help_df
+from ckanapi_harvesters.builder.builder_package_1_basic import load_help_page_df
 

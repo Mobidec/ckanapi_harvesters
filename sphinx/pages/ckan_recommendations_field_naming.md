@@ -62,16 +62,11 @@ are recommended to be recognized by the CKAN data visualizations.
 Source: [DataStore Map](https://docs.ckan.org/en/2.9/maintaining/data-viewer.html#datastore-map)
 
 For more complex geometries, the CKAN visualization plugins support GeoJSON fields. 
-The recommended field name is `spatial` and it should contain a valid GeoJSON representation. 
-Source: [ckanext-spatial](https://docs.ckan.org/projects/ckanext-spatial/en/latest/spatial-search/#the-spatial-extra-field)
-
-Example of a GeoJSON geometry with latitude/longitude pairs representing a polygon:
-```json
-{
-  "type":"Polygon",
-  "coordinates":[[[2.05827, 49.8625],[2.05827, 55.7447], [-6.41736, 55.7447], [-6.41736, 49.8625], [2.05827, 49.8625]]]
-}
-```
+The recommended field name is `geometry` and it should contain a valid GeoJSON representation.
+The type of the field should be set to `geometry(GEOMETRY,4326)` for a column allowing any GeoJSON shape, in WGS84 EPSG coordinate system (recommended for display).
+The GeoJSON exchanges are made using the WKB hexadecimal representation by default.
+To enable PostGIS geographic queries using the SQL API, it is necessary to add the PostGIS extension to the CKAN PostgreSQL backend databases.
+This is not documented here.
 
 
 ## FileStore formats

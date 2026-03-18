@@ -256,7 +256,7 @@ class ProxyConfig:
         :return:
         """
         if parser is None:
-            parser = argparse.ArgumentParser(description="Proxy parameters initialization")
+            parser = argparse.ArgumentParser(description="Proxy parameters initialization", add_help=False)
         parser.add_argument("--proxy", type=str,
                             help="Proxy for HTTP and HTTPS")
         parser.add_argument("--http-proxy", type=str,

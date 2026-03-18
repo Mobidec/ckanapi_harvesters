@@ -47,7 +47,7 @@ class CkanActionResponse:
                     else:
                         self.error_message = response.content.decode()
             except Exception as json_error:
-                self.error_message = f"JSON decode error {json_error} & CKAN error {response.content.decode()}"
+                self.error_message = f"CKAN error (not JSON): \n {response.content.decode()}"
 
     def __len__(self):
         if self.len is None:

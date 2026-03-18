@@ -100,7 +100,7 @@ def run(ckan:CkanApi = None):
 
     # test updating the scores on a CKAN package
     policy_auto_store = policy.copy()
-    policy_auto_store.set_package_custom_fields(score="Data Policy Score", report="Data Policy Report")
+    policy_auto_store.output_custom_fields.set_metadata_policy_fields(score="Data Policy Score", report="Data Policy Report")
     ckan.policy_check("configuration", policy=policy_auto_store)
 
     # check all packages against policy

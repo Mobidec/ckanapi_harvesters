@@ -5,16 +5,17 @@
 """
 from abc import ABC
 from typing import List, Dict, Callable, Union, Any, Generator, Sequence, Tuple, Collection
-from collections import OrderedDict
 import time
-import copy
 from warnings import warn
 import argparse
 import shlex
 import os
+import io
+import traceback
 
 import requests
 from requests.auth import AuthBase
+from requests.exceptions import ProxyError, ReadTimeout
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
@@ -24,12 +25,12 @@ from ckanapi_harvesters.auxiliary.ckan_configuration import download_external_re
 from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir
 from ckanapi_harvesters.auxiliary.urls import urlsep, url_join
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, max_len_debug_print, assert_or_raise
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, max_len_debug_print, assert_or_raise, HTTP_STATUS_CODE_RETRY
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse, CkanActionError, CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import (MaxRequestsCountError, UnexpectedError, InvalidParameterError,
-                                                      ExternalUrlLockedError, UrlError, NoCAVerificationError, RequestError)
-from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
+                                                      ExternalUrlLockedError, UrlError, MaxAttemptsError, RequestError,
+                                                      HttpRetryCodeError)
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic, CkanApiDebug
 
@@ -90,6 +91,18 @@ class CkanApiBase(CkanApiABC):
     def __del__(self):
         self.disconnect()
         self.apikey.__del__()
+
+    # Context Manager behavior ----------
+    # to use CkanApi in a "with" statement
+    def __enter__(self):
+        self.disconnect()  # start new sessions
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.disconnect()
+        self.apikey.__del__()
+        return True
+    # -------------
 
     def __copy__(self):
         return self.copy()
@@ -230,6 +243,14 @@ class CkanApiBase(CkanApiABC):
         self.params.default_limit_read = limit_read
         self.params.default_limit_list = limit_read
 
+    def set_requests_delay(self, time_between_requests:int) -> None:
+        """
+        Set delay between requests in seconds.
+
+        :param time_between_requests: delay between requests in seconds
+        """
+        self.params.multi_requests_time_between_requests = time_between_requests
+
     def set_verbosity(self, verbosity:bool=True, verbose_extra:bool=None) -> None:
         """
         Enable/disable full verbose output
@@ -316,7 +337,8 @@ class CkanApiBase(CkanApiABC):
         :return:
         """
         if parser is None:
-            parser = argparse.ArgumentParser(description="CKAN API connection parameters initialization")
+            parser = argparse.ArgumentParser(description="CKAN API connection parameters initialization", add_help=False,
+                                             epilog="Example: --ckan-url https://demo.ckan.org/ --apikey-file __CKAN_API_KEY__.txt --owner-org demo-organization")
         parser.add_argument("--ckan-url", type=str,
                             help="CKAN URL")
         CkanApiKey._setup_cli_parser(parser)  # add arguments --apikey-file --apikey
@@ -324,6 +346,14 @@ class CkanApiBase(CkanApiABC):
         # parser.add_argument("--external-code", action="store_true",
         #                     help="Enable external code execution for builder (only enable for trusted sources)")
         return parser
+
+    def print_help_cli(self, display:bool=True) -> str:
+        parser = self._setup_cli_ckan_parser()
+        if display:
+            parser.print_help()
+        buffer = io.StringIO()
+        parser.print_help(buffer)
+        return buffer.getvalue()
 
     def _cli_ckan_args_apply(self, args: argparse.Namespace, *, base_dir:str=None, error_not_found:bool=True,
                              default_proxies:dict=None, proxy_headers:dict=None) -> None:
@@ -343,8 +373,8 @@ class CkanApiBase(CkanApiABC):
         self.apikey._cli_args_apply(args, base_dir=base_dir, error_not_found=error_not_found)
         self.params._cli_ckan_args_apply(args, base_dir=base_dir, error_not_found=error_not_found,
                                          default_proxies=default_proxies, proxy_headers=proxy_headers)
-        if args.default_limit is not None:
-            self.set_limits(args.default_limit)
+        # if args.default_limit is not None:
+        #     self.set_limits(args.default_limit)
         if args.verbose is not None:
             self.set_verbosity(args.verbose)
         # if args.external_code:
@@ -632,7 +662,7 @@ class CkanApiBase(CkanApiABC):
 
     def _api_action_request(self, action:str, *, method:RequestType, params:dict=None,
                             headers:dict=None, data:Union[dict,str,bytes]=None, json:dict=None, files:List[tuple]=None,
-                            timeout:float=None) -> CkanActionResponse:
+                            timeout:float=None, _attempt_counts:int=0, _attempt_traceback:List[str]=None) -> CkanActionResponse:
         """
         Send API action request and return response.
 
@@ -644,12 +674,16 @@ class CkanApiBase(CkanApiABC):
         :param files: files to upload in the request (only for POST method)
         :param headers: headers for the request (authentication tokens are added by the function)
         :param timeout: request timeout in seconds
+        :param _attempt_counts: internal argument in case of re-post of the request to count retries
+        :param _attempt_traceback: internal argument in case of re-post of the request to list error history
         :return:
         """
         if params is None: params = {}
         base = self._get_api_url("action")
         url = base + urlsep + action
         headers = self._prepare_headers(headers, include_ckan_auth=True)
+        if _attempt_traceback is None: _attempt_traceback = []
+        assert(_attempt_counts == len(_attempt_traceback))
         if self.params.verbose_request:
             if json is not None:
                 params_str = "json=" + str(json) + " / "
@@ -679,9 +713,36 @@ class CkanApiBase(CkanApiABC):
                 response = self.ckan_session.post(url, data=data, headers=headers, params=params, files=files, json=json,
                                                   timeout=timeout,
                                                   proxies=self.params.proxies, verify=self.params.ckan_ca, auth=self.params.proxy_auth)
+            if response.status_code in HTTP_STATUS_CODE_RETRY:
+                raise HttpRetryCodeError(response.status_code)
+            if self.params.action_requests_retry_always and not response.status_code == 200:
+                raise HttpRetryCodeError(response.status_code)
+            if self.params.action_requests_retry_always:
+                action_response = CkanActionResponse(response, self.params.dry_run)
+                if not action_response.success:
+                    raise action_response.default_error(self)
         except Exception as e:
+            _attempt_counts += 1
+            current_traceback = traceback.format_exc()
+            _attempt_traceback.append(f"Attempt {_attempt_counts}: \n{current_traceback}")
             self._error_print_debug_response(response, url=url, params=params, headers=headers, json=json, error=e)
-            raise e from e
+            is_retry_case = (self.params.action_requests_retry_always
+                             or response.status_code in HTTP_STATUS_CODE_RETRY
+                             or isinstance(e, ProxyError) or isinstance(e, ReadTimeout))
+            if (is_retry_case and response is not None and _attempt_counts <= self.params.max_requests_attempts):
+                # current_response = CkanActionResponse(response, self.params.dry_run)
+                if self.params.verbose_request_error:
+                    msg = f"Waiting to retry API call to {action} after server error (attempt {_attempt_counts}): {str(e)}"
+                    warn(msg)
+                if self.params.time_between_attempts > 0:
+                    time.sleep(self.params.time_between_attempts * _attempt_counts)
+                return self._api_action_request(action=action, method=method, params=params, headers=headers, data=data,
+                                                json=json, files=files, timeout=timeout,
+                                                _attempt_counts=_attempt_counts, _attempt_traceback=_attempt_traceback)
+            elif _attempt_counts > 1:
+                raise MaxAttemptsError(_attempt_traceback) from e
+            else:
+                raise e from e
         end = time.time()
         if self.params.verbose_request and not self.params.dry_run:
             print(f"{self.identifier} API action '{action}' done in {end-start} seconds. Received {len(response.content)} bytes")
@@ -698,9 +759,9 @@ class CkanApiBase(CkanApiABC):
         # function alias of _api_action_request
         return self._api_action_request(action=action, method=method, params=params, headers=headers, data=data, json=json, files=files)
 
-    def _url_request(self, path:str, *, method:RequestType, params:dict=None, headers:dict=None,
-                     data:dict=None, json:dict=None, files:List[tuple]=None,
-                     timeout:float=None) -> requests.Response:
+    def _ckan_url_request(self, path:str, *, method:RequestType, params:dict=None, headers:dict=None,
+                          data:dict=None, json:dict=None, files:List[tuple]=None,
+                          timeout:float=None) -> requests.Response:
         """
         Send request to server and return response.
 
@@ -805,6 +866,8 @@ class CkanApiBase(CkanApiABC):
         start = time.time()
         requests_count = 1
         n_received = 0
+        if self.params.multi_requests_time_between_requests > 0:
+            time.sleep(self.params.multi_requests_time_between_requests)
         if self.params.verbose_multi_requests:
             print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit} results from {api_fun.__name__}...")
         result_add: Union[pd.DataFrame, CkanActionResponse, Collection] = api_fun(params=params, limit=limit, offset=offset, **kwargs)

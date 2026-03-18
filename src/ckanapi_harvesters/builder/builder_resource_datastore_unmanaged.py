@@ -7,7 +7,7 @@ This file implements functions to initiate a DataStore without uploading any dat
 """
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, List, Callable, Any, Tuple, Union, Set
+from typing import Dict, List, Callable, Any, Tuple, Union, Set, Generator
 import os
 from io import StringIO
 from warnings import warn
@@ -16,9 +16,11 @@ import copy
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
-from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreFile, num_rows_patch_first_upload_partial
+from ckanapi_harvesters.builder.builder_resource_datastore import num_rows_patch_first_upload_partial
+from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 # from ckanapi_harvesters.builder.builder_resource import BuilderResourceUnmanagedABC
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 from ckanapi_harvesters.auxiliary.ckan_errors import NotMappedObjectNameError, DataStoreNotFoundError
 from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, IncompletePatchError
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo
@@ -31,8 +33,9 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
     Class representing a DataStore (resource metadata and fields metadata) without managing its contents during the upload process.
     """
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+                 resource_id:str=None, download_url:str=None, options_string:str=None, base_dir:str=None):
+        super().__init__(name=name, format=format, description=description, resource_id=resource_id,
+                         download_url=download_url, options_string=options_string, base_dir=base_dir)
         self.reupload_on_update = False
         self.reupload_if_needed = True
         self.initiate_by_user:bool = False
@@ -51,13 +54,24 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
         return dest
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
-        super()._load_from_df_row(row=row)
+        super()._load_from_df_row(row=row, base_dir=base_dir)
         self.file_name = self.name
 
-    def get_sample_file_path(self, resources_base_dir: str) -> None:
+    def get_sample_file_path(self, resources_base_dir: str, ckan:Union[CkanApi,None]=None, file_index:int=0) -> None:
         return None
 
-    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True) -> Union[pd.DataFrame,None]:
+    def init_local_files_list(self, resources_base_dir:str, cancel_if_present:bool=True, **kwargs) -> List[str]:
+        self.file_size = 0
+        self.local_file_list = []
+        self.local_file_size = []
+        self.local_file_size_sum = 0
+        return []
+
+    def get_local_df_chunk_generator(self, resources_base_dir:str, ckan:CkanApi, **kwargs) -> Generator[Tuple[GeneralDataFrame,int], None, None]:
+        if False:
+            yield None
+
+    def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True, file_index:int=0, allow_chunks:bool=True, **kwargs) -> Union[pd.DataFrame,None]:
         return None
 
     @staticmethod
@@ -74,7 +88,8 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
 
     def patch_request(self, ckan: CkanApi, package_id: str, *,
                       df_upload: pd.DataFrame=None,
-                      reupload: bool = None, resources_base_dir:str=None) -> CkanResourceInfo:
+                      reupload: bool = None, override_ckan:bool=False,
+                      resources_base_dir:str=None) -> CkanResourceInfo:
         """
         Specific implementation of patch_request which does not upload any data and only updates the fields currently present in the database
         :param resources_base_dir:
@@ -83,6 +98,7 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
         :param reupload:
         :return:
         """
+        self._merge_resource_attributes(override_ckan=override_ckan)
         if df_upload is None:
             df_upload = self.default_df_upload
         if reupload is None: reupload = self.reupload_on_update and df_upload is not None
@@ -93,36 +109,43 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
                 if df_download is None:
                     assert_or_raise(resource_id is None, RuntimeError("Unexpected: resource_id should be None"))
                     raise NotMappedObjectNameError(self.name)
-                current_fields = set(df_download.columns)
+                current_df_fields = set(df_download.columns)
             except NotMappedObjectNameError as e:
                 df_download = None
-                current_fields = set()
+                current_df_fields = set()
             except DataStoreNotFoundError as e:
                 df_download = None
-                current_fields = set()
+                current_df_fields = set()
             df_upload_partial, df_upload_upsert = None, None
             data_cleaner_fields = None
             data_cleaner_index = set()
         else:
-            df_upload, data_cleaner_fields, data_cleaner_index = self._apply_data_cleaner_before_patch(ckan, df_upload, reupload=reupload)
+            df_upload, data_cleaner_fields, data_cleaner_index = self._apply_data_cleaner_before_patch(ckan, df_upload, 
+                                                                       reupload=reupload, override_ckan=override_ckan)
             df_download = df_upload
-            current_fields = set(df_upload.columns)
-            if num_rows_patch_first_upload_partial is not None and len(df_upload) > num_rows_patch_first_upload_partial:
-                df_upload_partial = df_upload.iloc[:num_rows_patch_first_upload_partial]
-                df_upload_upsert = df_upload.iloc[num_rows_patch_first_upload_partial:]
+            current_df_fields = set(df_upload.columns)
+            if num_rows_patch_first_upload_partial is not None:
+                num_rows_patch_first_upload_partial_apply = min(num_rows_patch_first_upload_partial, ckan.params.default_limit_write)
+            else:
+                num_rows_patch_first_upload_partial_apply = None
+            if num_rows_patch_first_upload_partial_apply is not None and len(df_upload) > num_rows_patch_first_upload_partial_apply:
+                df_upload_partial = df_upload.iloc[:num_rows_patch_first_upload_partial_apply]
+                df_upload_upsert = df_upload.iloc[num_rows_patch_first_upload_partial_apply:]
             else:
                 df_upload_partial, df_upload_upsert = df_upload, None
         empty_datastore = df_download is None or len(df_download) == 0
-        current_fields -= {datastore_id_col}  # _id does not require documentation
+        current_df_fields -= {datastore_id_col}  # _id does not require documentation
         execute_datastore_create = df_upload_partial is not None or not (self.initiate_by_user and (df_download is None or df_download.empty))
         aliases = self._get_alias_list(ckan)
-        self._check_necessary_fields(current_fields, raise_error=False, empty_datastore=empty_datastore)
-        self._check_undocumented_fields(current_fields)
-        primary_key, indexes = self._get_primary_key_indexes(data_cleaner_index, current_fields=current_fields,
+        self._check_necessary_fields(current_df_fields, raise_error=False, empty_datastore=empty_datastore)
+        self._check_undocumented_fields(current_df_fields)
+        primary_key, indexes = self._get_primary_key_indexes(data_cleaner_index, current_df_fields=current_df_fields,
                                                              error_missing=False, empty_datastore=empty_datastore)
-        fields_update = self._get_fields_update(ckan, current_fields, data_cleaner_fields, reupload=reupload)
+        fields_update = self._get_fields_update(ckan, current_df_fields=current_df_fields, data_cleaner_fields=data_cleaner_fields,
+                                                reupload=reupload, override_ckan=override_ckan)
         fields = list(fields_update.values()) if len(fields_update) > 0 else None
-        resource_info = ckan.resource_create(package_id, name=self.name, format=self.format, description=self.description, state=self.state,
+        resource_info = ckan.resource_create(package_id, name=self.name, format=self.resource_attributes.format, description=self.resource_attributes.description,
+                                             state=self.resource_attributes.state,
                                              create_default_view=self.create_default_view,
                                              cancel_if_exists=True, update_if_exists=True, reupload=reupload and df_upload_partial is not None,
                                              datastore_create=execute_datastore_create, records=df_upload_partial, fields=fields,
@@ -130,11 +153,12 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
         reupload = reupload or resource_info.newly_created
         resource_id = resource_info.id
         self.known_id = resource_id
-        self._compare_fields_to_datastore_info(resource_info, current_fields, ckan)
+        self._compare_fields_to_datastore_info(resource_info, current_df_fields, ckan)
         if df_upload_upsert is not None and reupload:
             if reupload:
                 ckan.datastore_upsert(df_upload_upsert, resource_id, method=UpsertChoice.Insert,
-                                      always_last_condition=None, data_cleaner=self.data_cleaner_upload)
+                                      always_last_condition=None, data_cleaner=self.data_cleaner_upload,
+                                      progress_callback=self.progress_callback)
             else:
                 # case where a reupload was needed but is not permitted by self.reupload_if_needed
                 msg = f"Did not upload the remaining part of the resource {self.name}."

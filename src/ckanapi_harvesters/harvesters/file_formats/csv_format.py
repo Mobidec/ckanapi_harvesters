@@ -14,29 +14,66 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import df_download_to_csv_kwarg
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 
 
+
 class CsvFileFormat(FileFormatABC):
-    default_csv_file_upload_read_csv_kwargs = dict(dtype=str, keep_default_na=False, sep=None, engine='python')
+    default_read_kwargs = dict(dtype=str, keep_default_na=False, sep=None, engine='python')  # read
+    default_write_kwargs = df_download_to_csv_kwargs  # write
 
-    def __init__(self, read_csv_kwargs: dict=None, to_csv_kwargs: dict=None) -> None:
-        if read_csv_kwargs is None: read_csv_kwargs = CsvFileFormat.default_csv_file_upload_read_csv_kwargs
-        if to_csv_kwargs is None: to_csv_kwargs = df_download_to_csv_kwargs
-        self.read_csv_kwargs:dict = read_csv_kwargs
-        self.to_csv_kwargs:dict = to_csv_kwargs
+    # read -------------------
+    def read_by_chunks_allowed(self) -> bool:
+        return True
 
-    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
-        return pd.read_csv(file_path, **self.read_csv_kwargs)
+    def _get_read_kwargs(self, allow_chunks:bool=True) -> dict:
+        kwargs = super()._get_read_kwargs(allow_chunks=allow_chunks)
+        if self.read_by_chunks_enabled(allow_chunks=allow_chunks):
+            kwargs["chunksize"] = self.chunk_size
+        else:
+            kwargs["chunksize"] = None
+        return kwargs
 
-    def read_buffer(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
-        return pd.read_csv(buffer, **self.read_csv_kwargs)
+    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
+        read_kwargs = self._get_read_kwargs(allow_chunks=allow_chunks)
+        return pd.read_csv(file_path, **read_kwargs)
 
+    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+        read_kwargs = self._get_read_kwargs(allow_chunks=False)
+        return pd.read_csv(buffer, **read_kwargs)
+
+    # write ------------------
     def write_file(self, df: pd.DataFrame, file_path: str, fields: Union[Dict[str, CkanField],None]) -> None:
-        df.to_csv(file_path, index=False, **self.to_csv_kwargs)
+        write_kwargs = self._get_write_kwargs()
+        df.to_csv(file_path, index=False, **write_kwargs)
 
     def write_in_memory(self, df: pd.DataFrame, fields: Union[Dict[str, CkanField],None]) -> bytes:
         buffer = io.StringIO()
-        df.to_csv(buffer, index=False, **self.to_csv_kwargs)
+        write_kwargs = self._get_write_kwargs()
+        df.to_csv(buffer, index=False, **write_kwargs)
         return buffer.getvalue().encode("utf8")
 
-    def copy(self):
-        return CsvFileFormat(self.read_csv_kwargs, self.to_csv_kwargs)
+    def append_allowed(self) -> bool:
+        return True
+
+    def append_file(self, df: Union[pd.DataFrame, ListRecords], file_path: str,
+                    fields: Union[Dict[str, CkanField], None]) -> None:
+        write_kwargs = self._get_write_kwargs()
+        df.to_csv(file_path, index=False, mode='a', **write_kwargs)
+
+    def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
+        buffer = io.StringIO(buffer.decode("utf8"))
+        write_kwargs = self._get_write_kwargs()
+        df.to_csv(buffer, index=False, mode='a', **write_kwargs)
+        return buffer.getvalue().encode("utf8")
+
+    # misc ------------------
+    def copy(self, dest=None):
+        if dest is None:
+            dest = CsvFileFormat(self.options_string, read_kwargs=self.read_kwargs, write_kwargs=self.write_kwargs)
+        super().copy(dest=dest)
+        return dest
+
+
+if __name__ == '__main__':
+    sample_instance = CsvFileFormat("--read-kwargs compression=gzip header=10")
+    print("File format reader CLI-format options:")
+    sample_instance.print_help_cli()
 

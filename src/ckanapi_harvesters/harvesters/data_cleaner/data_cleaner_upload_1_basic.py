@@ -31,6 +31,8 @@ from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanData
 
 non_finite_authorized_types = {"numeric", "float4", "float8", "float2"}
 real_number_types = non_finite_authorized_types
+int_types = {"int", "int4", "int8", "int2"}
+no_empty_str_types = real_number_types.union(int_types).union({"bool", "timestamp", "date"})
 # see also: ckan_api_2_readonly ckan_dtype_mapper
 dtype_ckan_mapper = {
     "float64": "numeric",
@@ -39,11 +41,36 @@ dtype_ckan_mapper = {
 }
 
 
-def _pd_series_type_detect(values: pd.Series, test_type:Type):
+def _pd_series_type_instance_detect(values: pd.Series, test_type:Type):
     """
     This function checks that the test_type matches all rows which are not NaN/None/NA in a pandas Series.
     """
     return values.map(lambda x: isinstance(x, test_type)).where(values.notna(), True).all()
+
+def _pd_str_series_type_detect(values: pd.Series) -> str:
+    # remove NA values
+    series = values.where(values.notna(), None)
+    if len(series) == 0:
+        return "text"  # could not determine data type
+
+    # Check for booleans
+    if series.str.strip().str.lower().isin(['true', 'false']).all():
+        return 'bool'
+
+    # Check for integers
+    float_values = pd.to_numeric(series, errors='coerce', downcast="float")
+    if float_values.apply(float.is_integer).all():
+        return 'int'
+
+    # Check for floats
+    if float_values.notna().all():
+        return 'float'
+
+    # Check for timestamps
+    if pd.to_datetime(series, errors='coerce').notna().all():
+        return 'timestamp'
+
+    return 'text'
 
 
 class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
@@ -57,6 +84,11 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
         self.param_replace_nan:bool = True  # option to replace non-authorized nan values by None
         self.param_round_values:bool = True  # option to round values when treating an integer field
         self.param_rename_fields_underscore:bool = True  # option to rename fields beginning with an underscore (in the subs step)
+        self.param_empty_str_digital: bool = True  # option to replace empty strings with None for digital column types (real, int, timestamp, bool)
+
+    @staticmethod
+    def get_class_keyword() -> str:
+        return "Basic"
 
     def copy(self, dest=None) -> "CkanDataCleanerUploadBasic":
         if dest is None:
@@ -67,6 +99,7 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
         dest.param_round_values = self.param_round_values
         dest.param_rename_fields_underscore = self.param_rename_fields_underscore
         dest.param_field_subs = self.param_field_subs.copy()
+        self.param_empty_str_digital = self.param_empty_str_digital
         return dest
 
     ## field type detection
@@ -81,19 +114,24 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
                     field_info = self._detect_standard_field_bypass(field_name, values)
                     if field_info is not None:
                         return field_info
-                    elif _pd_series_type_detect(values, str):
-                        return CkanField(field_name, "text")
-                    elif _pd_series_type_detect(values, bool):
+                    elif _pd_series_type_instance_detect(values, str):
+                        data_type = _pd_str_series_type_detect(values)
+                        return CkanField(field_name, data_type)
+                    elif _pd_series_type_instance_detect(values, bool):
                         return CkanField(field_name, "bool")
-                    elif (_pd_series_type_detect(values, dict)
-                          or _pd_series_type_detect(values, list)):
+                    elif (_pd_series_type_instance_detect(values, dict)
+                          or _pd_series_type_instance_detect(values, list)):
                         if self.param_json_as_text:
                             return CkanField(field_name, "text")
                         else:
                             return CkanField(field_name, "json")
-                    elif (_pd_series_type_detect(values, datetime.datetime)
-                          or _pd_series_type_detect(values, pd.Timestamp)):
+                    elif (_pd_series_type_instance_detect(values, datetime.datetime)
+                          or _pd_series_type_instance_detect(values, pd.Timestamp)):
                         return CkanField(field_name, "timestamp")
+                    elif _pd_series_type_instance_detect(values, int):
+                        return CkanField(field_name, "int")
+                    elif _pd_series_type_instance_detect(values, float):
+                        return CkanField(field_name, "float")
                     else:
                         return self._detect_non_standard_field(field_name, values)
                 elif dtype in dtype_ckan_mapper.keys():
@@ -238,6 +276,12 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
                         return value.isoformat(sep=ckan_timestamp_sep)
                 elif not field_data_type == "timestamp":
                     self.field_changes[field_name] = CkanField(field_name, "timestamp")
+                    if self.param_cast_types:
+                        return value.isoformat(sep=ckan_timestamp_sep)
+            elif isinstance(value, str) and value == "":
+                if field_data_type in no_empty_str_types:
+                    if self.param_empty_str_digital:
+                        new_value = None
             else:
                 new_value = self._replace_non_standard_value(value, field, field_data_type=field_data_type)
         return new_value
@@ -277,13 +321,13 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
             for column in records.columns:
                 field = fields[column]
                 # records[column] = records[column].apply(self.clean_value_field, field=field)
-                for index, value in zip(records.index, records[column]):
+                for value_loc, value in zip(records.index, records[column]):
                     self._new_columns_in_row = {}
-                    records.loc[index, column] = self.clean_value_field(value, field=field)
+                    records.loc[value_loc, column] = self.clean_value_field(value, field=field)
                     for path, new_value in self._new_columns_in_row.items():
                         if path in self.field_subs_path.keys():
                             new_field = self.field_subs_path[path]
-                            records.loc[index, new_field] = new_value
+                            records.loc[value_loc, new_field] = new_value
         else:
             for row in records:
                 self._new_columns_in_row = {}
@@ -385,6 +429,17 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
         self._extra_checks(records, fields)
         return records
 
+
+class CkanDataCleanerUploadDigitalColumns(CkanDataCleanerUploadBasic):
+    def __init__(self):
+        super().__init__()
+        self.param_replace_nan = False
+        self.param_round_values = False
+        self.param_rename_fields_underscore = False
+
+    @staticmethod
+    def get_class_keyword() -> str:
+        return "DigitalColumns"
 
 
 def default_cleaner() -> CkanDataCleanerABC:

@@ -11,9 +11,11 @@ from typing import Dict, List, Iterable, Callable, Any, Tuple, Generator, Set, U
 import numpy as np
 import pandas as pd
 
-from ckanapi_harvesters.builder.builder_resource_datastore import DataSchemeConversion
+from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
+from ckanapi_harvesters.auxiliary.ckan_model import CkanField
+from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_index_col_name
 from ckanapi_harvesters.ckan_api import CkanApi
 
 
@@ -90,8 +92,8 @@ class RequestMapperABC(DataSchemeConversion, ABC):
         for file_query in self.download_file_query_list(ckan=ckan, resource_id=resource_id):
             yield file_query
 
-    def download_file_query(self, ckan: CkanApi, resource_id: str, file_query:dict) -> pd.DataFrame:
-        return ckan.datastore_search(resource_id=resource_id, **file_query, search_all=True)
+    def download_file_query(self, ckan: CkanApi, resource_id: str, file_query:dict) -> Generator[pd.DataFrame, Any, None]:
+        return ckan.datastore_search_generator(resource_id=resource_id, **file_query, search_all=True)
 
 
 class RequestFileMapperABC(RequestMapperABC, ABC):
@@ -157,8 +159,8 @@ class RequestFileMapperLimit(RequestFileMapperABC):
         row_count = ckan.datastore_search_row_count(resource_id)
         return [{"offset": self.limit*counter, "limit": self.limit} for counter in range(row_count // self.limit + 1)]
 
-    def download_file_query(self, ckan: CkanApi, resource_id: str, file_query:dict) -> pd.DataFrame:
-        return ckan.datastore_search(resource_id=resource_id, offset=file_query["offset"], limit=file_query["limit"], search_all=True)
+    def download_file_query(self, ckan: CkanApi, resource_id: str, file_query:dict) -> Generator[pd.DataFrame, Any, None]:
+        return ckan.datastore_search_generator(resource_id=resource_id, offset=file_query["offset"], limit=file_query["limit"], search_all=True)
 
 
 class RequestFileMapperIndexKeys(RequestFileMapperABC):
@@ -177,6 +179,7 @@ class RequestFileMapperIndexKeys(RequestFileMapperABC):
         self.sort_by_keys: Union[List[str],None] = None      # field to order the document
         if sort_by_keys is not None:
             self.sort_by_keys = sort_by_keys
+        self.upload_add_index_column = ""  # override
 
     def get_necessary_fields(self) -> Set[str]:
         fields = set(self.group_by_keys)
@@ -184,10 +187,14 @@ class RequestFileMapperIndexKeys(RequestFileMapperABC):
             fields = fields.union(set(self.sort_by_keys))
         return fields
 
-    def df_upload_alter(self, df_local: pd.DataFrame, file_name:str=None, mapper_kwargs:dict=None, **kwargs) -> pd.DataFrame:
+    def df_upload_alter(self, df_local: Union[pd.DataFrame, List[dict], Any], *,
+                        total_lines_read: int, fields:Dict[str, CkanField], file_name:str,
+                        mapper_kwargs:dict=None, **kwargs) -> pd.DataFrame:
         # overload of df_upload_alter calling self.df_upload_fun
         # order dataframes before sending to database in order to be able to restart transfer from last transmitted index
-        df_database = super().df_upload_alter(df_local, file_name=file_name, mapper_kwargs=mapper_kwargs, **kwargs)
+        df_database = super().df_upload_alter(df_local, fields=fields,
+                                              total_lines_read=total_lines_read, file_name=file_name,
+                                              mapper_kwargs=mapper_kwargs, **kwargs)
         if self.sort_by_keys is not None:
             if self.df_upload_fun is None:
                 df_database = df_database.copy()
@@ -227,6 +234,8 @@ class RequestFileMapperIndexKeys(RequestFileMapperABC):
             if len(i_restart) == 1 and len(i_restart[0]) == 1:
                 i_restart_py = int(i_restart[0][0])
                 return i_restart_py, i_restart_py < len(df_upload), df_last_row.attrs["total"], df_last_row
+            elif len(i_restart) == 0:
+                return 0, True, df_last_row.attrs["total"], df_last_row
             else:
                 msg = "Multiple results obtained when querying the last inserted index"
                 warn(msg)
@@ -252,11 +261,16 @@ class RequestFileMapperIndexKeys(RequestFileMapperABC):
 
 
 def default_file_mapper_from_primary_key(primary_key:List[str]=None, file_query_list: Iterable[Tuple[str,dict]]=None) -> RequestFileMapperABC:
-    if primary_key is None or len(primary_key) <= 1:
-        if file_query_list is not None:
-            return RequestFileMapperUser(file_query_list)
-        else:
-            return RequestFileMapperLimit()
+    if file_query_list is not None:
+        mapper = RequestFileMapperUser(file_query_list)
     else:
-        return RequestFileMapperIndexKeys(group_by_keys=primary_key[:-1], sort_by_keys=[primary_key[-1]])
+        mapper = RequestFileMapperLimit()
+    if primary_key is not None:
+        if (len(primary_key) == 1 and datastore_default_index_col_name is not None
+                and primary_key[0].strip() == datastore_default_index_col_name):
+            # user can explicitly specify he wants to rely on the index created by default
+            mapper.upload_upload_index_column = datastore_default_index_col_name
+        elif len(primary_key) > 0:
+            mapper.upload_upload_index_column = ""  # do not create an extra index if the primary key is defined
+    return mapper
 

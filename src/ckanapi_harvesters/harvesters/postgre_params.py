@@ -84,3 +84,10 @@ class TableParamsPostgre(TableParams): #, DatasetParamsPostgreSchema):
         if args.schema is not None:
             self.schema = args.schema
 
+
+if __name__ == '__main__':
+    sample_instance = TableParamsPostgre()
+    print("PostgreSQL harvester CLI-format options:")
+    sample_instance.print_help_cli()
+
+

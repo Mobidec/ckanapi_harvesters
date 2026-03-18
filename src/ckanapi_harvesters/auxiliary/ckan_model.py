@@ -19,8 +19,6 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanFieldInternalAttrs
 from ckanapi_harvesters.auxiliary.ckan_errors import IntegrityError, MissingIdError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import dict_recursive_update
 
-ckan_package_name_re = "^[0-9a-z-_]*$"
-
 ## Enumerations ------------------
 class UpsertChoice(IntEnum):
     Insert = 1
@@ -279,8 +277,9 @@ class CkanField(CkanConfigurableObjectABC):
     def copy(self) -> "CkanField":
         return copy.deepcopy(self)
 
-    def merge(self, new_values):
-        dest = self.copy()
+    def merge(self, new_values, dest:"CkanField"=None):
+        if dest is None:
+            dest = self.copy()
         if new_values.name is not None:
             dest.name = new_values.name
         if new_values.data_type is not None:
@@ -300,6 +299,9 @@ class CkanField(CkanConfigurableObjectABC):
         dest.internal_attrs = self.internal_attrs.merge(new_values.internal_attrs)
         dest.details = dict_recursive_update(self.details, new_values.details)
         return dest
+
+    def update_missing(self, other: "CkanField"):
+        self.merge(new_values=other, dest=self)
 
     def __eq__(self, other) -> bool:
         equality = True
@@ -423,21 +425,30 @@ class CkanAliasInfo:
 
 ## Users and groups ------------------
 class CkanUserInfo:
-    def __init__(self, d: dict):
-        self.id: str = d["id"]
-        self.name: str = d["name"]
-        self.display_name: str = d["display_name"]
-        self.fullname: str = d["fullname"]
-        self.about: str = d["about"]
-        self.sysadmin: bool = d["sysadmin"]
-        self.state: CkanState = CkanState.from_str(d["state"])
-        self.email_hash: Union[str,None] = d["email_hash"] if "email_hash" in d.keys() else None  # MD5 hash
-        self.created: Union[datetime.datetime, None] = datetime.datetime.fromisoformat(
-            d["created"]) if "created" in d.keys() else None
-        self.last_active: Union[datetime.datetime, None] = datetime.datetime.fromisoformat(
-            d["last_active"]) if "last_active" in d.keys() else None
+    def __init__(self, d: dict = None):
+        self.id: Union[str,None] = None
+        self.name: Union[str,None] = None
+        self.display_name: Union[str,None] = None
+        self.fullname: Union[str,None] = None
+        self.about: Union[str,None] = None
+        self.sysadmin: bool = False
+        self.state: Union[CkanState,None] = None
+        self.email_hash: Union[str,None] = None
+        self.created: Union[datetime.datetime, None] = None
+        self.last_active: Union[datetime.datetime, None] = None
+        if d is not None:
+            self.id = d["id"]
+            self.name = d["name"]
+            self.display_name = d["display_name"]
+            self.fullname = d["fullname"]
+            self.about = d["about"]
+            self.sysadmin = d["sysadmin"]
+            self.state = CkanState.from_str(d["state"])
+            self.email_hash = d["email_hash"] if "email_hash" in d.keys() else None  # MD5 hash
+            self.created = datetime.datetime.fromisoformat(d["created"]) if "created" in d.keys() else None
+            self.last_active = datetime.datetime.fromisoformat(d["last_active"]) if "last_active" in d.keys() else None
         self.organizations: Union[None,List[str]] = None  # used by consolidate (detailed_report)
-        self.details: dict = d
+        self.details: Union[dict,None] = d
 
     def __str__(self):
         return f"User '{self.name}' ({self.id})"
@@ -594,7 +605,7 @@ class CkanLicenseInfo:
         self.family:str = d["family"]
         self.domain:CkanLicenseDomain = CkanLicenseDomain.from_bool(domain_software=_bool_from_string(d["domain_software"]),
                                                         domain_data=_bool_from_string(d["domain_data"]), domain_content=_bool_from_string(d["domain_content"]))
-        self.is_generic:bool = _bool_from_string(d["is_generic"])
+        self.is_generic:Union[bool,None] = _bool_from_string(d["is_generic"]) if "is_generic" in d.keys() else None
         self.url:str = d["url"]
         self.details:dict = d
 
@@ -722,14 +733,32 @@ class CkanResourceInfo(CkanConfigurableObjectABC):
             self.views[view_info_update.id] = view_info_update
         self.view_is_full_list = self.view_is_full_list or view_list  # bool indicating if the list comes from full view list API
 
-    def update(self, refresh) -> None:
-        refresh: CkanResourceInfo
+    def update(self, refresh: "CkanResourceInfo") -> None:
         self.id = refresh.id
         self.name = refresh.name
         self.state = refresh.state
+        self.format = refresh.format
+        self.description = refresh.description
         self.package_id = refresh.package_id
         self.datastore_active = refresh.datastore_active
         self.details = refresh.details
+
+    def update_missing(self, refresh: "CkanResourceInfo") -> None:
+        if self.id is None:
+            self.id = refresh.id
+        if self.name is None:
+            self.name = refresh.name
+        if self.state is None:
+            self.state = refresh.state
+        if self.format is None:
+            self.format = refresh.format
+        if self.description is None:
+            self.description = refresh.description
+        if self.details is not None:
+            if refresh.details is not None:
+                self.details.update(refresh.details)
+        else:
+            self.details = refresh.details
 
     def to_dict(self, include_details:bool=True) -> dict:
         d = dict()
@@ -855,8 +884,11 @@ class CkanPackageInfo(CkanConfigurableObjectABC):
                     self.resources_id_index_counts[resource_info.name] += 1
             self.organization_info = None
             if "organization" in d.keys():
-                self.organization_info = CkanOrganizationInfo(d["organization"])
-                assert_or_raise(self.organization_info.id == d["owner_org"], IntegrityError("Unexpected: organization != owner_org"))
+                if d["organization"] is not None:
+                    self.organization_info = CkanOrganizationInfo(d["organization"])
+                    assert_or_raise(self.organization_info.id == d["owner_org"], IntegrityError("Unexpected: organization != owner_org"))
+                else:
+                    assert_or_raise(d["owner_org"] is None, IntegrityError("Unexpected: organization != owner_org"))
             else:
                 assert_or_raise("owner_org" not in d.keys() or d["owner_org"] == "", IntegrityError("Unexpected: organization is not present but owner_org was found"))
             self.groups = [CkanGroupInfo(info) for info in d["groups"]]
@@ -982,15 +1014,4 @@ class CkanOrganizationInfo:
     @staticmethod
     def from_dict(d:dict) -> "CkanOrganizationInfo":
         return CkanOrganizationInfo(d)
-
-
-class PackageShortDescriptor:
-    """
-    Class to define more stable names to describe a package
-    """
-    def __init__(self, package_name:str, owner_org:str, resource_names: Dict[str,str]):
-        self.name: str = package_name
-        self.owner_org: str = owner_org
-        self.resource_names: Dict[str,str] = resource_names
-
 

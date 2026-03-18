@@ -3,7 +3,7 @@
 """
 Data model to represent a CKAN database architecture
 """
-from typing import Iterable, Union, Set, Tuple, final
+from typing import Iterable, Union, Tuple, Any
 from enum import IntEnum
 import json
 import numbers
@@ -17,6 +17,7 @@ import pandas as pd
 import numpy as np
 
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir, make_path_relative
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame, ListRecords
 
 
 ckan_package_name_re = "^[0-9a-z-_]*$"
@@ -73,10 +74,18 @@ class CkanFieldInternalAttrs:
     @staticmethod
     def _setup_cli_ckan_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="CKAN internal field parameters")
+            parser = argparse.ArgumentParser(description="CKAN internal field parameters", add_help=False)
         parser.add_argument("--epsg-src", type=int,
                             help="Source EPSG (geographic coordinate system) for the column, used by data_cleaner")
         return parser
+
+    def print_help_cli(self, display:bool=True) -> str:
+        parser = self._setup_cli_ckan_parser()
+        if display:
+            parser.print_help()
+        buffer = io.StringIO()
+        parser.print_help(buffer)
+        return buffer.getvalue()
 
     def _cli_ckan_args_apply(self, args: argparse.Namespace) -> None:
         if args.epsg_src:
@@ -103,6 +112,15 @@ class CkanFieldInternalAttrs:
 
 
 ## Requests ------------------
+HTTP_STATUS_CODE_RETRY = {500,  # Internal Server Error
+                          502,  # Bad Gateway
+                          503,  # Service Unavailable
+                          504,  # Gateway Timeout
+                          429,  # Too Many Requests
+                          408,  # Request Timeout
+                          499,  # Client Closed Request (nginx)
+                          }
+
 json_headers = {"Content-Type": "application/json", 'Accept': 'text/plain'}
 max_len_debug_print = 5000
 
@@ -243,7 +261,9 @@ def dict_recursive_update(d:dict,u:dict) -> dict:
     return d
 
 def _bool_from_string(string:str, default_value:Union[bool,None]=False) -> Union[bool,None]:
-    if isinstance(string, bool):
+    if string is None:
+        return None
+    elif isinstance(string, bool):
         return string
     else:
         keyword = string.lower().strip()
@@ -254,7 +274,7 @@ def _bool_from_string(string:str, default_value:Union[bool,None]=False) -> Union
         else:
             return default_value
 
-def _string_from_element(element: pd.Series, empty_value=None) -> str:
+def _string_from_element(element: pd.Series, empty_value=None, strip:bool=False) -> str:
     if isinstance(element, pd.Series):
         value = element.values[0]
     else:
@@ -263,6 +283,8 @@ def _string_from_element(element: pd.Series, empty_value=None) -> str:
             or (isinstance(value, numbers.Number) and np.isnan(value))
             or (isinstance(value, str) and len(value) == 0)):
         return empty_value
+    elif strip:
+        return value.strip()
     else:
         return value
 
@@ -297,3 +319,55 @@ def to_jsons_indent_lists_single_line(obj, *args, reduced_size:bool=False, **kwa
         # output = re.sub(r"(?<=\{)[^\[\]\{\}]+(?=\})", _jsons_repl_func, output)
         return output
 
+## argparse
+def str_to_python_value(value:str) -> Any:
+    if value in ["True", "true"]:
+        return True
+    elif value in ["False", "false"]:
+        return False
+    elif value in ["None", "none"]:
+        return None
+    else:
+        try:
+            return int(value)
+        except ValueError:
+            try:
+                return float(value)
+            except ValueError:
+                return value
+
+def import_args_kwargs_dict(args_kwargs:str) -> dict:
+    kwargs_dict = {}
+    if args_kwargs is not None:
+        for item in args_kwargs:
+            if "=" in item:
+                key, value = item.split("=")
+                kwargs_dict[key] = str_to_python_value(value)
+            else:
+                raise ValueError(f"Invalid format for keyword argument: {item}. Use key=value format.")
+    return kwargs_dict
+
+
+class FileChunkDataFrame:
+    """
+    Class to hold a chunk of a DataFrame of a file (only for DataStores), with the file name, index and an indication of the position in the file
+    """
+    def __init__(self, df: Union[GeneralDataFrame,None], file_path: str, file_index: int, chunk_index: int, file_position: int, read_line_counter: int) -> None:
+        """
+        :param df: the data of the file chunk (leave None if not loaded)
+        :param file_path: the path to the source
+        :param file_index: the index of the file in the list
+        :param chunk_index: counter of chunks read within the file
+        :param file_position: the position within the file itself (approximation)
+        """
+        self.df: Union[GeneralDataFrame,None] = df
+        if isinstance(df, pd.DataFrame) or isinstance(df, ListRecords):
+            df.attrs["source"] = file_path
+            df.attrs["read_line_counter"] = read_line_counter
+            df.attrs["chunk_index"] = chunk_index
+        self.file_path: str = file_path
+        self.file_index: int = file_index
+        self.chunk_index: int = chunk_index
+        self.file_position: int = file_position
+        self.is_first_chunk: bool = chunk_index == 0  # boolean indicating if the chunk is the first chunk of the file or not
+        self.read_line_counter: int = read_line_counter  # number of lines read since the beginning of reading of the resource (including the current DataFrame)

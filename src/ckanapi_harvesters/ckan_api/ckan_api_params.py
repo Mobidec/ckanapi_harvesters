@@ -45,8 +45,11 @@ class CkanApiParamsBasic:
         # limits
         self.default_limit_list:Union[int,None] = 100   # limit the number of entries per list response (used as default value)
         self.default_limit_read:Union[int,None] = 5000  # limit the number of entries per response (used as default value)
+        self.max_requests_attempts:int = 3  # when performing an API action, retry depending on the received HTTP error code
+        self.action_requests_retry_always:bool = False  # when an error occurred during an API action request, systematically retry
         self.max_requests_count:int = 0  # when automating multiple requests, the number of requests is limited by this parameter. 0 means no limit.
         # timeouts
+        self.time_between_attempts:float = 10  # when a retry was decided, wait this time before a new tentative (* request number)
         self.multi_requests_timeout:float = 0  # when automating multiple requests, the total time elapsed is limited by this parameter (evaluated between each request). 0 means no limit.
         self.multi_requests_time_between_requests:float = 0.100  # when automating multiple requests, wait this additional time (in seconds) between each request
         self.requests_timeout:Union[float,None] = 100  # timeout per request sent to the requests module
@@ -135,7 +138,7 @@ class CkanApiParamsBasic:
         :return:
         """
         if parser is None:
-            parser = argparse.ArgumentParser(description="CKAN API connection parameters initialization")
+            parser = argparse.ArgumentParser(description="CKAN API connection parameters initialization", add_help=False)
         ProxyConfig._setup_cli_proxy_parser(parser)  # add arguments --proxy --http-proxy --https-proxy --no-proxy --proxy-auth-file
         parser.add_argument("--ckan-ca", type=str,
                             help="CKAN CA certificate location (.pem file)")
@@ -143,10 +146,12 @@ class CkanApiParamsBasic:
                             help="CA certificate location for extern connexions (.pem file)")
         parser.add_argument("--user-agent", type=str,
                             help="User agent for HTTP requests")
-        parser.add_argument("-l", "--default-limit", type=int,
-                            help="Default number of rows per request")
+        parser.add_argument("-l", "--limit", type=int,
+                            help="Number of rows per request (upload/download)")
         parser.add_argument("-v", "--verbose",
                             help="Option to set verbosity", action="store_true", default=False)
+        parser.add_argument("--time-between-requests", type=float,
+                            help="Time between upload/download requests (seconds) - recommended: 0.1 seconds")
         # parser.add_argument("--external-code", action="store_true",
         #                     help="Enable external code execution for builder (only enable for trusted sources)")
         return parser
@@ -174,8 +179,10 @@ class CkanApiParamsBasic:
             self.extern_ca = path_rel_to_dir(args.extern_ca, base_dir=base_dir)
         if args.user_agent is not None:
             self.user_agent = args.user_agent
-        # if args.default_limit is not None:
-        #     self.set_limits(args.default_limit)
+        if args.time_between_requests is not None:
+            self.multi_requests_time_between_requests = args.time_between_requests
+        if args.limit is not None:
+            self.default_limit_read = args.limit
         # if args.verbose is not None:
         #     self.set_verbosity(args.verbose)
         # if args.external_code:

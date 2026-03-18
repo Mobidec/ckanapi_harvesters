@@ -5,21 +5,27 @@ Code to initiate a DataStore defined by a large number of files to concatenate i
 """
 from concurrent.futures import ThreadPoolExecutor
 import threading
-from threading import current_thread
+from threading import current_thread, Semaphore
 from abc import ABC, abstractmethod
-from typing import Dict, List, Callable, Any, Tuple, Generator, Union, Set
+from typing import Dict, List, Callable, Any, Tuple, Generator, Union, Set, Collection
 from warnings import warn
 import copy
+from collections import OrderedDict
 
 import pandas as pd
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel
 from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 from ckanapi_harvesters.builder.builder_aux import positive_end_index
-from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanResourceInfo
+from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanResourceInfo, CkanField
+from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_index_col_name
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestFileMapperABC, default_file_mapper_from_primary_key
-from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiABC, default_progress_callback
+from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
+from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiABC
+from ckanapi_harvesters.builder.builder_field import BuilderField
 
 # apply last_condition for each upsert request when in a multi-threaded upload on a same DataStore:
 datastore_multi_threaded_always_last_condition:bool = True
@@ -34,46 +40,80 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     """
 
     def __init__(self, *, name:str=None, format:str=None, description:str=None,
-                 resource_id:str=None, download_url:str=None, dirname:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+                 resource_id:str=None, download_url:str=None, options_string:str=None, base_dir:str=None):
+        super().__init__(name=name, format=format, description=description, resource_id=resource_id,
+                         download_url=download_url, options_string=options_string, base_dir=base_dir)
         # Functions inputs/outputs
-        self.df_mapper: RequestFileMapperABC = default_file_mapper_from_primary_key(self.primary_key)
+        self.df_mapper: RequestFileMapperABC
+        self.setup_default_file_mapper(self.primary_key)
         self.reupload_if_needed = False  # do not reupload if needed because this could cause data loss (the upload function only uploads the first table)
         self.upsert_method: UpsertChoice = UpsertChoice.Upsert
         # BuilderMultiABC:
         self.stop_event = threading.Event()
         self.thread_ckan: Dict[str, CkanApi] = {}
-        self.progress_callback: Union[Callable[[int, int, Any], None], None] = default_progress_callback
-        self.progress_callback_kwargs: dict = {}
         self.enable_multi_threaded_upload:bool = True
         self.enable_multi_threaded_download:bool = True
+        self.file_semaphore = Semaphore()
+        self.process_level:CkanCallbackLevel = CkanCallbackLevel.ResourceChunks  # resource builder - can be changed to 3 for a file of a multi-file resource
 
     def copy(self, *, dest=None):
         super().copy(dest=dest)
         dest.reupload_if_needed = self.reupload_if_needed
         # BuilderMultiABC:
-        dest.progress_callback = self.progress_callback
-        dest.progress_callback_kwargs = copy.deepcopy(self.progress_callback_kwargs)
+        dest.progress_callback = self.progress_callback.copy()
         dest.enable_multi_threaded_upload = self.enable_multi_threaded_upload
         dest.enable_multi_threaded_download = self.enable_multi_threaded_download
         # do not copy stop_event
         return dest
 
+    def _load_from_df_row(self, row: pd.Series, base_dir:str=None) -> None:
+        super()._load_from_df_row(row=row, base_dir=base_dir)
+        self.setup_default_file_mapper(self.primary_key)
+
+    def _update_metadata(self, ckan: CkanApi, *, base_dir:str=None) -> None:
+        """
+        In certain implementations, the resource & field metadata can be derived from the data source.
+        Normally, the metadata is defined by the user in an Excel worksheet. When a description is left empty,
+        the value left on the CKAN server is left unchanged.
+        The objective here is to propose values that override the Excel worksheet when the description
+        is empty on the CKAN side (still leave CKAN values unchanged, if present).
+
+        :param ckan: CkanApi instance
+        :param override_ckan: when True, override the values from the CKAN server, if present
+        """
+        super()._update_metadata(ckan=ckan, base_dir=base_dir)
+        if self.primary_key is not None and len(self.primary_key) == 1 and self.primary_key[0] == datastore_default_index_col_name:
+            if self.field_builders_user is None:
+                self.field_builders_user = OrderedDict()
+            if datastore_default_index_col_name not in self.field_builders_user.keys():
+                self.field_builders_user[datastore_default_index_col_name] = BuilderField(name=datastore_default_index_col_name, type_override="int8")
+            field_builder = self.field_builders_user[datastore_default_index_col_name]
+            known_field = None
+            if self.known_resource_info is not None and self.known_resource_info.datastore_info is not None and self.known_resource_info.datastore_info.fields_dict is not None:
+                if datastore_default_index_col_name in self.known_resource_info.datastore_info.fields_dict.keys():
+                    known_field = self.known_resource_info.datastore_info.fields_dict[datastore_default_index_col_name]
+            if known_field is None or known_field.notes is None:
+                field_builder.description = "Index of the line in the upload process"
+
+    def setup_default_file_mapper(self, primary_key:List[str]=None, file_query_list:Collection[Tuple[str, dict]]=None) -> None:
+        """
+        This function enables the user to define the primary key and initializes the default file mapper.
+        :param primary_key: manually specify the primary key
+        :return:
+        """
+        df_mapper_mem = self.df_mapper
+        if primary_key is not None:
+            self.primary_key = primary_key
+        if self.primary_key is None or len(self.primary_key) == 0:
+            self.primary_key = [datastore_default_index_col_name]
+        self.df_mapper = default_file_mapper_from_primary_key(self.primary_key, file_query_list)
+        if file_query_list is not None:
+            self.downloaded_file_query_list = file_query_list
+        # preserve upload/download functions
+        self.df_mapper.df_upload_fun = df_mapper_mem.df_upload_fun
+        self.df_mapper.df_download_fun = df_mapper_mem.df_download_fun
+
     ## upload ---------
-    @abstractmethod
-    def get_local_df_generator(self, resources_base_dir:str) -> Generator[pd.DataFrame, None, None]:
-        """
-        Returns an iterator over the parts of the upload, loaded as DataFrames (not recommended in a multi-threaded context).
-        """
-        raise NotImplementedError()
-
-    @abstractmethod
-    def load_local_df(self, file: Any, **kwargs) -> pd.DataFrame:
-        """
-        Load the DataFrame pointed by the upload part "file"
-        """
-        raise NotImplementedError()
-
     # do not change default argument apply_last_condition=True
     # def upsert_request_df(self, ckan: CkanApi, df_upload:pd.DataFrame,
     #                       method:UpsertChoice=UpsertChoice.Upsert,
@@ -84,8 +124,8 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     #     return super().upsert_request_df(ckan=ckan, df_upload=df_upload, method=method,
     #                                      apply_last_condition=apply_last_condition)
 
-    def _get_primary_key_indexes(self, data_cleaner_index: Set[str], current_fields:Set[str], error_missing:bool, empty_datastore:bool=False) -> Tuple[Union[List[str],None], Union[List[str],None]]:
-        primary_key, indexes = super()._get_primary_key_indexes(data_cleaner_index, current_fields, error_missing, empty_datastore)
+    def _get_primary_key_indexes(self, data_cleaner_index: Set[str], current_df_fields:Set[str], error_missing:bool, empty_datastore:bool=False) -> Tuple[Union[List[str],None], Union[List[str],None]]:
+        primary_key, indexes = super()._get_primary_key_indexes(data_cleaner_index, current_df_fields, error_missing, empty_datastore)
         # it is highly recommended to specify a primary key: warning if not defined
         if primary_key is None:
             msg = f"It is highly recommended to specify the primary key for a DataStore defined from a directory to ensure no duplicate values are upserted to the database. Resource: {self.name}"
@@ -93,8 +133,8 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         else:
             ultra_required_fields = set(primary_key)
             missing_fields = ultra_required_fields
-            if current_fields is not None:
-                missing_fields -= current_fields
+            if current_df_fields is not None:
+                missing_fields -= current_df_fields
             if len(missing_fields) > 0:
                 msg = f"The primary key {self.primary_key} is set for resource {self.name} but it is not present in the sample data."
                 warn(msg)
@@ -115,9 +155,11 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         return super().upsert_request_final(ckan, force=force)
 
     def upload_request_final(self, ckan: CkanApi, *, force:bool=False) -> None:
+        super().upload_request_final(ckan, force=force)
         return self.upsert_request_final(ckan=ckan, force=force)
 
-    def upsert_request_df_no_return(self, ckan: CkanApi, df_upload:pd.DataFrame,
+    def upsert_request_df_no_return(self, ckan: CkanApi, df_upload:pd.DataFrame, *,
+                                    total_lines_read:int, file_name:str,
                                     method:UpsertChoice=UpsertChoice.Upsert,
                                     apply_last_condition:bool=None, always_last_condition:bool=None) -> None:
         """
@@ -125,37 +167,59 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
 
         :return:
         """
-        self.upsert_request_df(ckan=ckan, df_upload=df_upload, method=method,
+        self.upsert_request_df(ckan=ckan, df_upload=df_upload, total_lines_read=total_lines_read, file_name=file_name,
+                               method=method,
                                apply_last_condition=apply_last_condition, always_last_condition=always_last_condition)
         return None
 
-    def _unit_upload_apply(self, *, ckan: CkanApi, file: str,
-                           index: int, start_index: int, end_index: int, total: int,
+    def _unit_upload_apply(self, *, ckan: CkanApi, file_chunk: FileChunkDataFrame,
+                           upload_alter:bool=True, overall_chunk_index: int, file_count: int, start_index: int, end_index: int,
                            method: UpsertChoice, **kwargs) -> None:
-        if index == 0 and self.upsert_method == UpsertChoice.Insert:
+        file_index = file_chunk.file_index
+        if file_index == 0 and file_chunk.chunk_index == 0 and self.upsert_method == UpsertChoice.Insert:
             return  # do not reupload the first document, which was used for the initialization of the dataset
-        if start_index <= index and index < end_index:
-            df_upload_local = self.load_local_df(file, **kwargs)
-            self._call_progress_callback(index, total, info=df_upload_local,
-                                         context=f"{ckan.identifier} single-thread upload")
-            self.upsert_request_df_no_return(ckan=ckan, df_upload=df_upload_local, method=method,
+        process_upsert = start_index <= file_index and file_index < end_index and file_chunk.read_line_counter - len(file_chunk.df) >= self.upload_start_line
+        self.progress_callback.call(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(),
+                                     info=file_chunk, level=self.process_level,
+                                     file_index=file_index, file_count=file_count,
+                                     lines_chunk=len(file_chunk.df), total_lines_read=file_chunk.read_line_counter,
+                                     canceled_request=not process_upsert,
+                                     context=f"{ckan.identifier} upload")
+        if process_upsert:
+            # if upload_alter:
+            #     file_chunk.df = self.df_mapper.df_upload_alter(file_chunk.df, self.sample_data_source, fields=self._get_fields_info(), **kwargs)
+            # alter function is applied in upsert_request_df
+            self.upsert_request_df_no_return(ckan=ckan, df_upload=file_chunk.df, method=method,
+                                             total_lines_read=file_chunk.read_line_counter, file_name=file_chunk.file_path,
                                              apply_last_condition=datastore_multi_apply_last_condition_intermediary)
         else:
             # self._call_progress_callback(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip")
             pass
 
+    def get_datastore_len(self, ckan:CkanApi) -> int:
+        datastore_info = ckan.get_datastore_info_or_request(self.name, self.package_name, error_not_found=True)
+        return datastore_info.row_count
+
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
                             method:UpsertChoice=None,
                             threads:int=1, external_stop_event=None,
-                            only_missing:bool=False,
+                            allow_chunks:bool=True,
+                            only_missing:bool=False, from_line_count:bool=False,
                             start_index:int=0, end_index:int=None, **kwargs) -> None:
         self.df_mapper.upsert_only_missing_rows = only_missing
+        if from_line_count:
+            self.upload_start_line = self.get_datastore_len(ckan)
+            if self.upload_start_line is None:
+                self.upload_start_line = 0
+            if ckan.params.verbose_extra:
+                print(f"Transfer will start from line {self.upload_start_line}")
         if method is None:
             if self.primary_key is None or len(self.primary_key) == 0:
                 self.upsert_method = UpsertChoice.Insert  # do not use upsert if there is no primary key
             method = self.upsert_method
         super().upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir,
                                     threads=threads, external_stop_event=external_stop_event,
+                                    allow_chunks=allow_chunks,
                                     start_index=start_index, end_index=end_index,
                                     method=method, **kwargs)
         # if threads < 0:
@@ -244,22 +308,24 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
 
 
     ## download -------
-    def download_request_df(self, ckan: CkanApi, file_query:dict) -> Union[pd.DataFrame,None]:
+    def download_file_query_generator(self, ckan: CkanApi, file_query:dict) -> Generator[pd.DataFrame, Any, None]:
         """
         Download the DataFrame with the file_query arguments
         """
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=self.download_error_not_found)
         if resource_id is None and not self.download_error_not_found:
             return None
-        df_download = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query)
-        df = self.df_mapper.df_download_alter(df_download, file_query=file_query, fields=self._get_fields_info())
-        return df
+        download_generator = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query)
+        for df_download in download_generator:
+            df = self.df_mapper.df_download_alter(df_download, file_query=file_query, fields=self._get_fields_info())
+            yield df
 
     def _unit_download_apply(self, ckan:CkanApi, file_query_item:Any, out_dir:str,
-                           index:int, start_index:int, end_index:int, total:int) -> Any:
+                            index:int, start_index:int, end_index:int, total:int,
+                            **kwargs) -> Any:
         if start_index <= index and index < end_index:
-            self._call_progress_callback(index, total, info=file_query_item,
-                                         context=f"{ckan.identifier} single-thread download")
+            self.progress_callback.call(index, total, info=file_query_item, level=self.process_level,
+                                        context=f"{ckan.identifier} single-thread download")
             self.download_file_query_item(ckan=ckan, out_dir=out_dir, file_query_item=file_query_item)
         else:
             pass
