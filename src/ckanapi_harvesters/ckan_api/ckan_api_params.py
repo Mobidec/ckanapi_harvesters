@@ -46,6 +46,7 @@ class CkanApiParamsBasic:
         self.default_limit_list:Union[int,None] = 100   # limit the number of entries per list response (used as default value)
         self.default_limit_read:Union[int,None] = 5000  # limit the number of entries per response (used as default value)
         self.max_requests_attempts:int = 3  # when performing an API action, retry depending on the received HTTP error code
+        self.action_requests_retry_always:bool = False  # when an error occurred during an API action request, systematically retry
         self.max_requests_count:int = 0  # when automating multiple requests, the number of requests is limited by this parameter. 0 means no limit.
         # timeouts
         self.time_between_attempts:float = 10  # when a retry was decided, wait this time before a new tentative (* request number)
