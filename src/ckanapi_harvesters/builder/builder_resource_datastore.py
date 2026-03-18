@@ -205,8 +205,12 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                         self.resource_attributes_data_source.datastore_info = resource_attributes_from_file.datastore_info
                     elif self.resource_attributes_data_source.datastore_info.fields_dict is None:
                         self.resource_attributes_data_source.datastore_info.fields_dict = resource_attributes_from_file.datastore_info.fields_dict
-                    else:
-                        self.resource_attributes_data_source.datastore_info.fields_dict.update(resource_attributes_from_file.datastore_info.fields_dict)
+                    for field_name, field_info in resource_attributes_from_file.datastore_info.fields_dict.items():
+                        field_builder = BuilderField._from_ckan_field(field_info)
+                        if field_name in self.field_builders_data_source.keys():
+                            self.field_builders_data_source[field_name].update_missing(field_builder)
+                        else:
+                            self.field_builders_data_source[field_name] = field_builder
 
     def initialize_from_options_string(self, base_dir:str, *, options_string:str=None, parser:argparse.ArgumentParser=None) -> None:
         if options_string is None:

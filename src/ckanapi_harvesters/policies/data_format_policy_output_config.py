@@ -9,6 +9,7 @@ from typing import Union
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import empty_str_to_None
 
 class DataFormatPolicyOutputCustomFields:
+    default_report_timestamp_field: Union[str, None] = "Last Report Timestamp"
     default_score_custom_field: Union[str, None] = "Data Policy Score"
     default_report_custom_field: Union[str, None] = "Data Policy Report"
     default_package_filestore_size_custom_field: Union[str, None] = "FileStore Size"
@@ -20,6 +21,7 @@ class DataFormatPolicyOutputCustomFields:
         self.package_score_field:Union[str,None] = DataFormatPolicyOutputCustomFields.default_score_custom_field
         self.package_report_field:Union[str,None] = DataFormatPolicyOutputCustomFields.default_report_custom_field
         # configured for admin report:
+        self.report_timestamp_field:Union[str,None] = DataFormatPolicyOutputCustomFields.default_report_timestamp_field
         self.package_filestore_size_field:Union[str,None] = DataFormatPolicyOutputCustomFields.default_package_filestore_size_custom_field
         self.package_external_size_field:Union[str,None] = DataFormatPolicyOutputCustomFields.default_package_external_size_custom_field
         self.package_datastore_size_field:Union[str,None] = DataFormatPolicyOutputCustomFields.default_package_datastore_size_custom_field
@@ -29,6 +31,7 @@ class DataFormatPolicyOutputCustomFields:
         dest = DataFormatPolicyOutputCustomFields()
         dest.package_score_field = self.package_score_field
         dest.package_report_field = self.package_report_field
+        dest.report_timestamp_field = self.report_timestamp_field
         dest.package_filestore_size_field = self.package_filestore_size_field
         dest.package_external_size_field = self.package_external_size_field
         dest.package_datastore_size_field = self.package_datastore_size_field
@@ -37,6 +40,7 @@ class DataFormatPolicyOutputCustomFields:
 
     def to_dict(self) -> dict:
         output_custom_field_config = OrderedDict()
+        output_custom_field_config["report_timestamp"] = self.report_timestamp_field if self.report_timestamp_field else ""
         output_custom_field_config["package_score"] = self.package_score_field if self.package_score_field else ""
         output_custom_field_config["package_report"] = self.package_report_field if self.package_report_field else ""
         output_custom_field_config["package_filestore_size"] = self.package_filestore_size_field if self.package_filestore_size_field else ""
@@ -48,6 +52,7 @@ class DataFormatPolicyOutputCustomFields:
     def _load_from_dict(self, d:dict) -> None:
         if d is None:
             return
+        self.report_timestamp_field = empty_str_to_None(d.get("report_timestamp"))
         self.package_score_field = empty_str_to_None(d.get("package_score"))
         self.package_report_field = empty_str_to_None(d.get("package_report"))
         self.package_filestore_size_field = empty_str_to_None(d.get("package_filestore_size"))
@@ -64,6 +69,7 @@ class DataFormatPolicyOutputCustomFields:
     def disable_all(self):
         self.package_score_field = None
         self.package_report_field = None
+        self.report_timestamp_field = None
         self.package_filestore_size_field = None
         self.package_external_size_field = None
         self.package_datastore_size_field = None

@@ -37,6 +37,7 @@ class BuilderCkan:
         self.options_string: Union[str, None] = None
         self.limit: Union[int, None] = None
         self.time_between_requests: Union[float, None] = None
+        self.default_thread_count: int = 1
         self.comment: Union[str, None] = None
 
     def __str__(self):
@@ -60,6 +61,7 @@ class BuilderCkan:
         dest.options_string = self.options_string
         dest.limit = self.limit
         dest.time_between_requests = self.time_between_requests
+        dest.default_thread_count = self.default_thread_count
         dest.comment = self.comment
         return dest
 
@@ -142,6 +144,10 @@ class BuilderCkan:
             number_str = _string_from_element(ckan_df.pop("time between requests"))
             if number_str is not None:
                 self.time_between_requests = float(number_str)
+        if "thread count" in ckan_df.columns:
+            number_str = _string_from_element(ckan_df.pop("thread count"))
+            if number_str is not None:
+                self.default_thread_count = int(number_str)
         if "comment" in ckan_df.columns:
             self.comment = _string_from_element(ckan_df.pop("comment"))
 
@@ -164,6 +170,7 @@ class BuilderCkan:
         ckan_dict["Options"] = self.options_string
         ckan_dict["Limit"] = self.limit
         ckan_dict["Time between requests"] = self.time_between_requests
+        ckan_dict["Thread count"] = self.default_thread_count
         ckan_dict["Comment"] = self.comment
         return ckan_dict
 
@@ -180,6 +187,7 @@ class BuilderCkan:
             "Options": "List of options to initialize the CKAN API object in CLI format",
             "Limit": "Maximum number of records to return/send per request",
             "Time between requests": "Delay between upload/download requests (seconds) - recommended: 0.1 seconds",
+            "Thread count": "Number of threads to use to upload/download large datasets",
         }
         return ckan_help_dict
 

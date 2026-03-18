@@ -25,10 +25,12 @@ It is enabled by default. To disable it, use the `allow_chunks=False` argument o
   - Extra column __Data cleaner__ per DataStore to activate a function which corrects values according to the destination type specified in the fields metadata (only for uploads). 
   - CKAN upload parameterization fields (_ckan_ sheet):
     - Field __Limit__ to change the number of rows sent per request.
-    - Field __Time between requests__ to change the delay between each request (upload/download), in seconds
+    - Field __Time between requests__ to change the delay between each request (upload/download), in seconds.
+    - Field __Thread count__ to change the default number of threads used for large datasets (upload/download).
 - The upload data cleaner can be used to replace empty string values with None for columns indicated as numeric in the field metadata.
 - The admin report can output the storage space used by a dataset in custom fields defined in the data format policy JSON.
-- Additional default location for the CKAN API key file: `~/.config/__CKAN_API_KEY__.txt`. 
+- Additional default location for the CKAN API key file: `~/.config/__CKAN_API_KEY__.txt`.
+- Automatically re-attempt failed API calls with a delay for certain HTTP error codes. This robustifies the scripts when the CKAN server is overloaded.
 
 ### Changed
 

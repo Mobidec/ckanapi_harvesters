@@ -179,7 +179,7 @@ class CkanApiReadOnly(CkanApiMap):
         if bom is not None:
             params["bom"] = bom
         # params["bom"] = True  # useful?
-        response = self._url_request(f"datastore/dump/{resource_id}", method=RequestType.Get, params=params)
+        response = self._ckan_url_request(f"datastore/dump/{resource_id}", method=RequestType.Get, params=params)
         if response.status_code == 200:
             return response
         elif response.status_code == 404 and "DataStore resource not found" in response.text:

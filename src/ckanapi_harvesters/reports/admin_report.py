@@ -115,6 +115,7 @@ class CkanAdminReport:
         report_header = OrderedDict([
             ("title", "Admin report on packages and resources"),
             ("date", self._date_format_str(self.report_date)),
+            ("timestamp", self.report_date.isoformat(sep='T')),
             ("ckan", ckan.url),
             ("user", self._connected_user.name if self._connected_user is not None else None),
             ("user_sysadmin", self._connected_user.sysadmin if self._connected_user is not None else None),
@@ -308,6 +309,13 @@ class CkanAdminReport:
         if package_update_needed and package_info.custom_fields is None:
             package_info.custom_fields = OrderedDict()
         package_update_needed = False
+        if policy.output_custom_fields.report_timestamp_field is not None:
+            report_timestamp = self.report_date.isoformat(sep='T')
+            if policy.output_custom_fields.report_timestamp_field in package_info.custom_fields.keys():
+                package_update_needed |= not package_info.custom_fields[policy.output_custom_fields.report_timestamp_field] == report_timestamp
+            else:
+                package_update_needed = True
+            package_info.custom_fields[policy.output_custom_fields.report_timestamp_field] = report_timestamp
         if policy.output_custom_fields.package_filestore_size_field is not None:
             package_size_str = size_str_mb(package_report["filestore_total_size_mb"])
             if policy.output_custom_fields.package_filestore_size_field in package_info.custom_fields.keys():

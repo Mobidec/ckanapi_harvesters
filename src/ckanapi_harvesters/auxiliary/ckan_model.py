@@ -277,8 +277,9 @@ class CkanField(CkanConfigurableObjectABC):
     def copy(self) -> "CkanField":
         return copy.deepcopy(self)
 
-    def merge(self, new_values):
-        dest = self.copy()
+    def merge(self, new_values, dest:"CkanField"=None):
+        if dest is None:
+            dest = self.copy()
         if new_values.name is not None:
             dest.name = new_values.name
         if new_values.data_type is not None:
@@ -298,6 +299,9 @@ class CkanField(CkanConfigurableObjectABC):
         dest.internal_attrs = self.internal_attrs.merge(new_values.internal_attrs)
         dest.details = dict_recursive_update(self.details, new_values.details)
         return dest
+
+    def update_missing(self, other: "CkanField"):
+        self.merge(new_values=other, dest=self)
 
     def __eq__(self, other) -> bool:
         equality = True

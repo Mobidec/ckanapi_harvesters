@@ -1072,7 +1072,7 @@ class BuilderPackageBasic:
             raise FileNotFoundError("\n".join([f"for resource {key}: {message}" for key, message in messages.items() if message is not None and message.error_level == ErrorLevel.Error]))
         return success
 
-    def upload_large_datasets(self, ckan:CkanApi, *, resources_base_dir:str=None, threads:int=1,
+    def upload_large_datasets(self, ckan:CkanApi, *, resources_base_dir:str=None, threads:int=None,
                               progress_callback:Union[CkanProgressCallback,Callable]=None,
                               only_missing:bool=False, from_line_count:bool=False, allow_chunks:bool=True) -> None:
         """
@@ -1090,6 +1090,8 @@ class BuilderPackageBasic:
         """
         if not isinstance(progress_callback, CkanProgressCallback):
             progress_callback = CkanProgressCallback(progress_callback)
+        if threads is None:
+            threads = self.ckan_builder.default_thread_count
         self.info_request_package(ckan=ckan)
         resources_base_dir = self.get_resources_base_dir(resources_base_dir)
         self.update_package_name_in_resources()
@@ -1154,7 +1156,7 @@ class BuilderPackageBasic:
         return {resource_name for resource_name, resource_builder in self.resource_builders.items() if not isinstance(resource_builder, BuilderMultiFile)}
 
     def download_request_full(self, ckan:CkanApi, out_dir:str=None, enforce_none_out_dir:bool=False, resource_name:str=None, full_download:bool=False,
-                              threads:int=1, skip_existing:bool=True, progress_callback:Callable=None,
+                              threads:int=None, skip_existing:bool=True, progress_callback:Callable=None,
                               force:bool=False, rm_dir:bool=False) -> None:
         """
         Downloads the full package resources into out_dir.
@@ -1171,6 +1173,8 @@ class BuilderPackageBasic:
         :param force: option to bypass the enable_download attribute of resources
         :return:
         """
+        if threads is None:
+            threads = self.ckan_builder.default_thread_count
         out_dir = self.get_default_out_dir(out_dir, enforce_none=enforce_none_out_dir)
         if out_dir is not None and os.path.isdir(out_dir):
             if rm_dir:

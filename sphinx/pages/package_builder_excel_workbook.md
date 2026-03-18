@@ -75,6 +75,7 @@ The `proxy_auth` argument can be also used in your script. Additional headers ca
   - `--ckan-postgis` to signal the data transformation operations to handle PostGIS objects properly.
 - __Limit__: Maximum number of records to return/send per request.
 - __Time between requests__: Delay between each request (upload/download), in seconds - recommended: 0.1 seconds. Default value used if left empty.
+- __Thread count__: default number of threads used to upload/download large datasets. Default is 1.
 
 
 ### Sheet "package"

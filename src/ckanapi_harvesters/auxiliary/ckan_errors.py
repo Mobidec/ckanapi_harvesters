@@ -90,6 +90,10 @@ class MaxRequestsCountError(Exception):
     def __init__(self):
         super().__init__("Maximum requests count was reached.")
 
+class MaxAttemptsError(Exception):
+    def __init__(self, accumulated_traceback:List[str]):
+        super().__init__("Maximum attempts reached. Combined traceback:\n" + "\n".join(accumulated_traceback))
+
 class CkanArgumentError(Exception):
     def __init__(self, api_name:str, argument_name:str):
         super().__init__(f"Argument {argument_name} is not supported by API {api_name}.")
