@@ -11,7 +11,9 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 
 
-## [0.0.12] - 2026-03-18
+## [0.0.13] - 2026-03-18
+
+Version 0.0.12 was not successfully published because of a wrong test configuration. This version replaces it.
 
 ### Added
 
