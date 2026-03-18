@@ -58,11 +58,12 @@ def _pd_str_series_type_detect(values: pd.Series) -> str:
         return 'bool'
 
     # Check for integers
-    if pd.to_numeric(series, errors='coerce').apply(float.is_integer).all():
+    float_values = pd.to_numeric(series, errors='coerce', downcast="float")
+    if float_values.apply(float.is_integer).all():
         return 'int'
 
     # Check for floats
-    if pd.to_numeric(series, errors='coerce').notna().all():
+    if float_values.notna().all():
         return 'float'
 
     # Check for timestamps

@@ -222,7 +222,10 @@ class CkanDataCleanerABC(ABC):
         Fields already defined in the fields argument are not overwritten.
         """
         if fields is not None:
-            fields_dict = OrderedDict([(field_dict["id"], CkanField.from_ckan_dict(field_dict))  for field_dict in fields])
+            if isinstance(fields, dict):
+                fields_dict = fields
+            else:
+                fields_dict = OrderedDict([(field_dict["id"], CkanField.from_ckan_dict(field_dict))  for field_dict in fields])
         else:
             fields_dict = OrderedDict()
         if len(self.fields_new) > 0:

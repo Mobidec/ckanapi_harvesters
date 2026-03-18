@@ -91,13 +91,18 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
         if table_metadata.fields is not None:
             if self.field_builders_data_source is None:
                 self.field_builders_data_source = OrderedDict()
+            if (self.known_resource_info is not None and self.known_resource_info.datastore_info is not None
+                    and self.known_resource_info.datastore_info.fields_dict is not None):
+                ckan_known_field = self.known_resource_info.datastore_info.fields_dict
+            else:
+                ckan_known_field = None
             for field_name, field_metadata in table_metadata.fields.items():
                 if field_name in self.field_builders_data_source.keys():
                     field_builder = self.field_builders_data_source[field_name]
                     if field_builder.type_override is None:
                         field_builder.type_override = field_metadata.data_type
-                elif field_name in self.known_resource_info.datastore_info.fields_dict.keys():
-                    field_builder = BuilderField._from_ckan_field(self.known_resource_info.datastore_info.fields_dict[field_name])
+                elif ckan_known_field is not None and field_name in ckan_known_field.keys():
+                    field_builder = BuilderField._from_ckan_field(ckan_known_field[field_name])
                     if field_builder.type_override is None:
                         field_builder.type_override = field_metadata.data_type
                 else:

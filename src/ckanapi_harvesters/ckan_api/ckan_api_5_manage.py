@@ -883,7 +883,7 @@ class CkanApiManage(CkanApiReadWrite):
         if data_cleaner is not None:
             if not delete_previous:
                 fields_for_cleaner_dict = CkanApiManage.datastore_field_dict(fields=fields)
-                fields_for_cleaner = OrderedDict([(field_name, CkanField.from_ckan_dict(field_dict)) for field_name, field_dict in fields_for_cleaner_dict.items()])
+                fields_for_cleaner = OrderedDict([(field_name, field_info) for field_name, field_info in fields_for_cleaner_dict.items()])
             else:
                 fields_for_cleaner = None
             records = data_cleaner.clean_records(records, known_fields=fields_for_cleaner, inplace=True)
@@ -1137,7 +1137,11 @@ class CkanApiManage(CkanApiReadWrite):
             if pkg_info.state == CkanState.Deleted:
                 if self.params.verbose_request_error:
                     print(f"Package {package_name} was found in Delete state. All ressources will be deleted before updating it.")
-                self.package_delete_resources(package_name, bypass_admin=True)
+                try:
+                    self.package_delete_resources(package_name, bypass_admin=True)
+                except Exception as e:
+                    msg = f"Failed to delete resources of package {package_name}: {e}"
+                    warn(msg)
         if pkg_info is not None and cancel_if_exists:
             if update_if_exists:
                 pkg_info = self.package_patch(pkg_info.id, package_name, private=private, title=title, notes=notes,

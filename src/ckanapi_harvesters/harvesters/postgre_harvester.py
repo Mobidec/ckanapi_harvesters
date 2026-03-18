@@ -103,7 +103,8 @@ class DatabaseHarvesterPostgre(DatabaseHarvesterABC):
 
     def disconnect(self) -> None:
         if self.alchemy_engine is not None:
-            self.alchemy_connection.close()
+            if self.alchemy_connection is not None:
+                self.alchemy_connection.close()
             self.alchemy_engine.dispose()
             self.alchemy_engine = None
             self.alchemy_connection = None

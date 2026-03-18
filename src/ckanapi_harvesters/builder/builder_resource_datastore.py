@@ -481,8 +481,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                     self.field_builders[field_name] = field_builder.copy()
         # 4. Metadata generated from Data cleaner
         if data_cleaner_fields is not None:
-            for field_dict in data_cleaner_fields:
-                field_builder = BuilderField._from_ckan_field(CkanField.from_ckan_dict(field_dict))
+            for field_info in data_cleaner_fields.values():
+                field_builder = BuilderField._from_ckan_field(field_info)
                 if field_builder.name in self.field_builders.keys():
                     self.field_builders[field_builder.name].update_missing(field_builder)
                 else:
@@ -562,7 +562,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         if df_upload is not None and self.data_cleaner_upload is not None:
             fields_for_cleaner = self._get_fields_update(ckan, current_df_fields=None, data_cleaner_fields=None, reupload=reupload, override_ckan=override_ckan)
             df_upload = self.data_cleaner_upload.clean_records(df_upload, known_fields=fields_for_cleaner, inplace=True)
-            data_cleaner_fields = self.data_cleaner_upload.merge_field_changes()
+            data_cleaner_fields = self.data_cleaner_upload.merge_field_changes(fields_for_cleaner)
             data_cleaner_index = self.data_cleaner_upload.field_suggested_index
         else:
             data_cleaner_fields = None
