@@ -3,7 +3,7 @@
 """
 Harvest from a PostgreSQL database using sqlalchemy
 """
-from typing import Union, List, Any, Dict
+from typing import Union, List, Any, Dict, Tuple
 from types import SimpleNamespace
 from collections import OrderedDict
 import urllib.parse
@@ -30,6 +30,7 @@ from ckanapi_harvesters.auxiliary.ckan_errors import UrlError
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_2_geom import CkanDataCleanerUploadGeom
+from ckanapi_harvesters.auxiliary.list_records import ListRecords
 
 postgre_type_mapper = {}
 
@@ -102,7 +103,8 @@ class DatabaseHarvesterPostgre(DatabaseHarvesterABC):
 
     def disconnect(self) -> None:
         if self.alchemy_engine is not None:
-            self.alchemy_connection.close()
+            if self.alchemy_connection is not None:
+                self.alchemy_connection.close()
             self.alchemy_engine.dispose()
             self.alchemy_engine = None
             self.alchemy_connection = None
@@ -365,7 +367,7 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
                   AND f_table_name = '{postgre_table_name}';
                 """
                 geo_df = pd.read_sql(query, self.alchemy_engine)
-                for index, row in geo_df.iterrows():
+                for row_loc, row in geo_df.iterrows():
                     column_name = row["f_geometry_column"]
                     fields_df.loc[column_name, "definitive_data_type"] = f"geometry({row['type']}, {row['srid']})"
                     fields_df.loc[column_name, "geo_type"] = row['type']
@@ -390,7 +392,7 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
             self.table_metadata.name = self.params.table
             self.table_metadata.description = table_comment
             self.table_metadata.fields = OrderedDict()
-            for index, row in fields_df.iterrows():
+            for row_loc, row in fields_df.iterrows():
                 field_metadata = FieldMetadata()
                 field_metadata.name = row["column_name"]
                 field_metadata.data_type = row["definitive_data_type"]
@@ -466,7 +468,7 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
         data_cleaner = CkanDataCleanerUploadGeom()
         return data_cleaner
 
-    def list_queries(self, *, new_connection:bool=False) -> List[str]:
+    def list_queries(self, *, new_connection:bool=False) -> List[Tuple[str,int]]:
         self.connect(cancel_if_connected=not new_connection)
         postgre_schema_name = self.params.dataset
         postgre_table_name = self.params.table
@@ -483,11 +485,12 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
             request_query_base += " " + self.params.query_string
         num_queries = num_rows // self.params.limit + 1
         if self.params.single_request:
-            return [f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}" for i in range(1)]
+            return [(f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}", self.params.limit) for i in range(1)]
         else:
-            queries_exact = [f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}" for i in range(num_queries)]
+            queries_exact = [(f"{request_query_base} LIMIT {self.params.limit} OFFSET {i * self.params.limit}", self.params.limit) for i in range(num_queries)]
             query_extra = f"{request_query_base} LIMIT {self.params.limit} OFFSET {num_queries * self.params.limit}"
-            return queries_exact + [query_extra]
+            queries_exact.append((query_extra, self.params.limit))
+            return queries_exact
 
     def query_data(self, query:Dict[str,Any]) -> pd.DataFrame:
         df = pd.read_sql(query, self.alchemy_engine)

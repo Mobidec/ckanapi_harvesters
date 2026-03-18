@@ -9,3 +9,8 @@ from ckanapi_harvesters.ckan_api.ckan_api_1_map import CkanApiMap
 from ckanapi_harvesters.ckan_api.ckan_api_5_manage import CkanApiManage as CkanApi  # alias
 from ckanapi_harvesters.ckan_api.ckan_api_5_manage import CkanApiExtendedParams as CkanApiParams  # alias
 
+
+if __name__ == '__main__':
+    sample_instance = CkanApi()
+    print("CKAN API CLI-format options:")
+    sample_instance.print_help_cli()

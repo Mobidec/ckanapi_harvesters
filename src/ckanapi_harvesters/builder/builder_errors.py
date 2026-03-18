@@ -27,10 +27,6 @@ class UnsupportedBuilderVersionError(Exception):
     def __init__(self, file_version):
         super().__init__(f"Version error: package builder version {file_version} is not supported")
 
-class MissingCodeFileError(Exception):
-    def __init__(self):
-        super().__init__("Function names were provided but Auxiliary functions file was not specified")
-
 class ResourceFileNotExistMessage(ContextErrorLevelMessage):
     def __init__(self, resource_name:str, error_level:ErrorLevel, specific_message: str):
         super().__init__(f"Resource {resource_name}", error_level, specific_message)
@@ -38,3 +34,5 @@ class ResourceFileNotExistMessage(ContextErrorLevelMessage):
 class IncompletePatchError(Exception):
     pass
 
+class GroupByError(Exception):
+    pass

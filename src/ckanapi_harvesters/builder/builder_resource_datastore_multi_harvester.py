@@ -14,6 +14,7 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
+from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
 # from ckanapi_harvesters.auxiliary.path import list_files_scandir
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
@@ -25,7 +26,8 @@ from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestMapperABC, RequestFileMapperABC
 from ckanapi_harvesters.builder.mapper_datastore_multi import default_file_mapper_from_primary_key
-from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreFile
+from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
+from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.harvesters.harvester_abc import TableHarvesterABC
 from ckanapi_harvesters.harvesters.harvester_init import init_table_harvester_from_options_string
 from ckanapi_harvesters.builder.builder_resource_datastore_multi_folder import BuilderDataStoreFolder
@@ -34,15 +36,18 @@ from ckanapi_harvesters.builder.builder_resource_datastore_multi_folder import B
 class BuilderDataStoreHarvester(BuilderDataStoreFolder):
     def __init__(self, *, file_query_list: List[Tuple[str,dict]]=None, name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None, dir_name:str=None, file_url_attr:str=None, options_string:str=None, base_dir:str=None):
-        super().__init__(file_query_list=file_query_list, dir_name=dir_name,
-                         name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
-        self.options_string = options_string
         self.enable_multi_threaded_upload = False
         # specific attributes
         self.file_url_attr:Union[str,None] = file_url_attr
         self._harvester: Union[TableHarvesterABC,None] = None
-        if self.options_string is not None and len(self.options_string) > 0:
-            self._apply_options(base_dir=base_dir)
+        super().__init__(file_query_list=file_query_list, dir_name=dir_name,
+                         name=name, format=format, description=description, resource_id=resource_id,
+                         download_url=download_url, options_string=options_string, base_dir=base_dir)
+
+    def clear_secrets_and_disconnect(self) -> None:
+        if self._harvester is not None:
+            self._harvester.disconnect()
+            self._harvester.clear_secrets()
 
     @property
     def harvester(self) -> Union[TableHarvesterABC,None]:
@@ -51,16 +56,19 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
     def harvester(self, harvester: Union[TableHarvesterABC,None]):
         assert_or_raise(self._harvester is None, RuntimeError("You can only set the harvester once"))
         self._harvester = harvester
-        self._apply_harvester_metadata()
+        self._update_metadata(None)
 
-    def _apply_options(self, base_dir: str = None):
+    def initialize_extra_options_string(self, extra_options_string:str, base_dir:str) -> None:
+        super().initialize_extra_options_string(extra_options_string, base_dir=base_dir)
         self.harvester = init_table_harvester_from_options_string(self.options_string, file_url_attr=self.file_url_attr, base_dir=base_dir)
 
-    def init_options_from_ckan(self, ckan:CkanApi) -> None:
-        super().init_options_from_ckan(ckan)
+    def init_options_from_ckan(self, ckan:CkanApi, *, base_dir:str=None) -> None:
         self.harvester.update_from_ckan(ckan)
+        super().init_options_from_ckan(ckan, base_dir=base_dir)
 
-    def _apply_harvester_metadata(self, base_dir:str=None):
+    def _update_metadata(self, ckan: CkanApi, *, base_dir:str=None):
+        if self.harvester is None:
+            return
         self.dir_name = self.name  # by default, take the resource name
         if self.harvester.params.output_dir is not None:
             self.dir_name = self.harvester.params.output_dir
@@ -76,16 +84,25 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
             self.primary_key = self.harvester.get_default_primary_key()
         if self.indexes is None:
             self.indexes = table_metadata.indexes
-        if self.description is None:
-            self.description = table_metadata.description
-        if self.format is None:
-            self.format = "CSV"
+        self.resource_attributes_data_source = CkanResourceInfo()
+        if table_metadata.description is not None:
+            self.resource_attributes_data_source.description = table_metadata.description
+        self.resource_attributes_data_source.format = "CSV"
         if table_metadata.fields is not None:
-            if self.field_builders is None:
-                self.field_builders = OrderedDict()
+            if self.field_builders_data_source is None:
+                self.field_builders_data_source = OrderedDict()
+            if (self.known_resource_info is not None and self.known_resource_info.datastore_info is not None
+                    and self.known_resource_info.datastore_info.fields_dict is not None):
+                ckan_known_field = self.known_resource_info.datastore_info.fields_dict
+            else:
+                ckan_known_field = None
             for field_name, field_metadata in table_metadata.fields.items():
-                if field_name in self.field_builders.keys():
-                    field_builder = self.field_builders[field_name]
+                if field_name in self.field_builders_data_source.keys():
+                    field_builder = self.field_builders_data_source[field_name]
+                    if field_builder.type_override is None:
+                        field_builder.type_override = field_metadata.data_type
+                elif ckan_known_field is not None and field_name in ckan_known_field.keys():
+                    field_builder = BuilderField._from_ckan_field(ckan_known_field[field_name])
                     if field_builder.type_override is None:
                         field_builder.type_override = field_metadata.data_type
                 else:
@@ -102,20 +119,20 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
                 if field_builder.notnull is None:
                     field_builder.notnull = field_metadata.notnull
                 field_builder.internal_attrs = field_metadata.internal_attrs.merge(field_builder.internal_attrs)
-                self.field_builders[field_name] = field_builder
+                self.field_builders_data_source[field_name] = field_builder
         if table_metadata.unique_keys is not None and len(table_metadata.unique_keys) > 0:
-            if self.field_builders is None:
-                self.field_builders = OrderedDict()
+            if self.field_builders_data_source is None:
+                self.field_builders_data_source = OrderedDict()
             for field_name in table_metadata.unique_keys:
-                if field_name in self.field_builders.keys():
-                    field_builder = self.field_builders[field_name]
+                if field_name in self.field_builders_data_source.keys():
+                    field_builder = self.field_builders_data_source[field_name]
                     if field_builder.uniquekey is None:
                         field_builder.uniquekey = True
                 else:
                     pass  # because we do not know the data type
                     # field_builder = BuilderField(name=field_name)
                     # field_builder.uniquekey = field_name
-                    # self.field_builders[field_name] = field_builder
+                    # self.field_builders_data_source[field_name] = field_builder
 
     def copy(self, *, dest=None):
         if dest is None:
@@ -126,12 +143,9 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
         return dest
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None) -> None:
-        super()._load_from_df_row(row=row)
-        self.df_mapper = default_file_mapper_from_primary_key(self.primary_key)
         self.dir_name = ""
-        self.file_url_attr: str = _string_from_element(row["file/url"])
-        if self.options_string is not None and len(self.options_string) > 0:
-            self._apply_options(base_dir=base_dir)
+        self.file_url_attr: str = _string_from_element(row["file/url"], strip=True)
+        super()._load_from_df_row(row=row, base_dir=base_dir)
 
     def _to_dict(self, include_id:bool=True) -> dict:
         d = super()._to_dict(include_id=include_id)
@@ -158,38 +172,50 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
     def upload_file_checks(self, *, resources_base_dir:str=None, ckan: CkanApi=None, **kwargs) -> Union[None,ContextErrorLevelMessage]:
         return self.harvester.check_connection()
 
-    def get_sample_file_path(self, resources_base_dir:str, file_index:int=0) -> Union[Any,None]:
-        self.list_local_files(resources_base_dir=resources_base_dir)
+    def get_sample_file_path(self, resources_base_dir:str, ckan:Union[CkanApi,None]=None, file_index:int=0) -> Union[Any,None]:
+        self.list_local_files(resources_base_dir=resources_base_dir, ckan=ckan)
         return self.local_file_list[file_index]
 
-    def load_local_df(self, file: str, *, upload_alter:bool=True, fields:OrderedDict[str,CkanField]=None) -> pd.DataFrame:
-        # self.sample_data_source = resolve_rel_path(resources_base_dir, self.dir_name, file, field=f"File/URL of resource {self.name}")
-        self.sample_data_source = file
-        data_local = self.harvester.query_data(query=file)
-        if upload_alter:
-            df_upload = self.df_mapper.df_upload_alter(data_local, self.sample_data_source, fields=self._get_fields_info())
-            return df_upload
-        else:
-            raise RuntimeError("upload_alter must be True for a DataStore from Harvester.")
+    def get_local_df_chunk_generator(self, resources_base_dir:str, ckan:CkanApi, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
+        self.list_local_files(resources_base_dir=resources_base_dir, ckan=ckan)
+        self.read_line_counter = 0
+        for query_index, query in enumerate(self.local_file_list):
+            self.file_semaphore.acquire()
+            data_local = self.harvester.query_data(query=query)
+            if isinstance(data_local, pd.DataFrame) or isinstance(data_local, ListRecords):
+                self.read_line_counter += len(data_local)
+                line_counter = self.read_line_counter
+                self.file_semaphore.release()
+                yield FileChunkDataFrame(data_local, query, query_index, 0, 0, line_counter)
+            else:
+                # for chunk_index, df in enumerate(data_local):
+                chunk_index = 0
+                while True:
+                    # file_position = file_handle.buffer.tell()  # approximative position in file
+                    try:
+                        df = next(data_local)
+                        self.read_line_counter += len(df)
+                        line_counter = self.read_line_counter
+                    except StopIteration:
+                        self.file_semaphore.release()
+                        break
+                    self.file_semaphore.release()
+                    # TODO: no file position in query result generator
+                    yield FileChunkDataFrame(df, query, query_index, chunk_index, 0, line_counter)
 
-    def get_local_file_generator(self, resources_base_dir:str, **kwargs) -> Generator[Any, None, None]:
-        self.list_local_files(resources_base_dir=resources_base_dir)
-        for query in self.local_file_list:
-            yield query
-
-    def list_local_files(self, resources_base_dir:str, cancel_if_present:bool=True) -> List[Any]:
+    def list_local_files(self, resources_base_dir:str, ckan:Union[CkanApi,None], cancel_if_present:bool=True) -> List[Any]:
         if cancel_if_present and self.local_file_list is not None:
             return self.local_file_list
-        self.local_file_list = self.harvester.list_queries(new_connection=not cancel_if_present)
+        query_list = self.harvester.list_queries(new_connection=not cancel_if_present)
+        self.local_file_list = [tup[0] for tup in query_list]
+        self.local_file_size = [tup[1] for tup in query_list]
+        self.local_file_size_sum = sum(self.local_file_size)
         return self.local_file_list
 
-    def init_local_files_list(self, resources_base_dir:str, cancel_if_present:bool=True, **kwargs) -> List[str]:
-        return self.list_local_files(resources_base_dir=resources_base_dir, cancel_if_present=cancel_if_present)
+    def init_local_files_list(self, resources_base_dir:str, ckan:CkanApi, cancel_if_present:bool=True, **kwargs) -> List[str]:
+        return self.list_local_files(resources_base_dir=resources_base_dir, ckan=ckan, cancel_if_present=cancel_if_present)
 
-    def get_local_df_generator(self, resources_base_dir:str, *, fields:OrderedDict[str,CkanField], **kwargs) -> Generator[pd.DataFrame, None, None]:
-        return super().get_local_df_generator(resources_base_dir=resources_base_dir, fields=fields, **kwargs)
-
-    def get_local_file_len(self) -> int:
+    def get_local_file_count(self) -> int:
         if self.local_file_list is None:
             raise RuntimeError("You must call list_local_files first")
         return len(self.local_file_list)
@@ -225,7 +251,8 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
     #                                 start_index=start_index, end_index=end_index,
     #                                 method=method, fields=fields)
 
-    def upsert_request_df(self, ckan: CkanApi, df_upload:pd.DataFrame,
+    def upsert_request_df(self, ckan: CkanApi, df_upload:pd.DataFrame, *,
+                          total_lines_read:int, file_name:str,
                           method:UpsertChoice=UpsertChoice.Upsert,
                           apply_last_condition:bool=None, always_last_condition:bool=None) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
@@ -250,7 +277,8 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
             apply_last_condition = True  # datastore_multi_apply_last_condition_intermediary
         resource_id = self.get_or_query_resource_id(ckan=ckan, error_not_found=True)
         df_upload_local = df_upload
-        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload_local, fields=self._get_fields_info())
+        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload_local, fields=self._get_fields_info(),
+                                                               total_lines_read=total_lines_read, file_name=file_name)
         file_query = self.df_mapper.get_file_query_of_df(df_upload_transformed)
         if file_query is not None:
             i_restart, upload_needed, row_count, df_row = self.df_mapper.last_inserted_index_request(ckan=ckan,
@@ -262,13 +290,17 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
                 print(f"Starting transfer from index {i_restart}")
             ret_df = ckan.datastore_upsert(df_upload_transformed.iloc[i_restart:], resource_id, method=method,
                                            apply_last_condition=apply_last_condition,
-                                           always_last_condition=always_last_condition, data_cleaner=self.data_cleaner_upload)
+                                           always_last_condition=always_last_condition,
+                                           data_cleaner=self.data_cleaner_upload,
+                                           progress_callback=self.progress_callback)
         elif 0 <= row_count and row_count < len(df_row):
             msg = f"Sending full dataframe because is was shorter on server side"
             warn(msg)
             ret_df = ckan.datastore_upsert(df_upload_transformed, resource_id, method=method,
                                            apply_last_condition=apply_last_condition,
-                                           always_last_condition=always_last_condition, data_cleaner=self.data_cleaner_upload)
+                                           always_last_condition=always_last_condition,
+                                           data_cleaner=self.data_cleaner_upload,
+                                           progress_callback=self.progress_callback)
         else:
             if ckan.params.verbose_extra:
                 print(f"File up to date on server side")

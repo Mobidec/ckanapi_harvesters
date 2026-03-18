@@ -3,7 +3,7 @@
 """
 CKAN error types
 """
-from typing import Iterable
+from typing import Iterable, List
 import requests
 
 # import to make these error codes available from here:
@@ -12,8 +12,16 @@ from ckanapi_harvesters.auxiliary.ckan_action import (CkanActionError, CkanAutho
 from ckanapi_harvesters.auxiliary.path import BaseDirUndefError
 
 
+class MultipleErrors(Exception):
+    def __init__(self, errors: List[Exception]):
+        self.errors = errors
+        super().__init__(f"Multiple errors occurred: \n- " + "\n- ".join([str(e) for e in errors]))
+
 ## Specific error types ------------------
 class ApiKeyFileError(Exception):
+    pass
+
+class LoginFileError(Exception):
     pass
 
 class InvalidParameterError(Exception):
@@ -82,6 +90,10 @@ class MaxRequestsCountError(Exception):
     def __init__(self):
         super().__init__("Maximum requests count was reached.")
 
+class MaxAttemptsError(Exception):
+    def __init__(self, accumulated_traceback:List[str]):
+        super().__init__("Maximum attempts reached. Combined traceback:\n" + "\n".join(accumulated_traceback))
+
 class CkanArgumentError(Exception):
     def __init__(self, api_name:str, argument_name:str):
         super().__init__(f"Argument {argument_name} is not supported by API {api_name}.")
@@ -115,8 +127,13 @@ class NoCAVerificationError(Exception):
 class RequestError(Exception):
     pass
 
+class HttpRetryCodeError(Exception):
+    def __init__(self, status_code:int):
+        super().__init__(f"HTTP status code {status_code} received. An attempt should be made to retry this request.")
+
 class RequirementError(Exception):
-    pass
+    def __init__(self, requirement:str, function:str):
+        super().__init__(f"The package {requirement} is required for function {function}.")
 
 class FileFormatRequirementError(RequirementError):
     def __init__(self, requirement:str, file_format:str):
@@ -129,4 +146,13 @@ class NameFormatError(Exception):
 class UnknownTargetCRSError(RequirementError):
     def __init__(self, source_crs, context:str):
         super().__init__(f"Unknown destination CRS (source={source_crs}) for {context}.")
+
+# Custom code execution
+class MissingCodeFileError(Exception):
+    def __init__(self):
+        super().__init__("Function names were provided but Auxiliary functions file was not specified")
+
+class MissingIOFunctionError(Exception):
+    def __init__(self, function_type:str):
+        super().__init__(f"User custom IO function name was not provided for {function_type}")
 

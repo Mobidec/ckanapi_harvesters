@@ -19,8 +19,7 @@ from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.builder.example import example_package_xls
 self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
-
-if __name__ == '__main__':
+def run():
     BuilderPackage.unlock_external_code_execution()  # comment to test if the safety feature is enabled
 
     mdl = BuilderPackage.from_excel(example_package_xls)
@@ -54,4 +53,5 @@ if __name__ == '__main__':
 
     print("Tests done.")
 
-
+if __name__ == '__main__':
+    run()

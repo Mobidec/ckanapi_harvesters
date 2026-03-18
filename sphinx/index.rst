@@ -7,7 +7,10 @@ Welcome to ckanapi_harvesters's documentation!
 
     pages/package_overview.md
     pages/package_builder_excel_workbook.md
-    pages/ckan_field_naming_recommendations.md
+    pages/package_builder_cli_resource_options.md
+    pages/package_builder_cli_ckan.md
+    pages/ckan_recommendations_field_naming.md
+    pages/ckan_recommendations_metadata.md
     pages/data_format_policy_recommendations.md
 
     notebooks/builder_example_notebook

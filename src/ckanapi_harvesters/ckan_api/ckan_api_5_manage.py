@@ -21,12 +21,11 @@ from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanResourceInfo, CkanViewInfo, CkanField
 from ckanapi_harvesters.auxiliary.ckan_model import CkanState
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, ckan_package_name_re, datastore_id_col
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import dict_recursive_update
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_files_arg, RequestType
 from ckanapi_harvesters.auxiliary.ckan_action import CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import (ReadOnlyError, AdminFeatureLockedError, NoDefaultView,
                                                       InvalidParameterError, CkanMandatoryArgumentError,
-                                                      IntegrityError, NameFormatError)
+                                                      IntegrityError, NameFormatError, MultipleErrors)
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.ckan_api.ckan_api_1_map import use_ckan_owner_org_as_default
@@ -46,6 +45,8 @@ default_alias_hash_len:int = 6
 default_alias_hash_sep:str = ":"
 
 table_name_subs_re = r'[^\w-]|^(?=\d)'
+ckan_package_name_re_with_spaces = "^[0-9a-z-_ ]*$"
+ckan_package_name_re_with_spaces_upper = "^[0-9a-zA-Z-_ ]*$"
 
 def clean_table_name(variable_name: str) -> str:
     """
@@ -57,6 +58,7 @@ def clean_table_name(variable_name: str) -> str:
 class CkanApiManageParams(CkanApiReadWriteParams):
     default_enable_admin: bool = False  # False: disable advanced admin operations by default such as resource/package deletion
     default_alias_enforce: bool = False  # if True, always add the default alias when calling datastore_create
+    package_create_default_clear_if_deleted_state: bool = True
 
     def __init__(self, *, proxies:Union[str,dict,ProxyConfig]=None,
                  ckan_headers:dict=None, http_headers:dict=None):
@@ -881,7 +883,7 @@ class CkanApiManage(CkanApiReadWrite):
         if data_cleaner is not None:
             if not delete_previous:
                 fields_for_cleaner_dict = CkanApiManage.datastore_field_dict(fields=fields)
-                fields_for_cleaner = OrderedDict([(field_name, CkanField.from_ckan_dict(field_dict)) for field_name, field_dict in fields_for_cleaner_dict.items()])
+                fields_for_cleaner = OrderedDict([(field_name, field_info) for field_name, field_info in fields_for_cleaner_dict.items()])
             else:
                 fields_for_cleaner = None
             records = data_cleaner.clean_records(records, known_fields=fields_for_cleaner, inplace=True)
@@ -910,6 +912,29 @@ class CkanApiManage(CkanApiReadWrite):
 
 
     ## Package creation/deletion/edit ------------------
+    @staticmethod
+    def verify_package_name_format(package_name:str, *, raise_error: bool = True) -> bool:
+        """
+        Verifies that the package name format is correct.
+        """
+        error_messages = []
+        if not re.match(ckan_package_name_re, package_name):
+            if " " in package_name:
+                error_messages.append(NameFormatError(f"Package name cannot contain spaces: '{package_name}'"))
+            if re.match(ckan_package_name_re_with_spaces_upper, package_name):
+                error_messages.append(NameFormatError(f"Package name must be lower case: '{package_name}'"))
+            else:
+                error_messages.append(NameFormatError(f"Package name badly formatted. Only the following characters are allowed: a-z, 0-9, -, _: '{package_name}'"))
+        if not(2 <= len(package_name) <= 100):
+            error_messages.append(NameFormatError(f"Package name must be between 2 and 100 characters: 'package_name'"))
+        if raise_error and len(error_messages) > 0:
+            if len(error_messages) > 1:
+                raise MultipleErrors(error_messages)
+            else:
+                raise error_messages[0]
+        else:
+            return len(error_messages) == 0
+
     def _api_package_patch(self, package_id: str, package_name:str=None, private:bool=None, *, title:str=None, notes:str=None, owner_org:str=None,
                            state:Union[CkanState,str]=None, license_id:str=None, tags:List[str]=None, tags_list_dict:List[Dict[str, str]]=None,
                            url:str=None, version:str=None, custom_fields:dict=None,
@@ -941,14 +966,7 @@ class CkanApiManage(CkanApiReadWrite):
         if owner_org is not None:
             params["owner_org"] = owner_org
         if package_name is not None:
-            assert_or_raise(2 <= len(package_name) <= 100, NameFormatError(f"Package name must be between 2 and 100 characters: 'package_name'"))
-            if not re.match(ckan_package_name_re, package_name):
-                if ' ' in package_name:
-                    raise(NameFormatError(f"Package name cannot contain spaces: '{package_name}'"))
-                elif not package_name.lower() == package_name:
-                    raise(NameFormatError(f"Package name must be lower case: '{package_name}'"))
-                else:
-                    raise(NameFormatError(f"Package name badly formatted. Only the following characters are allowed: a-z, 0-9, -, _: '{package_name}'"))
+            self.verify_package_name_format(package_name)
             params["name"] = package_name
         if title is not None:
             params["title"] = title
@@ -1036,7 +1054,7 @@ class CkanApiManage(CkanApiReadWrite):
         """
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         if params is None: params = {}
-        assert(2 <= len(name) <= 100 and re.match(ckan_package_name_re, name))
+        self.verify_package_name_format(name)
         params["name"] = name
         params["private"] = private
         if owner_org is None and use_ckan_owner_org_as_default:
@@ -1089,7 +1107,8 @@ class CkanApiManage(CkanApiReadWrite):
                        url: str = None, version: str = None, custom_fields: dict = None,
                        author: str = None, author_email: str = None,
                        maintainer: str = None, maintainer_email: str = None,
-                       params:dict=None, cancel_if_exists:bool=True, update_if_exists=True) -> CkanPackageInfo:
+                       params:dict=None, cancel_if_exists:bool=True, update_if_exists=True,
+                       clear_if_deleted_state:bool=None) -> CkanPackageInfo:
         """
         Helper function to create a new package. This first checks if the package already exists.
 
@@ -1104,13 +1123,25 @@ class CkanApiManage(CkanApiReadWrite):
         :param params:
         :param cancel_if_exists:
         :param update_if_exists:
+        :param clear_if_deleted_state: Option to clear the resources of a package if it was found in Deleted state. Default behavior is set in params.
         :return:
         """
+        if clear_if_deleted_state is None:
+            clear_if_deleted_state = self.params.package_create_default_clear_if_deleted_state
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         if package_name is None or package_name == "":
             raise CkanMandatoryArgumentError("package_create", "package_name")
         self.map_resources(package_name, only_missing=True, error_not_found=False)
         pkg_info = self.map.get_package_info(package_name, error_not_mapped=False)
+        if pkg_info is not None and clear_if_deleted_state:
+            if pkg_info.state == CkanState.Deleted:
+                if self.params.verbose_request_error:
+                    print(f"Package {package_name} was found in Delete state. All ressources will be deleted before updating it.")
+                try:
+                    self.package_delete_resources(package_name, bypass_admin=True)
+                except Exception as e:
+                    msg = f"Failed to delete resources of package {package_name}: {e}"
+                    warn(msg)
         if pkg_info is not None and cancel_if_exists:
             if update_if_exists:
                 pkg_info = self.package_patch(pkg_info.id, package_name, private=private, title=title, notes=notes,

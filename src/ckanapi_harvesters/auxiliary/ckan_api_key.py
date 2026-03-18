@@ -9,6 +9,7 @@ from warnings import warn
 from typing import Dict, Union, Iterable
 import getpass
 import argparse
+import  io
 
 from ckanapi_harvesters.auxiliary.ckan_errors import ApiKeyFileError
 from ckanapi_harvesters.auxiliary.path import sanitize_path, path_rel_to_dir
@@ -133,12 +134,20 @@ class ApiKey:
     @staticmethod
     def _setup_cli_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="API key initialization")
+            parser = argparse.ArgumentParser(description="API key initialization", add_help=False)
         parser.add_argument("--apikey", type=str,
                             help="API key")
         parser.add_argument("--apikey-file", type=str,
                             help="Path to a file containing the API key (first line)")
         return parser
+
+    def print_help_cli(self, display:bool=True) -> str:
+        parser = self._setup_cli_parser()
+        if display:
+            parser.print_help()
+        buffer = io.StringIO()
+        parser.print_help(buffer)
+        return buffer.getvalue()
 
     def _cli_args_apply(self, args: argparse.Namespace, *, base_dir: str = None, error_not_found: bool = True) -> None:
         if args.apikey is not None:
@@ -154,7 +163,8 @@ class CkanApiKey(ApiKey):
     CKAN_API_KEY_HEADER_NAME = {"Authorization", "X-CKAN-API-Key"}  # match apikey_header_name of your CKAN instance
     CKAN_API_KEY_ENVIRON = "CKAN_API_KEY"  # not recommended to store sensitive information in environment variables
     API_KEY_FILE_ENVIRON = "CKAN_API_KEY_FILE"
-    API_KEY_FILE_DEFAULT = os.path.expanduser(os.path.join("~", ".ckan", "__CKAN_API_KEY__.txt"))  # default API key file location for CKAN
+    API_KEY_FILE_DEFAULT_LIST = [os.path.expanduser(os.path.join("~", ".config", "__CKAN_API_KEY__.txt")),
+                                 os.path.expanduser(os.path.join("~", ".ckan", "__CKAN_API_KEY__.txt"))]  # default API key file locations for CKAN
 
     def __init__(self, *, apikey:str=None, apikey_file:str=None, apikey_auto_load:bool=True):
         """
@@ -170,7 +180,7 @@ class CkanApiKey(ApiKey):
         2. Contents of file pointed by `apikey_file`
         3. Value of environment variable `CKAN_API_KEY`
         4. Contents of file pointed by the environment variable `CKAN_API_KEY_FILE`
-        5. Contents of the file at the default location: `~/.ckan/__CKAN_API_KEY__.txt`
+        5. Contents of the file at the default location: `~/.config/__CKAN_API_KEY__.txt` or `~/.ckan/__CKAN_API_KEY__.txt`
         """
         super().__init__(apikey=apikey, apikey_file=apikey_file, api_key_header_name=self.CKAN_API_KEY_HEADER_NAME)
         if apikey_auto_load:
@@ -192,10 +202,11 @@ class CkanApiKey(ApiKey):
         if env_apikey_file:
             assert not env_apikey_file.strip().lower() == environ_keyword  # this value would create an infinite loop
             return sanitize_path(env_apikey_file)
-        elif os.path.exists(CkanApiKey.API_KEY_FILE_DEFAULT):
-            return CkanApiKey.API_KEY_FILE_DEFAULT
         else:
-            return None
+            for path_index, default_path in enumerate(CkanApiKey.API_KEY_FILE_DEFAULT_LIST):
+                if os.path.exists(default_path):
+                    return default_path
+        return None
 
     def load_from_environ(self, *, error_not_found:bool=False, empty_warning:bool=True) -> bool:
         """
@@ -234,7 +245,7 @@ class CkanApiKey(ApiKey):
     @staticmethod
     def _setup_cli_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="CKAN API key initialization")
+            parser = argparse.ArgumentParser(description="CKAN API key initialization", add_help=False)
         ApiKey._setup_cli_parser(parser=parser)
         return parser
 

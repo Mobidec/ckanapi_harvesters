@@ -17,8 +17,8 @@ class BuilderPackageWithHarvesters(BuilderPackageBasic):
         builder = BuilderPackageWithHarvesters()
         params = dataset_harvester.params
         builder.package_name = f"harvest_{params.harvest_method}_{params.database}_{params.dataset}".lower()
-        builder.package_attributes.title = f"Harvest result of {params.harvest_method} / database {params.database} / dataset {params.dataset}"
-        builder.package_attributes.description = f"Harvested from {params.url} / database {params.database} / dataset {params.dataset}"
+        builder.package_attributes.title = f"Automated harvesting of a {params.harvest_method} dataset: database {params.database} / dataset {params.dataset} [PoC]"
+        builder.package_attributes.description = f"Harvested from {params.host} / database {params.database} / dataset {params.dataset}. Testing the upload of a full dataset from {params.harvest_method}."
         builder.package_attributes.private = True
         # builder.package_attributes.state = CkanState.Draft
         tables: List[str] = dataset_harvester.list_tables(return_metadata=False)
@@ -27,8 +27,8 @@ class BuilderPackageWithHarvesters(BuilderPackageBasic):
             resource_builder = BuilderDataStoreHarvester()
             resource_builder.name = table_name
             resource_builder.harvester = table_harvester
-            if resource_builder.description is None:
-                resource_builder.description = f"dataset {params.dataset} / table {table_name}"
+            if resource_builder.resource_attributes_user.description is None:
+                resource_builder.resource_attributes_user.description = f"dataset {params.dataset} / table {table_name}"
             # metadata is imported after a clean of metadata
             builder.resource_builders[table_name] = resource_builder
         return builder

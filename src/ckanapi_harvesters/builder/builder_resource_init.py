@@ -4,40 +4,43 @@
 Code to initialize a resource builder from a row
 """
 from typing import Union
+from warnings import warn
 
 import pandas as pd
 
 from ckanapi_harvesters.ckan_api import  CkanApiMap
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, _string_from_element
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_errors import (UnexpectedError)
 from ckanapi_harvesters.builder.builder_errors import MissingDataStoreInfoError
 from ckanapi_harvesters.builder.builder_resource import (BuilderResourceABC, BuilderFileBinary, BuilderUrl,
                                                          BuilderResourceUnmanaged)
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiFile
-from ckanapi_harvesters.builder.builder_resource_datastore import (BuilderDataStoreABC, BuilderDataStoreFile,
-                                                                   BuilderResourceIgnored)
+from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC, BuilderResourceIgnored
+from ckanapi_harvesters.builder.builder_resource_datastore_multi_abc import BuilderDataStoreMultiABC
+from ckanapi_harvesters.builder.builder_resource_datastore_multi_folder import BuilderDataStoreFolder
+from ckanapi_harvesters.builder.builder_resource_datastore_multi_ckan import BuilderDataStoreCkan
+from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.builder.builder_resource_multi_datastore import BuilderMultiDataStore
 from ckanapi_harvesters.builder.builder_resource_datastore_url import BuilderDataStoreUrl
 from ckanapi_harvesters.builder.builder_resource_datastore_multi_harvester import BuilderDataStoreHarvester
 from ckanapi_harvesters.builder.builder_resource_datastore_unmanaged import BuilderDataStoreUnmanaged
-from ckanapi_harvesters.builder.builder_resource_datastore_multi_abc import BuilderDataStoreMultiABC
-from ckanapi_harvesters.builder.builder_resource_datastore_multi_folder import BuilderDataStoreFolder
 from ckanapi_harvesters.builder.builder_field import BuilderField
 
 
 import_as_folder_row_count_threshold: Union[int,None] = None
 
 
-def init_resource_from_df(row: pd.Series, base_dir:str=None) -> BuilderResourceABC:
+def init_resource_from_df(row: pd.Series, base_dir:str=None) -> Union[BuilderResourceABC,None]:
     """
     Function mapping keywords to a resource builder type.
 
     :param row:
     :return:
     """
-    mode = row["mode"].lower().strip()
+    mode = _string_from_element(row["mode"], empty_value="")
+    mode = mode.lower().strip()
     if mode == "file":
         resource_builder = BuilderFileBinary()
     elif mode == "url":
@@ -56,10 +59,20 @@ def init_resource_from_df(row: pd.Series, base_dir:str=None) -> BuilderResourceA
         resource_builder = BuilderDataStoreUnmanaged()
     elif mode == "multifile":
         resource_builder = BuilderMultiFile()
+    elif mode == "ckan datastore merge":
+        resource_builder = BuilderDataStoreCkan()
     elif mode == "multidatastore":
         resource_builder = BuilderMultiDataStore()
     elif mode == "ignored":
         resource_builder = BuilderResourceIgnored()
+    elif mode == "":
+        resource_name = _string_from_element(row["name"], empty_value="", strip=True)
+        if resource_name == "":
+            msg = "Ignoring line with empty resource name and empty resource mode: " + row.to_json()
+            warn(msg)
+            return None
+        else:
+            raise ValueError(f"Empty resource mode for resource '{resource_name}'")
     else:
         raise ValueError(f"{mode} is not a valid mode")
     resource_builder._load_from_df_row(row=row, base_dir=base_dir)

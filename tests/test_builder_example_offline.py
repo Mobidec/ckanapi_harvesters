@@ -23,7 +23,7 @@ def test_mdl_load_checks(mdl):
 def test_to_dict(mdl):
     base_dir = mdl.get_base_dir()
     mdl_dict = mdl.to_dict(base_dir=base_dir)
-    assert(mdl_dict["Package"]["Name"] == "builder-example-py")
+    assert(mdl_dict["Package"]["Name in URL"] == "builder-example-py")
 
 def test_mdl_from_dict(mdl):
     base_dir = mdl.get_base_dir()

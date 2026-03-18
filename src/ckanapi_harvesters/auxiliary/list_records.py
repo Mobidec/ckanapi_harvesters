@@ -4,8 +4,9 @@
 Give partial DataFrame behavior to a list of dictionaries
 """
 import pandas as pd
-import numpy as np
-from typing import Union, List
+from typing import Union, List, TypeAlias
+from copy import deepcopy
+
 
 class _ListRecords_index:
     def __init__(self, parent) -> None:
@@ -28,10 +29,21 @@ class ListRecords(list):  # List[dict]
             self.columns = list(self[0].keys())
         else:
             self.columns = []
+        self.attrs: dict = {}
 
     @property
     def iloc(self):
         return _ListRecords_index(self)
+
+    def copy(self) -> "ListRecords":
+        dest = ListRecords(deepcopy(list(self)))
+        dest.columns = self.columns
+        dest.attrs = self.attrs
+        return dest
+
+    def __copy__(self):
+        return self.copy()
+
 
 def records_to_df(records: Union[List[dict], ListRecords], df_args:dict=None, *,
                   missing_value="", none_value="None") -> pd.DataFrame:
@@ -51,10 +63,13 @@ def records_to_df(records: Union[List[dict], ListRecords], df_args:dict=None, *,
     fieldnames = df.columns
     nrows = len(df)
     # df.fillna(np.nan, inplace=True, downcast="object")
-    for (i, row), record in zip(df.iterrows(), records):
+    for (row_loc, row), record in zip(df.iterrows(), records):
         for field in fieldnames:
             if field not in record.keys():
-                df.loc[i, field] = missing_value
+                df.loc[row_loc, field] = missing_value
             elif record[field] is None:
-                df.loc[i, field] = none_value
+                df.loc[row_loc, field] = none_value
     return df
+
+# new type union
+GeneralDataFrame: TypeAlias = Union[ListRecords, pd.DataFrame]

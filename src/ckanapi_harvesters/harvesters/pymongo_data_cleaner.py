@@ -21,7 +21,8 @@ except ImportError:
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, records_to_df
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_errors import CleanerRequirementError
-from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload import CkanDataCleanerUpload, _pd_series_type_detect
+from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload import CkanDataCleanerUpload, _pd_series_type_instance_detect
+from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_init import data_cleaner_dict
 
 
 mongodb_keep_id_column_trace:bool = True
@@ -67,6 +68,10 @@ class MongoDataCleanerUpload(CkanDataCleanerUpload):
         if bson.DBRef is None:
             raise CleanerRequirementError("bson", "DBRef, ObjectId")
 
+    @staticmethod
+    def get_class_keyword() -> str:
+        return "Mongo"
+
     def clear_outputs_new_dataframe(self):
         super().clear_outputs_new_dataframe()
         self.broken_collection_refs:List[str] = []
@@ -87,12 +92,12 @@ class MongoDataCleanerUpload(CkanDataCleanerUpload):
         return dest
 
     def _detect_standard_field_bypass(self, field_name: str, values: Union[Any, pd.Series]) -> Union[CkanField,None]:
-        if _pd_series_type_detect(values, bson.DBRef):
+        if _pd_series_type_instance_detect(values, bson.DBRef):
             if self.param_mongodb_dbref_as_one_column:
                 return CkanField(field_name, mongodb_id_alt_type_numeric if mongodb_id_datatype_numeric else "text")
             else:
                 return CkanField(field_name, mongodb_dbref_alt_type)
-        elif _pd_series_type_detect(values, bson.ObjectId):
+        elif _pd_series_type_instance_detect(values, bson.ObjectId):
             return CkanField(field_name, mongodb_id_alt_type_numeric if mongodb_id_datatype_numeric else "text")
         return None
 
@@ -170,4 +175,7 @@ class MongoDataCleanerUpload(CkanDataCleanerUpload):
 
 def pymongo_default_data_cleaner() -> MongoDataCleanerUpload:
     return MongoDataCleanerUpload()
+
+data_cleaner_dict["mongo"] = MongoDataCleanerUpload  # add cannot be performed in the file
+
 

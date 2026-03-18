@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 import argparse
 import shlex
 from warnings import warn
-import copy
+import io
 
 import pandas as pd
 from requests.auth import AuthBase
@@ -20,7 +20,8 @@ from ckanapi_harvesters.auxiliary.ckan_errors import NoCAVerificationError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import ca_file_rel_to_dir, assert_or_raise
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_api_key import ApiKey
-from ckanapi_harvesters.auxiliary.login import Login, SSHLogin
+from ckanapi_harvesters.auxiliary.login import Login
+from ckanapi_harvesters.auxiliary.ssh_tunnel import SshLogin
 from ckanapi_harvesters.harvesters.harvester_errors import HarvestMethodRequiredError
 
 harvester_enforce_ca_verification: bool = False
@@ -80,7 +81,7 @@ class DatabaseParams:
     @staticmethod
     def setup_cli_harvester_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="Harvester parameters")
+            parser = argparse.ArgumentParser(description="Harvester parameters", add_help=False)
         parser.add_argument("--harvester", type=str,
                             help="Type of harvester to use", required=True)
         ProxyConfig._setup_cli_proxy_parser(parser)  # add arguments --proxy --http-proxy --https-proxy --no-proxy --proxy-auth-file
@@ -109,6 +110,14 @@ class DatabaseParams:
         parser.add_argument("--ckan-epsg", type=int,
                             help="Default EPSG for CKAN", default=default_ckan_target_epsg)
         return parser
+
+    def print_help_cli(self, display:bool=True) -> str:
+        parser = self.setup_cli_harvester_parser()
+        if display:
+            parser.print_help()
+        buffer = io.StringIO()
+        parser.print_help(buffer)
+        return buffer.getvalue()
 
     def initialize_from_cli_args(self, args: argparse.Namespace, base_dir: str = None, error_not_found: bool = True,
                                  default_proxies: dict = None, proxy_headers: dict = None) -> None:
@@ -146,7 +155,7 @@ class DatabaseParams:
     @staticmethod
     def parse_harvest_method(options_string: str) -> str:
         # parser = DatabaseParams.setup_cli_harvester_parser()
-        parser = argparse.ArgumentParser(description="Harvester selection")
+        parser = argparse.ArgumentParser(description="Harvester selection", add_help=False)
         parser.add_argument("--harvester", type=str,
                             help="Type of harvester to use", required=True)
         args, _ = parser.parse_known_args(shlex.split(options_string))
@@ -236,7 +245,7 @@ class DatasetParams(DatabaseParams):
     @staticmethod
     def setup_cli_harvester_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="Harvester parameters")
+            parser = argparse.ArgumentParser(description="Harvester parameters", add_help=False)
             DatabaseParams.setup_cli_harvester_parser(parser=parser)
         parser.add_argument("--dataset", type=str,
                             help="Dataset name")
@@ -279,7 +288,7 @@ class TableParams(DatasetParams):
     @staticmethod
     def setup_cli_harvester_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
         if parser is None:
-            parser = argparse.ArgumentParser(description="Harvester parameters")
+            parser = argparse.ArgumentParser(description="Harvester parameters", add_help=False)
             DatabaseParams.setup_cli_harvester_parser(parser)
             DatasetParams.setup_cli_harvester_parser(parser)
         parser.add_argument("-o", "--output-dir", type=str,

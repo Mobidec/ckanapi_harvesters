@@ -62,7 +62,7 @@ class CkanApiMap(CkanApiBase):
         """
         if dest is None:
             dest = CkanApiMap()
-        super().copy(dest=dest)
+        super().copy(new_identifier=new_identifier, dest=dest)
         dest.map = self.map.copy()
         return dest
 
@@ -302,17 +302,17 @@ class CkanApiMap(CkanApiBase):
 
     def get_resource_info_or_request(self, resource_name:str, package_name:str=None, *,
                                      request_missing:bool=True, error_not_mapped:bool=False,
-                                     error_not_found:bool=True) -> Union[CkanResourceInfo,None]:
+                                     error_not_found:bool=True, datastore_info:bool=False) -> Union[CkanResourceInfo,None]:
         resource_id = self.get_resource_id_or_request(resource_name, package_name, error_not_mapped=error_not_mapped,
                                                       request_missing=request_missing, error_not_found=error_not_found)
         if resource_id is None:
             return None
-        return self.get_resource_info_or_request_of_id(resource_id, request_missing=request_missing,
+        return self.get_resource_info_or_request_of_id(resource_id, request_missing=request_missing, datastore_info=datastore_info,
                                                        error_not_mapped=error_not_mapped, error_not_found=error_not_found)
 
     def get_resource_info_or_request_of_id(self, resource_id:str, *,
                                            request_missing:bool=True, error_not_mapped:bool=False,
-                                           error_not_found:bool=True) -> Union[CkanResourceInfo,None]:
+                                           error_not_found:bool=True, datastore_info:bool=False) -> Union[CkanResourceInfo,None]:
         """
         Get information on a resource if present in the map or perform request.
         Recommended: self.map.get_resource_info() rather than this for this usage because resource information is returned
@@ -325,6 +325,8 @@ class CkanApiMap(CkanApiBase):
         """
         resource_info = self.map.get_resource_info(resource_id, error_not_mapped=error_not_mapped)
         if resource_info is not None:
+            if datastore_info and resource_info.datastore_info is None and resource_info.datastore_info_error is None:
+                resource_info.datastore_info = self.get_datastore_info_or_request(resource_info.id, resource_info.package_id, error_not_mapped=False)
             return resource_info
         elif request_missing:
             try:
@@ -462,7 +464,7 @@ class CkanApiMap(CkanApiBase):
     ## API calls needed to make the map and auxiliary API functions  ------------------
     def _api_package_search(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
                             include_private:bool=True, include_drafts:bool=False, sort:str=None,
-                            facet:bool=False, limit:int=None, offset:int=None) -> List[CkanPackageInfo]:
+                            facet:bool=None, limit:int=None, offset:int=None) -> List[CkanPackageInfo]:
         """
         API call to package_search.
 
@@ -499,7 +501,7 @@ class CkanApiMap(CkanApiBase):
         if sort is not None:
             params["sort"] = sort
         if facet is not None:
-            params["facet"] = facet  # what are facets?
+            params["facet"] = facet  # what are facets? default was False in previous versions
         if include_private is not None:
             params["include_private"] = include_private
         if include_drafts is not None:
@@ -516,7 +518,7 @@ class CkanApiMap(CkanApiBase):
 
     def _api_package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
                                 include_private:bool=True, include_drafts:bool=False, sort:str=None,
-                                facet:bool=False, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
+                                facet:bool=None, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
         """
         API call to package_search until an empty list is received.
 
@@ -543,7 +545,7 @@ class CkanApiMap(CkanApiBase):
 
     def package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
                                 include_private:bool=True, include_drafts:bool=False, sort:str=None,
-                                facet:bool=False, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
+                                facet:bool=None, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
         # function alias
         return self._api_package_search_all(params=params, owner_org=owner_org, filter=filter, q=q,
                                             include_private=include_private, include_drafts=include_drafts, sort=sort,
@@ -782,18 +784,26 @@ class CkanApiMap(CkanApiBase):
             return False
         return True
 
-    def get_package_page_url(self, package_name:str, *, error_not_found:bool=True) -> str:
+    def get_package_page_url(self, package_name:str, *, error_not_found:bool=True, default_url:bool=False) -> str:
         """
         Get URL of package presentation page in CKAN (landing page).
 
         :param package_name:
         :param error_not_found:
+        :param default_url: return url based on package name, even if it was not found.
         :return:
         """
         self._error_empty_url()
+        initial_url = url_join(self.url, "dataset" + urlsep + package_name)
+        if default_url and error_not_found:
+            return initial_url
         package_info = self.get_package_info_or_request(package_name, error_not_found=error_not_found)
         if package_info is not None:
             url = url_join(self.url, "dataset" + urlsep + package_info.name)
+        elif default_url:
+            msg = f"Package {package_name} not found. Returning default URL {initial_url}."
+            warn(msg)
+            return initial_url
         else:
             url = None
         return url
@@ -1042,15 +1052,18 @@ class CkanApiMap(CkanApiBase):
         Map user and group access rights to the packages currently mapped by CKAN
         :return:
         """
+        current_user = self.query_current_user()
         self.group_list_all(cancel_if_present=cancel_if_present)
         self.user_list(cancel_if_present=cancel_if_present)
         for package_id, package_info in self.map.packages.items():
-            self.package_collaborator_list(package_id, cancel_if_present=cancel_if_present)
+            if current_user is not None:
+                self.package_collaborator_list(package_id, cancel_if_present=cancel_if_present)
             # merge collaborators with groups of the package
-            package_info.user_access = package_info.collaborators.copy()
-            for group in package_info.groups:
-                group_info = self.map.groups[group.id]
-                for user_id, user_capacity in group_info.user_members.items():
-                    if user_id not in package_info.user_access:
-                        package_info.user_access[user_id] = CkanCollaboration(user_capacity, None, group_id=group.id)
+            if package_info.collaborators is not None:
+                package_info.user_access = package_info.collaborators.copy()
+                for group in package_info.groups:
+                    group_info = self.map.groups[group.id]
+                    for user_id, user_capacity in group_info.user_members.items():
+                        if user_id not in package_info.user_access.keys():
+                            package_info.user_access[user_id] = CkanCollaboration(user_capacity, None, group_id=group.id)
         return self.map

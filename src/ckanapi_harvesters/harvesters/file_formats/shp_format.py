@@ -10,6 +10,9 @@ from warnings import warn
 from enum import IntEnum
 
 import pandas as pd
+
+from ckanapi_harvesters.harvesters.file_formats.csv_format import CsvFileFormat
+
 try:
     import geopandas as gpd
 except ImportError:
@@ -26,28 +29,34 @@ from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckan_target_
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 
 
-shp_upload_read_file_kwargs = dict(encoding='utf-8')
-
 class DownloadedShapeFileConversion(IntEnum):
     CsvWkb = 0
     ShapefileProjection = 2
     ShapefileAsIs = 3
 
+
 class ShapeFileFormat(FileFormatABC):
-    def __init__(self, read_file_kwargs=None) -> None:
+    default_read_kwargs = dict(encoding='utf-8')  # read
+    default_write_kwargs = dict(encoding='utf-8')  # write
+
+    def __init__(self, options_string:str=None, *, read_kwargs:dict=None, write_kwargs:dict=None) -> None:
         if gpd.GeoDataFrame is None:
             raise FileFormatRequirementError("geopandas", "SHP")
         if pyproj is None:
             raise FileFormatRequirementError("pyproj", "SHP")
-        if read_file_kwargs is None: read_file_kwargs = shp_upload_read_file_kwargs
-        self.read_file_kwargs:dict = read_file_kwargs
+        super().__init__(options_string=options_string, read_kwargs=read_kwargs, write_kwargs=write_kwargs)
         self.require_field_crs:bool = True
         self.download_conversion = DownloadedShapeFileConversion.ShapefileProjection
+        self.allow_chunks = False  # override: reading by chunks is not available
 
-    # loading a file before upload ----------------
-    def read_file(self, file_path: Union[str,io.StringIO], fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    # read: loading a file before upload ----------------
+    def read_by_chunks_allowed(self) -> bool:
+        return False
+
+    def read_file(self, file_path: Union[str,io.StringIO], fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
         # target EPSG = EPSG used in CKAN, source EPSG read from SHP file
-        gdf = gpd.read_file(file_path, **self.read_file_kwargs)
+        read_kwargs = self._get_read_kwargs(allow_chunks=False)
+        gdf = gpd.read_file(file_path, **read_kwargs)
         geo_columns = list(gdf.select_dtypes('geometry'))
         for field_name in geo_columns:
             gdf.set_geometry(field_name, inplace=True)  # select the current column for geometry computations
@@ -67,6 +76,7 @@ class ShapeFileFormat(FileFormatABC):
                 warn(msg)
             if field_data_type == "geometry" or field_data_type.startswith("geometry("):  # and field.internal_attrs.geometry_as_source:
                 if epsg_target is not None:
+                    # EPSG is determined by the field metadata
                     crs_target = pyproj.CRS.from_epsg(epsg_target)
                     if not crs_source == crs_target:
                         gdf.to_crs(crs_target, inplace=True)
@@ -82,10 +92,10 @@ class ShapeFileFormat(FileFormatABC):
         df = gdf.to_wkb(hex=True)  # converts all geometric fields to WKB and returns a standard DataFrame object
         return df
 
-    def read_buffer(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
         return self.read_file(buffer, fields=fields)
 
-    # saving a file after download -------------
+    # write: saving a file after download -------------
     def downloaded_df_to_gdf(self, df: pd.DataFrame, *, fields: Union[Dict[str, CkanField],None], context:str=None) -> gpd.GeoDataFrame:
         # NB: target EPSG = CRS in database (required), source = option to recover original CRS
         gdf = gpd.GeoDataFrame(df)
@@ -111,18 +121,43 @@ class ShapeFileFormat(FileFormatABC):
 
     def write_file(self, df: pd.DataFrame, file_path: str, fields: Union[Dict[str, CkanField],None]) -> None:
         # this writes the shp file and auxiliary shx, dbf, cpg, prj files
+        write_kwargs = self._get_write_kwargs()
         gdf = self.downloaded_df_to_gdf(df, fields=fields, context=file_path)
-        gdf.to_file(file_path, driver="ESRI Shapefile")
+        gdf.to_file(file_path, driver="ESRI Shapefile", **write_kwargs)
 
     def write_in_memory(self, df: pd.DataFrame, fields: Union[Dict[str, CkanField],None]) -> bytes:
-        # how could this work because there are multiple files?
+        # TODO: how could this work because there are multiple files?
+        write_kwargs = self._get_write_kwargs()
         gdf = self.downloaded_df_to_gdf(df, fields=fields)
         buffer = io.StringIO()
-        gdf.to_file(buffer, driver="ESRI Shapefile")
+        gdf.to_file(buffer, driver="ESRI Shapefile", **write_kwargs)
         return buffer.getvalue().encode("utf8")
 
-    def copy(self):
-        dest = ShapeFileFormat(self.read_file_kwargs)
+    def append_allowed(self) -> bool:
+        # NB: not all drivers support appending.
+        # The drivers that support appending are listed in fiona.supported_drivers
+        # or [Toblerity/Fiona](https://github.com/Toblerity/Fiona/blob/main/fiona/drvsupport.py).
+        # ESRI Shapefile driver is supported according to documentation.
+        return True
+
+    def append_file(self, df: Union[pd.DataFrame, ListRecords], file_path: str,
+                    fields: Union[Dict[str, CkanField], None]) -> None:
+        write_kwargs = self._get_write_kwargs()
+        gdf = self.downloaded_df_to_gdf(df, fields=fields, context=file_path)
+        gdf.to_file(file_path, mode='a', driver="ESRI Shapefile", **write_kwargs)
+
+    def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
+        write_kwargs = self._get_write_kwargs()
+        gdf = self.downloaded_df_to_gdf(df, fields=fields)
+        buffer = io.StringIO(buffer.decode("utf8"))
+        gdf.to_file(buffer, mode='a', driver="ESRI Shapefile", **write_kwargs)
+        return buffer.getvalue().encode("utf8")
+
+    # misc ------------------
+    def copy(self, dest=None):
+        if dest is None:
+            dest = ShapeFileFormat(self.options_string, read_kwargs=self.read_kwargs, write_kwargs=self.write_kwargs)
+        super().copy(dest=dest)
         dest.download_conversion = self.download_conversion
         dest.require_field_crs = self.require_field_crs
         return dest

@@ -179,7 +179,7 @@ class CkanApiReadOnly(CkanApiMap):
         if bom is not None:
             params["bom"] = bom
         # params["bom"] = True  # useful?
-        response = self._url_request(f"datastore/dump/{resource_id}", method=RequestType.Get, params=params)
+        response = self._ckan_url_request(f"datastore/dump/{resource_id}", method=RequestType.Get, params=params)
         if response.status_code == 200:
             return response
         elif response.status_code == 404 and "DataStore resource not found" in response.text:
@@ -676,7 +676,7 @@ class CkanApiReadOnly(CkanApiMap):
             df: pd.DataFrame
             row: pd.Series
             for df in generator:
-                for index, row in df.iterrows():
+                for row_loc, row in df.iterrows():
                     yield row
         elif search_method:
             response: CkanActionResponse
@@ -765,7 +765,7 @@ class CkanApiReadOnly(CkanApiMap):
             df: pd.DataFrame
             row: pd.Series
             for df in generator:
-                for index, row in df.iterrows():
+                for row_loc, row in df.iterrows():
                     yield row
         else:
             response: CkanActionResponse
@@ -909,9 +909,18 @@ class CkanApiReadOnly(CkanApiMap):
         for resource_id, resource_info in self.map.resources.items():
             if resource_info.download_url:
                 if not (cancel_if_present and resource_info.download_size_mb is not None):
-                    _, response = self.resource_download(resource_id, method="HEAD")
-                    content_length = int(response.headers.get("content-length", None))  # raise error if not found or bad format
-                    resource_info.download_size_mb = bytes_to_megabytes(content_length)
+                    try:
+                        _, response = self.resource_download(resource_id, method="HEAD")
+                        content_length_str = response.headers.get("content-length", None)
+                    except Exception as e:
+                        msg = f"Failed to query download url for resource id {resource_id}: {str(e)}"
+                        warn(msg)
+                        content_length_str = None
+                    if content_length_str is not None:
+                        content_length = int(content_length_str)  # raise error if not found or bad format
+                        resource_info.download_size_mb = bytes_to_megabytes(content_length)
+                    else:
+                        resource_info.download_size_mb = None
 
 
     ## Mapping of resource aliases from table

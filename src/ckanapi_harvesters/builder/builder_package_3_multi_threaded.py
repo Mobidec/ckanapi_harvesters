@@ -8,8 +8,9 @@ import threading
 import copy
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanState
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback
 from ckanapi_harvesters.builder.builder_package_2_harvesters import BuilderPackageWithHarvesters
-from ckanapi_harvesters.builder.builder_resource_multi_abc import BuilderMultiABC, default_progress_callback
+from ckanapi_harvesters.builder.builder_resource_multi_abc import BuilderMultiABC
 from ckanapi_harvesters.ckan_api import CkanApi
 
 
@@ -23,8 +24,7 @@ class BuilderPackageMultiThreaded(BuilderPackageWithHarvesters, BuilderMultiABC)
                          title=title, description=description, private=private, state=state, version=version,
                          url=url, tags=tags, organization_name=organization_name, license_name=license_name)
         # BuilderMultiABC:
-        self.progress_callback: Union[Callable[[int, int, Any], None], None] = default_progress_callback
-        self.progress_callback_kwargs: dict = {}
+        self.progress_callback = CkanProgressCallback()
         self.stop_event = threading.Event()
         self.thread_ckan: Dict[str, CkanApi] = {}
         self.enable_multi_threaded_upload:bool = True
@@ -34,8 +34,7 @@ class BuilderPackageMultiThreaded(BuilderPackageWithHarvesters, BuilderMultiABC)
         if dest is None:
             dest = BuilderPackageWithHarvesters()
         super().copy(dest=dest)
-        dest.progress_callback = self.progress_callback
-        dest.progress_callback_kwargs = copy.deepcopy(self.progress_callback_kwargs)
+        dest.progress_callback = self.progress_callback.copy()
         dest.enable_multi_threaded_upload = self.enable_multi_threaded_upload
         dest.enable_multi_threaded_download = self.enable_multi_threaded_download
         return dest

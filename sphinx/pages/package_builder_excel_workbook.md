@@ -24,6 +24,8 @@ The names are not case-sensitive.
 The package builder can also be exported in a JSON file. The organization of the JSON file is similar.
 For DataStores, the field list with metadata is located under the associated resource rather than at the top level.
 
+Fields left empty are not interpreted by the upload scripts. Values from CKAN are prioritary on values which could be deduced from the data source, except if option `override_ckan` is used in the function call.
+
 
 ### Sheet "info"
 
@@ -71,6 +73,9 @@ The `proxy_auth` argument can be also used in your script. Additional headers ca
 - __Data format policy file__: Path to a JSON file containing the CKAN data format policy, relative to this Excel workbook folder. The data format policy enables you to check your information against data format policy rules provided by your organization.
 - __Options__: List of options to initialize the CKAN API object in CLI format. Notable options are:
   - `--ckan-postgis` to signal the data transformation operations to handle PostGIS objects properly.
+- __Limit__: Maximum number of records to return/send per request.
+- __Time between requests__: Delay between each request (upload/download), in seconds - recommended: 0.1 seconds. Default value used if left empty.
+- __Thread count__: default number of threads used to upload/download large datasets. Default is 1.
 
 
 ### Sheet "package"
@@ -78,15 +83,20 @@ The `proxy_auth` argument can be also used in your script. Additional headers ca
 This sheet contains the definition of the package. Help for each field is given in the sheet.
 
 Field specification:
-- __Name__: Name of the package used in the urls to refer to the package (_mandatory_). The package name should be specific. Characters allowed are lowercase letters (a-z, no accents, no spaces), digits, `-` and `_`.
+- __Name in URL__: Name of the package used in the urls to refer to the package (_mandatory_). The package name should be specific. 
+Characters allowed are lowercase letters (a-z), digits (0-9), `-` and `_`, no accents, no spaces. Length must be 2-100 characters.
 - __Title__: Title appearing in the CKAN interface. 
 - __Description__: Some text describing the package. Markdown features are allowed. 
 - __Version__: Packages can be versioned, which enables tracking of data updates. 
 - __Visibility__: The package can be exposed to all users (Public) or a subset of authentified users, defined by CKAN groups (Private). Values accepted:
   - ___Private___
   - ___Public___
-- __State__: The state field enables to prepare a package without making visible to all users. Available states are:
-  - ___Active___ (_default_)
+- __State__: The state field enables to prepare a package without making it visible to all users. 
+By default, during the package upload, it has the state ___Draft___. 
+And if not specified here, the state remains ___Draft___. 
+However, this behavior can be changed with `BuilderPackage.setup_auto_draft_state`.
+Available states are:
+  - ___Active___
   - ___Draft___
   - ___Deleted___ (step before definitive deletion)
 - __Organization__: This field holds the owner organization name, ID or title. It is mandatory to initialize a package. 
@@ -116,8 +126,9 @@ Indeed, Excel sheet names cannot exceed 31 characters, contain the following cha
 begin or end with an apostrophe (`'`) or be named "History". 
 When using the resource name, the default sheet name replaces the forbidden characters with `#`. 
 - __Description__: Description of the resource, appearing in the CKAN package home page. Markdown features are allowed. 
-- __Format__: Format used to read/write files. Formats are defined in `ckanapi_harvesters.builder.file_formats`. 
-Default format is CSV for DataStores.
+- __Format__: This determines the method used to read/write files. Formats are defined in `ckanapi_harvesters.builder.file_formats`. 
+Default format is CSV for DataStores. 
+If a custom read/write method is defined (see below, columns Read/Write function), this column is ignored.
 - __State__: The state field enables to prepare a resource without making visible to all users. Available states are:
   - ___Active___ (_default_)
   - ___Draft___
@@ -141,7 +152,13 @@ Default format is CSV for DataStores.
   The files used by single-resource lines are ignored by the wildcard selection.
   - ___MultiDataStore___: A MultiFile which initiates a DataStore and manages field metadata.
   The forbidden wildcard characters in the name of the Excel spreadsheet for field metadata must be replaced by `#`.
-- __Options__: Field reserved for resources in mode _DataStore from Requests_.
+- __Options__: Options in CLI format: 
+  - In file mode, use to add specific arguments for file reading/writing functions e.g.
+    - To disable reading a CSV file by chunks, use option `--no-chunks`.
+    - For a CSV file, add options to the pandas.read_csv function in key=value format e.g. 
+    `--read-kwargs compression=gzip header=10`
+  - In mode _DataStore from Requests_, use to configure database connection parameters. 
+  See [specific documentation](package_builder_cli_resource_options.md).
 - __Download__: By default, all the resources are downloaded. You can specify not to download a specific resource with the keyword `false`.
 Resources which are not listed in the Excel spreadsheet will not be downloaded by the default methods.
 - __File/URL__: Source URL if the resource refers to an URL.
@@ -153,14 +170,39 @@ Comma-separated list of field names.
 In DataStore from Folder mode and when the primary key is defined by two or more fields, the default download behavior is to map a file to a combination of the first fields of the primary key. The last field is used as an index. 
 - __Indexes__: Indexed fields can increase the speed of certain queries. (only applies to DataStores)
 Comma-separated list of field names.
+- __Read function__: custom function to execute when loading the data from a file. This function must be implemented in the Auxiliary functions file.
+It must take a file/IO buffer and return a DataFrame.
+- __Write function__: custom function to execute when saving records to a file. This function must be implemented in the Auxiliary functions file.
+It must take a DataFrame and a file/IO buffer as input arguments.
 - __Upload function__: If an Auxiliary functions file is specified, this represents the name of the function which is called before uploading a DataFrame from a local file. (only applies to DataStores)
 This function must have one argument which is a pandas DataFrame and must return the modified DataFrame. If not provided, no modification is performed.
 - __Download function__: This should be the reverse function of the upload function. It is called when a DataFrame is downloaded from the server. (only applies to DataStores)
+- __Data cleaner__ option to activate a function which corrects values according to the destination type specified in the fields metadata (only for uploads). 
+By default, no modifications are made to the data before upload except when importing data from external databases (PostgreSQL/MongoDB). The ___GeoJSON___ data cleaner is used in this case. 
+Values for this field are:
+  - ___None___: explicitly do not use a data cleaner
+  - ___Basic___: basic data conversions e.g. replace empty values by `null` for numeric columns.
+  - ___GeoJSON___: conversions adapted for geometry columns (like GeoJSON) - this includes the ___Basic___ features.
+  - ___Check___: this method raises an error if a data edit was recommended by the ___GeoJSON___ mode. The data is not modified with this implementation.
 - __Aliases__: Names for read only aliases of the resource (only for DataStores). 
 Resource aliases are used to construct SQL read-only queries with identifiers more easily memorizable than resource ids.
 
 Paths of resources are necessarily relative to the resources directory because the download step 
 will reconstruct the same hierarchy as the upload directory, in a different location.
+
+
+#### Data upload process steps
+
+When uploading data, the steps are the following:
+1) Read file: the selected method depends on the indicated format or, if specified, the custom __Read function__. 
+This function returns either a DataFrame or a list of dicts. The function can also return a generator of these objects.
+2) Add index: if no primary key is defined, an extra column named `_upload_index` is added to the DataFrame. 
+3) Alter function: the __Upload function__ is called, if defined by user. 
+See below for function prototypes.
+4) Sort lines by the primary key, if it is defined by more than one column. 
+When multiple primary keys were provided, the default behavior is to associate a file with the values of the primary key except its last column (when downloading a resource).  
+5) Data cleaner: the selected __Data cleaner__ is executed, if specified (GeoJSON selected by default for mode ___DataStore from Harvester___).
+6) `datastore_upsert`: the DataFrame is uploaded through the API. 
 
 
 #### Specific modes for _DataStore from Harvester_
@@ -195,4 +237,68 @@ Field specification:
 - __Options__: CLI arguments for additional attributes of a field conversion, notably:
   - `--epsg-src` is used to specify the original EPSG of a geometric object (integer). 
   If provided, the geometry can be converted to the destination EPSG if a data cleaner is specified.
+
+
+## Auxiliary function prototypes
+
+
+### Upload/Download function
+
+An intermediary data editing function can be inserted between the reading from the data source and the upload request.
+These steps are described in a [section above](Data-upload-process-steps).
+This function must be referenced by the user in the __Upload function__ column of the resources attribute.
+
+In the other way, a __Download function__ can be referenced. This function may be used to restore the data format of the original data source.
+
+The arguments before the asterisk (`*`) are positional and mandatory. The keyword arguments can be used to display more information.
+The `**kwargs` argument must be implemented in order to ensure compatibility with future versions.
+
+```python
+from typing import Union, List, Dict
+import pandas as pd
+from ckanapi_harvesters import CkanField
+
+...
+
+def upload_function_example(df_local: Union[pd.DataFrame, List[dict]], *,
+                            fields:Dict[str, CkanField], file_name:str=None, total_lines_read:int=None, **kwargs) \
+        -> Union[pd.DataFrame, List[dict]]:
+    return df_local
+
+def download_function_example(df_download: pd.DataFrame, *,
+                              fields:Dict[str, CkanField], file_query:str=None, **kwargs) \
+        -> Union[pd.DataFrame, List[dict]]:
+    return df_download
+```
+
+
+### Progress callback
+
+By default, progress is printed in the command line output. 
+The progress display may be customized such as in this example (used in Jupyter Notebooks).
+The arguments before the asterisk (`*`) are positional and mandatory. The keyword arguments can be used to display more information.
+The `**kwargs` argument must be implemented in order to ensure compatibility with future versions.
+
+```python
+from ckanapi_harvesters import CkanCallbackLevel
+from typing import Any
+
+...
+
+from ipywidgets import IntProgress
+from IPython.display import display
+f = IntProgress(min=0,max=100)
+
+def progress_callback_example(position:int, total:int, info:Any=None, *, context:str=None,
+                              file_index:int=None, file_count:int=None,
+                              lines_chunk:int=None, total_lines_read:int=None,
+                              canceled_upload: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+                              **kwargs) -> None:
+    if level == CkanCallbackLevel.ResourceChunks:
+        f.value = int(position/total*100)
+
+...
+
+display(f)
+```
 
