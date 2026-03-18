@@ -752,7 +752,7 @@ class BuilderPackageBasic:
         resources_df.columns = resources_df.columns.map(str.lower)
         resources_df.columns = resources_df.columns.map(str.strip)
         self.resource_builders = OrderedDict()
-        for index, row in resources_df.iterrows():
+        for row_loc, row in resources_df.iterrows():
             resource_builder = init_resource_from_df(row, base_dir=base_dir)
             if resource_builder is not None:
                 self._init_resource_from_df_aux_fun(resource_builder)

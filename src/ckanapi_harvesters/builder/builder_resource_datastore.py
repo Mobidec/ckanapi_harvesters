@@ -314,7 +314,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         fields_df.columns = fields_df.columns.map(str.lower)
         fields_df.columns = fields_df.columns.map(str.strip)
         self.field_builders_user = OrderedDict()
-        for index, row in fields_df.iterrows():
+        for row_loc, row in fields_df.iterrows():
             field_builder = BuilderField()
             field_builder._load_from_df_row(row=row)
             self.field_builders_user[field_builder.name] = field_builder

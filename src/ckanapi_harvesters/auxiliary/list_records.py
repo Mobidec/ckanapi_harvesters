@@ -63,12 +63,12 @@ def records_to_df(records: Union[List[dict], ListRecords], df_args:dict=None, *,
     fieldnames = df.columns
     nrows = len(df)
     # df.fillna(np.nan, inplace=True, downcast="object")
-    for (i, row), record in zip(df.iterrows(), records):
+    for (row_loc, row), record in zip(df.iterrows(), records):
         for field in fieldnames:
             if field not in record.keys():
-                df.loc[i, field] = missing_value
+                df.loc[row_loc, field] = missing_value
             elif record[field] is None:
-                df.loc[i, field] = none_value
+                df.loc[row_loc, field] = none_value
     return df
 
 # new type union

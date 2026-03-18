@@ -320,13 +320,13 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
             for column in records.columns:
                 field = fields[column]
                 # records[column] = records[column].apply(self.clean_value_field, field=field)
-                for index, value in zip(records.index, records[column]):
+                for value_loc, value in zip(records.index, records[column]):
                     self._new_columns_in_row = {}
-                    records.loc[index, column] = self.clean_value_field(value, field=field)
+                    records.loc[value_loc, column] = self.clean_value_field(value, field=field)
                     for path, new_value in self._new_columns_in_row.items():
                         if path in self.field_subs_path.keys():
                             new_field = self.field_subs_path[path]
-                            records.loc[index, new_field] = new_value
+                            records.loc[value_loc, new_field] = new_value
         else:
             for row in records:
                 self._new_columns_in_row = {}

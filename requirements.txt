@@ -19,6 +19,9 @@ shapely[alt] == 2.1.2    # GeoJSON support
 pyproj[alt] == 3.6.1     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
 bson[alt]  # if you need bson but do not want to install pymongo
 geopandas[alt] == 1.1.2  # Shapefile reading functions
+# reading MAT files
+scipy[mat] == 1.15.3
+h5py[mat] == 3.16.0
 # sshtunnel
 sshtunnel[sshtunnel] == 0.4.0
 paramiko[sshtunnel] == 3.5.1

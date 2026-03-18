@@ -53,7 +53,11 @@ alt = [  # optional packages alternative
     "pyproj == 3.6.1",     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
     "geopandas == 1.1.2",  # Shapefile reading functions
 ]
-sshtunnel = [
+mat = [  # optional packages to read MAT files (not used by the package directly, only by examples)
+    "scipy == 1.15.3",
+    "h5py == 3.16.0",
+]
+sshtunnel = [  # optional packages to create ssh tunnels (not fully tested)
     "sshtunnel == 0.4.0",
     "paramiko == 3.5.1",   # compatibility with sshtunnel (strict version)
 ]

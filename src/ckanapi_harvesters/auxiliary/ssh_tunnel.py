@@ -87,6 +87,7 @@ class SshTunnel:
         if ssh_login_file is not None:
             self.ssh_login.load_from_file(ssh_login_file)
         self.verbose: bool = False
+        raise NotImplementedError("Not tested")
 
     def __str__(self):
         if self.server is None:

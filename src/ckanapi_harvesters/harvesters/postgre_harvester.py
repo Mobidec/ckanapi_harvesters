@@ -366,7 +366,7 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
                   AND f_table_name = '{postgre_table_name}';
                 """
                 geo_df = pd.read_sql(query, self.alchemy_engine)
-                for index, row in geo_df.iterrows():
+                for row_loc, row in geo_df.iterrows():
                     column_name = row["f_geometry_column"]
                     fields_df.loc[column_name, "definitive_data_type"] = f"geometry({row['type']}, {row['srid']})"
                     fields_df.loc[column_name, "geo_type"] = row['type']
@@ -391,7 +391,7 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
             self.table_metadata.name = self.params.table
             self.table_metadata.description = table_comment
             self.table_metadata.fields = OrderedDict()
-            for index, row in fields_df.iterrows():
+            for row_loc, row in fields_df.iterrows():
                 field_metadata = FieldMetadata()
                 field_metadata.name = row["column_name"]
                 field_metadata.data_type = row["definitive_data_type"]

@@ -676,7 +676,7 @@ class CkanApiReadOnly(CkanApiMap):
             df: pd.DataFrame
             row: pd.Series
             for df in generator:
-                for index, row in df.iterrows():
+                for row_loc, row in df.iterrows():
                     yield row
         elif search_method:
             response: CkanActionResponse
@@ -765,7 +765,7 @@ class CkanApiReadOnly(CkanApiMap):
             df: pd.DataFrame
             row: pd.Series
             for df in generator:
-                for index, row in df.iterrows():
+                for row_loc, row in df.iterrows():
                     yield row
         else:
             response: CkanActionResponse
