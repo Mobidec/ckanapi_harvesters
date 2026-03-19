@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v3
       - name: Install sphinx
         run: |
-          pip install sphinx sphinx_design myst_parser furo sphinx_autopackagesummary sphinxcontrib-napoleon sphinx-rtd-theme numpydoc
+          pip install sphinx sphinx_design myst_nb furo sphinx_autopackagesummary sphinxcontrib-napoleon sphinx-rtd-theme numpydoc
           pip install '.'
       - name: Build Sphinx documentation
         run: |
