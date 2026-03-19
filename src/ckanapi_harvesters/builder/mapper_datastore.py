@@ -10,6 +10,7 @@ import copy
 
 import pandas as pd
 
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
 from ckanapi_harvesters.auxiliary.ckan_errors import MissingCodeFileError
 from ckanapi_harvesters.auxiliary.external_code_import import PythonUserCode
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
@@ -54,9 +55,11 @@ class DataSchemeConversion:
             index_offset = total_lines_read - len(df_local)
             if isinstance(df_local, pd.DataFrame):
                 index_offset -= df_local.index[0]  # index of DataFrame in file, not 0 if the file is read by chunks
+                assert_or_raise(not(self.upload_upload_index_column in df_local.keys()), KeyError(f"{self.upload_upload_index_column} already exists"))
                 df_local[self.upload_upload_index_column] = df_local.index + index_offset
             else:
                 for index, line in enumerate(df_local):
+                    assert_or_raise(not(self.upload_upload_index_column in line.keys()), KeyError(f"{self.upload_upload_index_column} already exists"))
                     line[self.upload_upload_index_column] = index + index_offset
         if file_query is not None and (isinstance(df_local, pd.DataFrame) or isinstance(df_local, ListRecords)):
             df_local.attrs["source"] = file_query
