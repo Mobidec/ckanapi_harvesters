@@ -48,6 +48,7 @@ class DataSchemeConversion:
         """
         if mapper_kwargs is None: mapper_kwargs = {}
         mapper_kwargs["file_query"] = file_query
+        mapper_kwargs["file_name"] = file_query  # retro-compatible argument (deprecated)
         mapper_kwargs["fields"] = fields
         mapper_kwargs["total_lines_read"] = total_lines_read
         if self.upload_upload_index_column:
