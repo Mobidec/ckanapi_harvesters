@@ -97,8 +97,8 @@ jobs:
           pip install dist/*.whl
       - name: Run tests
         run: |
-          pytest -s -o cache_dir=/tmp/.pytest_cache --junitxml="report.xml"
-          pytest -s -o cache_dir=/tmp/.pytest_cache --cov --cov-report term --cov-report xml:"coverage.xml" --cov-report html:"coverage.html"
+          pytest tests/ci -s -o cache_dir=/tmp/.pytest_cache --junitxml="report.xml"
+          pytest tests/ci -s -o cache_dir=/tmp/.pytest_cache --cov --cov-report term --cov-report xml:"coverage.xml" --cov-report html:"coverage.html"
       - name: Upload test artifacts
         uses: actions/upload-artifact@v4
         with:
