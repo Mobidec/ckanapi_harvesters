@@ -19,7 +19,6 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback
 from ckanapi_harvesters.builder.builder_field import BuilderField
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestFileMapperIndexKeys
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
@@ -27,14 +26,12 @@ from ckanapi_harvesters.harvesters.file_formats.file_format_init import init_fil
 from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC, initial_resource_building_state
 from ckanapi_harvesters.auxiliary.ckan_errors import DuplicateNameError
-from ckanapi_harvesters.auxiliary.path import resolve_rel_path
 from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, GroupByError, IncompletePatchError
-from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo
+from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo, CkanField, UpsertChoice
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, find_duplicates, datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
-from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
-from ckanapi_harvesters.auxiliary.ckan_model import CkanField
+from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_index_col_name
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_init import init_data_cleaner
 
@@ -75,6 +72,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         # self.datastore_attributes_user: CkanDataStoreInfo = CkanDataStoreInfo()
         # self.datastore_attributes_data_source: Union[CkanDataStoreInfo,None] = None
         self.primary_key: Union[List[str],None] = None
+        self.primary_key_user: Union[List[str],None] = None
         self.indexes: Union[List[str],None] = None
         self.aliases: Union[List[str],None] = None
         self.aux_upload_fun_name:str = ""
@@ -88,6 +86,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.reupload_needed: Union[bool,None] = None
         self.df_mapper = DataSchemeConversion()
         self.local_file_format: Union[FileFormatABC,None] = None
+        self.enable_upload_index: bool = True
         self.read_line_counter:int = 0
         self.upload_start_line:int = 0
 
@@ -97,6 +96,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         dest.field_builders_user = copy.deepcopy(self.field_builders_user)
         dest.field_builders_data_source = copy.deepcopy(self.field_builders_data_source)
         dest.primary_key = copy.deepcopy(self.primary_key)
+        dest.primary_key_user = copy.deepcopy(self.primary_key_user)
         dest.indexes = copy.deepcopy(self.indexes)
         dest.aliases = copy.deepcopy(self.aliases)
         dest.aux_upload_fun_name = self.aux_upload_fun_name
@@ -106,9 +106,14 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         dest.reupload_on_update = self.reupload_on_update
         dest.reupload_if_needed = self.reupload_if_needed
         dest.reupload_needed = self.reupload_needed
+        dest.enable_upload_index = self.enable_upload_index
         dest.df_mapper = self.df_mapper.copy()
         dest.local_file_format = self.local_file_format.copy()
         return dest
+
+    def _update_metadata(self, ckan: CkanApi, *, base_dir:str=None) -> None:
+        super()._update_metadata(ckan=ckan, base_dir=base_dir)
+        self.primary_key = self.primary_key_user
 
     @staticmethod
     def _setup_cli_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
@@ -127,6 +132,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                             help="Fields of the primary key defining the request to reconstruct a file, in --one-frame-per-primary-key mode, separated by a comma (no spaces). \n"
                                  "By default, the first columns of the primary, except the last one is used. \n"
                                  "At least one field of the primary key must be unused here. \n")
+        parser.add_argument("--no-upload-index",
+                            help="Disable the generation of an upload index column in case no primary key was given (named " + datastore_default_index_col_name + ")", action="store_true", default=False)
         return parser
 
     def _setup_cli_parser_external(self, parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
@@ -150,6 +157,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         elif args.group_by is not None:
             msg = GroupByError("Argument --group-by cannot be used without option --one-frame-per-primary-key")
             warn(msg)
+        if args.no_upload_index:
+            self.enable_upload_index = False
 
     def apply_one_frame_per_primary_key(self, group_by_argument:Union[str, List[str]]=None):
         """
@@ -254,9 +263,9 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             aliases_string = _string_from_element(row["aliases"])
         if primary_keys_string is not None:
             if primary_keys_string.lower() == "none":
-                self.primary_key = []
+                self.primary_key_user = []
             else:
-                self.primary_key = [field.strip() for field in primary_keys_string.split(ckan_tags_sep)]
+                self.primary_key_user = [field.strip() for field in primary_keys_string.split(ckan_tags_sep)]
         if indexes_string is not None:
             if indexes_string.lower() == "none":
                 self.indexes = []
@@ -269,7 +278,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
     @abstractmethod
     def _to_dict(self, include_id:bool=True) -> dict:
         d = super()._to_dict(include_id=include_id)
-        d["Primary key"] = ckan_tags_sep.join(self.primary_key) if self.primary_key else ""
+        d["Primary key"] = ckan_tags_sep.join(self.primary_key_user) if self.primary_key_user else ""
         d["Indexes"] = ckan_tags_sep.join(self.indexes) if self.indexes is not None else ""
         d["Data cleaner"] = self.data_cleaner_upload.get_class_keyword() if self.data_cleaner_upload is not None else ""
         d["Upload function"] = self.aux_upload_fun_name

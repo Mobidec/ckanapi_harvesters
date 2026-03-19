@@ -104,7 +104,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         df_mapper_mem = self.df_mapper
         if primary_key is not None:
             self.primary_key = primary_key
-        if self.primary_key is None or len(self.primary_key) == 0:
+        if (self.primary_key is None or len(self.primary_key) == 0) and self.enable_upload_index:
             self.primary_key = [datastore_default_index_col_name]
         self.df_mapper = default_file_mapper_from_primary_key(self.primary_key, file_query_list)
         if file_query_list is not None:

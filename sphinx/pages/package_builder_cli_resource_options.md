@@ -28,6 +28,8 @@ options:
                         the first columns of the primary, except the last one
                         is used. At least one field of the primary key must be
                         unused here.
+  --no-upload-index     Disable the generation of an upload index column in
+                        case no primary key was given (named py_upload_index)
 
 Examples: 
 - Selecting a Data Cleaner: --data-cleaner GeoJSON 
