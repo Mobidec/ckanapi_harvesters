@@ -9,6 +9,10 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ## [Unreleased] - 2026-03-19
 
+### Changed
+
+- User-defined upload function prototypes: keyword argument `file_name` has been renamed `file_query`. 
+This could cause incompatibilities with user-defined functions defined previously: the `file_name` argument would be left to None.
 
 
 ## [0.0.13] - 2026-03-18

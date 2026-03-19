@@ -89,8 +89,8 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         df_local = chunk.df
         generator.close()
         if upload_alter:
-            df_upload = self.df_mapper.df_upload_alter(df_local, fields=self._get_fields_info(),
-                                                       total_lines_read=chunk.read_line_counter, file_name=chunk.file_path)
+            df_upload = self.df_mapper.df_upload_alter(df_local, total_lines_read=chunk.read_line_counter,
+                                                       fields=self._get_fields_info(), file_query=chunk.file_path)
             return df_upload
         else:
             return df_local
@@ -188,8 +188,8 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
             apply_last_condition = True  # datastore_multi_apply_last_condition_intermediary
         resource_id = self.get_or_query_resource_id(ckan=ckan, error_not_found=True)
         df_upload_local = df_upload
-        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload_local, fields=self._get_fields_info(),
-                                                               total_lines_read=total_lines_read, file_name=file_name)
+        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload_local, total_lines_read=total_lines_read,
+                                                               fields=self._get_fields_info(), file_query=file_name)
         file_query = self.df_mapper.get_file_query_of_df(df_upload_transformed)
         if file_query is not None:
             i_restart, upload_needed, row_count, df_row = self.df_mapper.last_inserted_index_request(ckan=ckan,

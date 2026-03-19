@@ -277,8 +277,8 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
             apply_last_condition = True  # datastore_multi_apply_last_condition_intermediary
         resource_id = self.get_or_query_resource_id(ckan=ckan, error_not_found=True)
         df_upload_local = df_upload
-        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload_local, fields=self._get_fields_info(),
-                                                               total_lines_read=total_lines_read, file_name=file_name)
+        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload_local, total_lines_read=total_lines_read,
+                                                               fields=self._get_fields_info(), file_query=file_name)
         file_query = self.df_mapper.get_file_query_of_df(df_upload_transformed)
         if file_query is not None:
             i_restart, upload_needed, row_count, df_row = self.df_mapper.last_inserted_index_request(ckan=ckan,

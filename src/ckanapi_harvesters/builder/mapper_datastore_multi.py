@@ -187,14 +187,12 @@ class RequestFileMapperIndexKeys(RequestFileMapperABC):
             fields = fields.union(set(self.sort_by_keys))
         return fields
 
-    def df_upload_alter(self, df_local: Union[pd.DataFrame, List[dict], Any], *,
-                        total_lines_read: int, fields:Dict[str, CkanField], file_name:str,
-                        mapper_kwargs:dict=None, **kwargs) -> pd.DataFrame:
+    def df_upload_alter(self, df_local: Union[pd.DataFrame, List[dict], Any], *, total_lines_read: int,
+                        fields: Dict[str, CkanField], file_query: str, mapper_kwargs: dict = None, **kwargs) -> pd.DataFrame:
         # overload of df_upload_alter calling self.df_upload_fun
         # order dataframes before sending to database in order to be able to restart transfer from last transmitted index
-        df_database = super().df_upload_alter(df_local, fields=fields,
-                                              total_lines_read=total_lines_read, file_name=file_name,
-                                              mapper_kwargs=mapper_kwargs, **kwargs)
+        df_database = super().df_upload_alter(df_local, total_lines_read=total_lines_read, fields=fields,
+                                              file_query=file_query, mapper_kwargs=mapper_kwargs, **kwargs)
         if self.sort_by_keys is not None:
             if self.df_upload_fun is None:
                 df_database = df_database.copy()

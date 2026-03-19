@@ -13,6 +13,7 @@ from . import builder_resource
 from . import builder_resource_multi_abc
 from . import builder_resource_multi_file
 from . import mapper_datastore
+from . import mapper_datastore_prototypes
 from . import mapper_datastore_multi
 from . import builder_resource_datastore
 from . import builder_resource_datastore_multi_abc

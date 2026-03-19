@@ -261,12 +261,12 @@ from ckanapi_harvesters import CkanField
 ...
 
 def upload_function_example(df_local: Union[pd.DataFrame, List[dict]], *,
-                            fields:Dict[str, CkanField], file_name:str=None, total_lines_read:int=None, **kwargs) \
+                            fields:Dict[str, CkanField]=None, file_query:str=None, total_lines_read:int=None, **kwargs) \
         -> Union[pd.DataFrame, List[dict]]:
     return df_local
 
 def download_function_example(df_download: pd.DataFrame, *,
-                              fields:Dict[str, CkanField], file_query:str=None, **kwargs) \
+                              fields:Dict[str, CkanField]=None, file_query:str=None, **kwargs) \
         -> Union[pd.DataFrame, List[dict]]:
     return df_download
 ```

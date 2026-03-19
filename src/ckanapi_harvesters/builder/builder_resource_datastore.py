@@ -374,8 +374,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         :return:
         """
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=True)
-        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload, fields=self._get_fields_info(),
-                                                               total_lines_read=total_lines_read, file_name=file_name)
+        df_upload_transformed = self.df_mapper.df_upload_alter(df_upload, total_lines_read=total_lines_read,
+                                                               fields=self._get_fields_info(), file_query=file_name)
         ret_df = ckan.datastore_upsert(df_upload_transformed, resource_id, method=method,
                                        apply_last_condition=apply_last_condition,
                                        always_last_condition=always_last_condition,

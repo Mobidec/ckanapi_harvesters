@@ -120,6 +120,10 @@ class CkanProgressCallback:
             if end_message:
                 position = total
                 file_index = file_count
+            # division by zero error prevention:
+            if total == 0: total = max(1, position)
+            if file_count is not None and file_count == 0: file_count = max(file_index, 1)
+            # call user-defined function
             self.progress_callback_fun(position, total, info=info, context=context,
                                        file_index=file_index, file_count=file_count,
                                        lines_chunk=lines_chunk, total_lines_read=total_lines_read,

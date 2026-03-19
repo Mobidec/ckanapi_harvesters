@@ -21,6 +21,7 @@ from . import ckan_map
 from . import ckan_vocabulary_deprecated
 from . import ckan_auxiliary
 from . import ckan_progress_callbacks
+from . import ckan_progress_callbacks_prototypes
 from . import deprecated
 
 from .ckan_map import CkanMap

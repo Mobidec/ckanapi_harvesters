@@ -188,8 +188,8 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
         df_local = chunk.df
         generator.close()
         if upload_alter:
-            df_upload = self.df_mapper.df_upload_alter(df_local, fields=self._get_fields_info(),
-                                                       total_lines_read=chunk.read_line_counter, file_name=chunk.file_path)
+            df_upload = self.df_mapper.df_upload_alter(df_local, total_lines_read=chunk.read_line_counter,
+                                                       fields=self._get_fields_info(), file_query=chunk.file_path)
             return df_upload
         else:
             return df_local

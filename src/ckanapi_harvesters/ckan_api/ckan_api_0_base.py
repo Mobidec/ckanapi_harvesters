@@ -734,6 +734,7 @@ class CkanApiBase(CkanApiABC):
                 if self.params.verbose_request_error:
                     msg = f"Waiting to retry API call to {action} after server error (attempt {_attempt_counts}): {str(e)}"
                     warn(msg)
+                    print(msg)
                 if self.params.time_between_attempts > 0:
                     time.sleep(self.params.time_between_attempts * _attempt_counts)
                 return self._api_action_request(action=action, method=method, params=params, headers=headers, data=data,
