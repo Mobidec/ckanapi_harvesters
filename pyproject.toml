@@ -91,6 +91,7 @@ license-files = []
 line-length = 140
 exclude = [
     "tests",
+    "tests_disabled",
     "sphinx",
     "src",
 ]
