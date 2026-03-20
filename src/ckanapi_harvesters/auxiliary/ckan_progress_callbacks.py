@@ -3,9 +3,10 @@
 """
 Progress callback function definition
 """
-from typing import Any, Union, Callable, Set
+from typing import Any, Union, Callable, Dict
 from enum import IntEnum
 import copy
+import time
 
 import pandas as pd
 
@@ -23,7 +24,8 @@ class CkanCallbackLevel(IntEnum):
 def default_progress_callback(position:int, total:int, info:Any=None, *, context:str=None,
                               file_index:int=None, file_count:int=None,
                               lines_chunk:int=None, total_lines_read:int=None,
-                              canceled_upload: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+                              canceled_upload: bool=False, end_message: bool=False,
+                              level:CkanCallbackLevel=None, start_time: float=None,
                               **kwargs) -> None:
     if level == CkanCallbackLevel.Packages:
         print(f"Package {position}/{total}")
@@ -76,6 +78,8 @@ class CkanProgressCallback:
         self.progress_callback_fun: Union[Callable[[int, int, Any], None], None] = None
         self.progress_callback_kwargs: dict = {}
         self.verbosity:dict[CkanCallbackLevel,bool] = {level: True for level in CkanCallbackLevel}
+        self.creation_time = time.time()
+        self.start_time:Dict[CkanCallbackLevel,Union[float,None]] = {level: None for level in CkanCallbackLevel}
         # self.verbosity[CkanCallbackLevel.Request] = False
         if isinstance(callback_fun, CkanProgressCallback):
             callback_fun.copy(dest=self)
@@ -90,15 +94,30 @@ class CkanProgressCallback:
         dest.progress_callback_fun = self.progress_callback_fun
         dest.progress_callback_kwargs = copy.deepcopy(self.progress_callback_kwargs)
         dest.verbosity = self.verbosity.copy()
+        # do not copy state variables: creation_time and start_time
         return dest
 
     def __copy__(self):
         return self.copy()
 
-    def call(self, position:int, total:int, *, info:Any=None, context:str=None,
-             file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
-             canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=0,
-             **kwargs) -> None:
+    def start_task(self, total:int, *, file_count:int=None, level:CkanCallbackLevel=None,
+                 info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=None, **kwargs) -> None:
+        if level is not None:
+            self.start_time[level] = time.time()
+        self.task_progress(position=0, total=total, file_index=0, file_count=file_count, level=level,
+            info=info, context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read,
+            canceled_request=False, end_message=False, **kwargs)
+
+    def end_task(self, total:int, *, file_count:int=None, level:CkanCallbackLevel=None,
+                 info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=None, **kwargs) -> None:
+        self.task_progress(position=total, total=total, file_index=file_count, file_count=file_count, level=level,
+            info=info, context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read,
+            canceled_request=False, end_message=True, **kwargs)
+
+    def task_progress(self, position:int, total:int, *, info:Any=None, context:str=None,
+        file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
+        canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+        **kwargs) -> None:
         """
         Progress callback function. Use to implement a progress indication for the user.
 
@@ -123,9 +142,18 @@ class CkanProgressCallback:
             # division by zero error prevention:
             if total == 0: total = max(1, position)
             if file_count is not None and file_count == 0: file_count = max(file_index, 1)
+            # timing of the current task
+            if level is not None:
+                task_start_time = self.start_time[level]
+                # if task_start_time is None or position == 0 or end_message:
+                #     task_start_time = time.time()
+                #     self.start_time[level] = task_start_time
+            else:
+                task_start_time = None
             # call user-defined function
             self.progress_callback_fun(position, total, info=info, context=context,
                                        file_index=file_index, file_count=file_count,
                                        lines_chunk=lines_chunk, total_lines_read=total_lines_read,
                                        canceled_upload=canceled_request, end_message=end_message,
-                                       level=level, **self.progress_callback_kwargs, **kwargs)
+                                       level=level, start_time=task_start_time,
+                                       **self.progress_callback_kwargs, **kwargs)

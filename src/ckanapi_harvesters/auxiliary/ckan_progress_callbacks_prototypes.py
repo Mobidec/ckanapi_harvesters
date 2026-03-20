@@ -16,7 +16,8 @@ f = None
 def jupyter_progress_callback(position:int, total:int, info:Any=None, *, context:str=None,
                               file_index:int=None, file_count:int=None,
                               lines_chunk:int=None, total_lines_read:int=None,
-                              canceled_upload: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+                              canceled_upload: bool=False, end_message: bool=False,
+                              level:CkanCallbackLevel=None, start_time: float=None,
                               **kwargs) -> None:
     """
     Example of a progress_callback function which can be copied into a Jupyter Notebook using a progress bar:

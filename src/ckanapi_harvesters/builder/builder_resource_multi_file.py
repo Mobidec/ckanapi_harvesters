@@ -209,7 +209,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         _, file_name = os.path.split(file_path)
         index = file_chunk.file_index
         if start_index <= index and index < end_index and file_path not in excluded_files:
-            self.progress_callback.call(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(), info=file_path,
+            self.progress_callback.task_progress(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(), info=file_path,
                                          file_index=file_chunk.file_index, file_count=self.get_local_file_count(),
                                          context=f"{ckan.identifier} upload", level=CkanCallbackLevel.MultiFileResource)
             self.upload_file_chunk(ckan=ckan, package_id=package_id, file_chunk=file_chunk,
@@ -402,7 +402,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
                              index:int, start_index:int, end_index:int, total:int,
                              excluded_resource_names:Set[str]) -> Any:
         if start_index <= index and index < end_index and file_query_item not in excluded_resource_names:
-            self.progress_callback.call(index, total, info=file_query_item,
+            self.progress_callback.task_progress(index, total, info=file_query_item,
                                          context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.MultiFileResource)
             self.download_file_query_item(ckan=ckan, out_dir=out_dir, file_query_item=file_query_item)
         else:

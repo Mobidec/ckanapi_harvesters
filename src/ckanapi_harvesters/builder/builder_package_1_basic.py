@@ -1023,10 +1023,12 @@ class BuilderPackageBasic:
         resource_info_dict: Dict[str, CkanResourceInfo] = {}
         self.update_package_name_in_resources()
         self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
+        if progress_callback is not None:
+            progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
         for resource_index, resource_builder in enumerate(self.resource_builders.values()):
             if progress_callback is not None:
                 resource_builder.progress_callback = progress_callback
-                progress_callback.call(resource_index+1, len(self.resource_builders), level=CkanCallbackLevel.Resources)
+                progress_callback.task_progress(resource_index+1, len(self.resource_builders), level=CkanCallbackLevel.Resources)
             if create_default_view is not None:
                 resource_builder.create_default_view = create_default_view
             resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
@@ -1040,7 +1042,7 @@ class BuilderPackageBasic:
         if ckan.params.policy_check_post:
             self.remote_policy_check(ckan)
         if progress_callback is not None:
-            progress_callback.call(len(self.resource_builders), len(self.resource_builders), level=CkanCallbackLevel.Resources, end_message=True)
+            progress_callback.end_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
         return pkg_info, resource_info_dict
 
     def _get_mono_resource_used_files(self, resources_base_dir:str, ckan:CkanApi):
@@ -1123,11 +1125,13 @@ class BuilderPackageBasic:
         resource_names = [key for key, resource_builder in self.resource_builders.items() if isinstance(resource_builder, BuilderDataStoreMultiABC)]
         self.upload_file_checks(resource_names, resources_base_dir=resources_base_dir, ckan=ckan, verbose=True, raise_error=True)
         mono_resource_used_files = self._get_mono_resource_used_files(resources_base_dir, ckan)
+        if progress_callback is not None:
+            progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
         for resource_index, resource_builder in enumerate(self.resource_builders.values()):
             if isinstance(resource_builder, BuilderDataStoreMultiABC):
                 if progress_callback is not None:
                     resource_builder.progress_callback = progress_callback
-                    progress_callback.call(resource_index, len(self.resource_builders), level=CkanCallbackLevel.Resources)
+                    progress_callback.task_progress(resource_index, len(self.resource_builders), level=CkanCallbackLevel.Resources)
                 resource_builder.upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir, threads=threads,
                                                      allow_chunks=allow_chunks,
                                                      only_missing=only_missing, from_line_count=from_line_count)
@@ -1143,7 +1147,7 @@ class BuilderPackageBasic:
         self.package_resource_reorder(ckan)
         self._patch_request_final(ckan)
         if progress_callback is not None:
-            progress_callback.call(len(self.resource_builders), len(self.resource_builders), level=CkanCallbackLevel.Resources, end_message=True)
+            progress_callback.end_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
 
     def _patch_request_final(self, ckan:CkanApi):
         if initial_package_building_state is not None:

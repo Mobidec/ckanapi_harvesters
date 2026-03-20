@@ -292,7 +292,8 @@ f = IntProgress(min=0,max=100)
 def progress_callback_example(position:int, total:int, info:Any=None, *, context:str=None,
                               file_index:int=None, file_count:int=None,
                               lines_chunk:int=None, total_lines_read:int=None,
-                              canceled_upload: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+                              canceled_upload: bool=False, end_message: bool=False, 
+                              level:CkanCallbackLevel=None, start_time: float=None,
                               **kwargs) -> None:
     if level == CkanCallbackLevel.ResourceChunks:
         f.value = int(position/total*100)
