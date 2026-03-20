@@ -481,6 +481,7 @@ class CkanApiBase(CkanApiABC):
                 if len(print_str) > max_len_debug_print:
                     print("[...]")
                 print(" ")
+                print("Request time:", response.elapsed.total_seconds(), "seconds")
                 print("Response body:")
                 if response.text is not None:
                     print_str = response.text
@@ -717,10 +718,15 @@ class CkanApiBase(CkanApiABC):
                 raise HttpRetryCodeError(response.status_code)
             if self.params.action_requests_retry_always and not response.status_code == 200:
                 raise HttpRetryCodeError(response.status_code)
-            if self.params.action_requests_retry_always:
+            elif self.params.action_requests_retry_always:
                 action_response = CkanActionResponse(response, self.params.dry_run)
                 if not action_response.success:
                     raise action_response.default_error(self)
+            elif self.params.response_time_wait_threshold is not None and response.elapsed.total_seconds() > self.params.response_time_wait_threshold:
+                if self.params.verbose_request_error:
+                    msg = f"Long response time detected ({response.elapsed.total_seconds()} s). Waiting the same amount of time."
+                    print(msg)
+                time.sleep(response.elapsed.total_seconds())
         except Exception as e:
             _attempt_counts += 1
             current_traceback = traceback.format_exc()
@@ -728,7 +734,7 @@ class CkanApiBase(CkanApiABC):
             self._error_print_debug_response(response, url=url, params=params, headers=headers, json=json, error=e)
             is_retry_case = (self.params.action_requests_retry_always
                              or response.status_code in HTTP_STATUS_CODE_RETRY
-                             or isinstance(e, ProxyError) or isinstance(e, ReadTimeout))
+                             or isinstance(e, ProxyError) or isinstance(e, HttpRetryCodeError) or isinstance(e, ReadTimeout))
             if (is_retry_case and response is not None and _attempt_counts <= self.params.max_requests_attempts):
                 # current_response = CkanActionResponse(response, self.params.dry_run)
                 if self.params.verbose_request_error:
