@@ -21,6 +21,10 @@ class MultipleErrors(Exception):
 class ApiKeyFileError(Exception):
     pass
 
+class HostContraintError(Exception):
+    def __init__(self, host_url:str, url:str):
+        super().__init__(f"URL {url} does not match constraint: {host_url}")
+
 class LoginFileError(Exception):
     pass
 

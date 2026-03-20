@@ -24,7 +24,7 @@ from ckanapi_harvesters.auxiliary.ckan_configuration import download_external_re
     unlock_external_url_resource_download, allow_no_ca, unlock_no_ca
 from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir
-from ckanapi_harvesters.auxiliary.urls import urlsep, url_join
+from ckanapi_harvesters.auxiliary.urls import urlsep, url_join, clean_base_url, url_matches_host
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, max_len_debug_print, assert_or_raise, HTTP_STATUS_CODE_RETRY
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse, CkanActionError, CkanNotFoundError
@@ -69,15 +69,12 @@ class CkanApiBase(CkanApiABC):
         :param identifier: identifier of the ckan client
         """
         if identifier is None: identifier = ""
-        if apikey is None or not isinstance(apikey, CkanApiKey):
-            apikey = CkanApiKey(apikey=apikey, apikey_file=apikey_file)
+        self._ckan_url: str = ""
         if params is None:
             params = CkanApiParamsBasic()
         if proxies is not None:
             params.proxies = proxies
         self.identifier = identifier  # variable for debugging purposes
-        self._ckan_url: str = ""
-        self.apikey: CkanApiKey = apikey
         self.owner_org: Union[str, None] = owner_org  # name of the organization to limit package_search (optional)
         self.params: CkanApiParamsBasic = params
         self.ckan_session: Union[requests.Session, None] = None
@@ -85,12 +82,16 @@ class CkanApiBase(CkanApiABC):
         if apikey_file is not None and apikey is None:
             self.load_apikey()
         self.debug: CkanApiDebug = CkanApiDebug()
+        self._apikey: CkanApiKey = CkanApiKey()
         # properties
         self.url = url  # url of the CKAN server (property)
+        if apikey is None or not isinstance(apikey, CkanApiKey):
+            apikey = CkanApiKey(remote_url=self.url, apikey=apikey, apikey_file=apikey_file)
+        self._apikey: CkanApiKey = apikey
 
     def __del__(self):
         self.disconnect()
-        self.apikey.__del__()
+        self._apikey.__del__()
 
     # Context Manager behavior ----------
     # to use CkanApi in a "with" statement
@@ -100,7 +101,7 @@ class CkanApiBase(CkanApiABC):
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.disconnect()
-        self.apikey.__del__()
+        self._apikey.__del__()
         return True
     # -------------
 
@@ -121,7 +122,7 @@ class CkanApiBase(CkanApiABC):
         dest.extern_session = None
         dest.owner_org = self.owner_org
         dest.debug = CkanApiDebug()
-        dest.apikey = self.apikey.copy()
+        dest._apikey = self._apikey.copy()
         # post-copy operations
         if new_identifier is not None:
             dest.identifier = new_identifier
@@ -149,10 +150,17 @@ class CkanApiBase(CkanApiABC):
             self._ckan_url = None
         elif url.lower().strip() == environ_keyword:  # keyword
             self.init_from_environ(init_api_key=False)
-        elif not url.endswith(urlsep):
-            self._ckan_url = url + urlsep
         else:
-            self._ckan_url = url
+            self._ckan_url = clean_base_url(url)
+        self.apikey.remote_url = self._ckan_url  # update
+
+    @property
+    def apikey(self) -> CkanApiKey:
+        return self._apikey
+    @apikey.setter
+    def apikey(self, key:CkanApiKey) -> None:
+        self._apikey = key
+        key.remote_url = self._ckan_url  # update
 
     def _init_session(self, *, internal:bool=False):
         """
@@ -723,9 +731,10 @@ class CkanApiBase(CkanApiABC):
                 if not action_response.success:
                     raise action_response.default_error(self)
             elif self.params.response_time_wait_threshold is not None and response.elapsed.total_seconds() > self.params.response_time_wait_threshold:
+                msg = f"Long response time detected ({response.elapsed.total_seconds()} s). Waiting the same amount of time."
+                print(msg)
                 if self.params.verbose_request_error:
-                    msg = f"Long response time detected ({response.elapsed.total_seconds()} s). Waiting the same amount of time."
-                    print(msg)
+                    warn(msg)
                 time.sleep(response.elapsed.total_seconds())
         except Exception as e:
             _attempt_counts += 1
@@ -737,9 +746,9 @@ class CkanApiBase(CkanApiABC):
                              or isinstance(e, ProxyError) or isinstance(e, HttpRetryCodeError) or isinstance(e, ReadTimeout))
             if (is_retry_case and response is not None and _attempt_counts <= self.params.max_requests_attempts):
                 # current_response = CkanActionResponse(response, self.params.dry_run)
+                msg = f"Waiting to retry API call to {action} after server error (attempt {_attempt_counts}): {str(e)}"
+                warn(msg)
                 if self.params.verbose_request_error:
-                    msg = f"Waiting to retry API call to {action} after server error (attempt {_attempt_counts}): {str(e)}"
-                    warn(msg)
                     print(msg)
                 if self.params.time_between_attempts > 0:
                     time.sleep(self.params.time_between_attempts * _attempt_counts)
@@ -973,8 +982,7 @@ class CkanApiBase(CkanApiABC):
         :param url:
         :return:
         """
-        # TODO: improve the url matching test
-        return url.startswith(self.url)
+        return url_matches_host(self.url, url)
 
     def test_ckan_url_reachable(self, raise_error:bool=False) -> bool:
         """

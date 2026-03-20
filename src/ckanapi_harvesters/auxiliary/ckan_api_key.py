@@ -11,8 +11,9 @@ import getpass
 import argparse
 import  io
 
-from ckanapi_harvesters.auxiliary.ckan_errors import ApiKeyFileError
+from ckanapi_harvesters.auxiliary.ckan_errors import ApiKeyFileError, HostContraintError
 from ckanapi_harvesters.auxiliary.path import sanitize_path, path_rel_to_dir
+from ckanapi_harvesters.auxiliary.urls import clean_base_url, url_matches_host
 from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
 
 
@@ -22,7 +23,7 @@ class ApiKey:
     API key storage class.
     """
 
-    def __init__(self, *, apikey:str=None, apikey_file:str=None,
+    def __init__(self, remote_url:str, *, apikey:str=None, apikey_file:str=None,
                  api_key_header_name:Union[str, Iterable[str]]=None):
         """
         CKAN Database API key storage class.
@@ -32,6 +33,8 @@ class ApiKey:
         """
         if api_key_header_name is None:
             api_key_header_name = "Authorization"
+        self._remote_url: str = remote_url
+        self._remote_url_constraint: Union[str,None] = None
         self.apikey_file: str = apikey_file  # path to a file containing a valid API key in the first line of text (optional)
         self._apikey: str = apikey  # API key used for restricted package access
         self.api_key_header_name = api_key_header_name
@@ -42,9 +45,35 @@ class ApiKey:
     def __copy__(self):
         return self.copy()
 
+    @property
+    def remote_url(self) -> str:
+        return self._remote_url
+    @remote_url.setter
+    def remote_url(self, url:str) -> None:
+        self._remote_url = clean_base_url(url)
+        self.apply_constraints()
+
+    @property
+    def remote_url_constraint(self) -> Union[str,None]:
+        return self._remote_url_constraint
+    @remote_url_constraint.setter
+    def remote_url_constraint(self, url:Union[str,None]) -> None:
+        self._remote_url_constraint = clean_base_url(url)
+        self.apply_constraints()
+
+    def apply_constraints(self, *, raise_error:bool=True) -> bool:
+        if self._remote_url_constraint is not None:
+            if self._remote_url is not None:
+                if not url_matches_host(host_url=self._remote_url_constraint, url=self._remote_url):
+                    if raise_error:
+                        raise HostContraintError(host_url=self._remote_url_constraint, url=self._remote_url)
+                    else:
+                        return False
+        return True
+
     def copy(self, *, dest=None):
         if dest is None:
-            dest = ApiKey()
+            dest = ApiKey(self._remote_url)
         dest.apikey_file = self.apikey_file
         dest._apikey = self._apikey
         return dest
@@ -166,7 +195,7 @@ class CkanApiKey(ApiKey):
     API_KEY_FILE_DEFAULT_LIST = [os.path.expanduser(os.path.join("~", ".config", "__CKAN_API_KEY__.txt")),
                                  os.path.expanduser(os.path.join("~", ".ckan", "__CKAN_API_KEY__.txt"))]  # default API key file locations for CKAN
 
-    def __init__(self, *, apikey:str=None, apikey_file:str=None, apikey_auto_load:bool=True):
+    def __init__(self, apikey:str=None, *, remote_url:str=None, apikey_file:str=None, apikey_auto_load:bool=True):
         """
         CKAN Database API key storage class.
 
@@ -182,7 +211,7 @@ class CkanApiKey(ApiKey):
         4. Contents of file pointed by the environment variable `CKAN_API_KEY_FILE`
         5. Contents of the file at the default location: `~/.config/__CKAN_API_KEY__.txt` or `~/.ckan/__CKAN_API_KEY__.txt`
         """
-        super().__init__(apikey=apikey, apikey_file=apikey_file, api_key_header_name=self.CKAN_API_KEY_HEADER_NAME)
+        super().__init__(remote_url=remote_url, apikey=apikey, apikey_file=apikey_file, api_key_header_name=self.CKAN_API_KEY_HEADER_NAME)
         if apikey_auto_load:
             if self.is_empty() and apikey_file is not None:
                 self.load_apikey(error_not_found=False)
@@ -192,7 +221,7 @@ class CkanApiKey(ApiKey):
 
     def copy(self, *, dest=None) -> "CkanApiKey":
         if dest is None:
-            dest = CkanApiKey()
+            dest = CkanApiKey(self._remote_url)
         super().copy(dest=dest)
         return dest
 
