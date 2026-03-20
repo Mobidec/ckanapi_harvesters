@@ -9,19 +9,18 @@ maintainers = [
 ]
 description = "Package helping to upload local resources to a CKAN server using the CKAN API. Metadata and the list of resources can be defined in an Excel spreadsheet. The package includes requests to download resources and checks metadata against formatting rules."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 classifiers = [
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.14",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
 ]
 dependencies = [
-    "pytest == 8.0.1",  # strict version (from package template)
     # ajouter les dépendances necessaires
 	"requests == 2.32.5",
 	"pandas == 2.3.3",
-	"numpy == 2.2.6",
-	"openpyxl == 3.1.5",  # could be an optional extra
+	"numpy >= 2.4.3",
+	"openpyxl == 3.1.5",  # necessary to read Excel files
 ]
 
 license = { file = "LICENSE" }
@@ -37,14 +36,14 @@ extras = [  # default extras
     "pymongo == 4.16.0",    # MongoDB harvester
     "psycopg2 == 2.9.11",  # Postgre harvester
     "shapely == 2.1.2",    # GeoJSON support
-    "pyproj == 3.6.1",     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
+    "pyproj >= 3.7.2",     # GeoJSON transformations
     "geopandas == 1.1.2",  # Shapefile reading functions
 ]
 harvesters = [  # dependencies for database harvesters
     "pymongo == 4.16.0",    # MongoDB harvester
     "psycopg2 == 2.9.11",  # Postgre harvester
     "shapely == 2.1.2",    # GeoJSON support
-    "pyproj == 3.6.1",     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
+    "pyproj >= 3.7.2",     # GeoJSON transformations
 ]
 alt = [  # optional packages alternative
     "bson",  # bson implementation, independent of pymongo
@@ -60,8 +59,20 @@ sshtunnel = [  # optional packages to create ssh tunnels (not fully tested)
     "sshtunnel == 0.4.0",
     "paramiko == 3.5.1",   # compatibility with sshtunnel (strict version)
 ]
-management = [
-    "pre-commit == 4.5.1",
+dev = [
+    "pytest == 8.0.1",  # strict version (from package template)
+    "build",
+    "twine",
+    "ruff",
+    "sphinx",
+    "sphinx_design",
+    # "myst_parser",  # included with myst_nb
+    "furo",
+    "sphinx_autopackagesummary",
+    "sphinxcontrib-napoleon",
+    "sphinx-rtd-theme",
+    "numpydoc",
+    'myst_nb',  # Jupyter Notebook inclusion in sphinx
 ]
 
 [tool.setuptools.package-data]
