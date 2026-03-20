@@ -32,7 +32,7 @@ def unlock_external_code_execution(value:bool=True) -> None:
         warn(msg)
 
 
-var_name_subs_re = '\W|^(?=\d)'
+var_name_subs_re = "\\W|^(?=\\d)"
 
 def clean_var_name(variable_name: str) -> str:
     return re.sub(var_name_subs_re,'_', variable_name)

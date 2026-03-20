@@ -46,6 +46,7 @@ from ckanapi_harvesters.harvesters.file_formats.user_format import UserFileForma
 
 self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 example_package_xls = os.path.join(self_dir, "builder_package_example.xlsx")
+example_package_resources_dir = os.path.join(self_dir, "example", "package")
 builder_default_package_state:CkanState = CkanState.Draft
 initial_package_building_state:Union[CkanState,None] = CkanState.Draft
 
@@ -1145,11 +1146,11 @@ class BuilderPackageBasic:
                                                      allow_chunks=allow_chunks,
                                                      excluded_files=mono_resource_used_files if multi_file_exclude_other_files else None)
         self.package_resource_reorder(ckan)
-        self._patch_request_final(ckan)
+        self.patch_request_final(ckan)
         if progress_callback is not None:
             progress_callback.end_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
 
-    def _patch_request_final(self, ckan:CkanApi):
+    def patch_request_final(self, ckan:CkanApi):
         if initial_package_building_state is not None:
             ckan.package_patch(self.package_name, state=self.package_attributes.state)
 

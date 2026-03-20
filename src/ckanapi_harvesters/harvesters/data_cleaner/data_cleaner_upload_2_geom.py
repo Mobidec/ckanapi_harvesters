@@ -43,7 +43,7 @@ def shapely_geometry_from_value(value:Any) -> Union[shapely.Geometry,None]:
             return None
         elif value[0] in {'{', '[', '('}:
             return shapely.from_geojson(value)
-        elif re.match("[a-zA-Z]+\(.+\)", value):
+        elif re.match("[a-zA-Z]+\\(.+\\)", value):
             return shapely.from_wkt(value)
         elif re.match("[0-9A-F]+", value):
             return shapely.from_wkb(value)

@@ -960,7 +960,8 @@ class CkanApiManage(CkanApiReadWrite):
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         if params is None: params = {}
         params["id"] = package_id
-        params["private"] = private
+        if private is not None:
+            params["private"] = private
         if owner_org is None and use_ckan_owner_org_as_default:
             owner_org = self.owner_org
         if owner_org is not None:

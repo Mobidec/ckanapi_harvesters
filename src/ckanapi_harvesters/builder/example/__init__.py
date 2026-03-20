@@ -8,8 +8,7 @@ import os
 
 # usage shortcuts
 self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
-example_package_dir = os.path.join(self_dir, "package")
-from ..builder_package import example_package_xls
+from ..builder_package import example_package_xls, example_package_resources_dir
 
 from . import builder_example
 # from . import builder_example_aux_fun

@@ -4,13 +4,17 @@
 CKAN configuration builder
 """
 from typing import Union, List, Dict
+import os
 
 from ckanapi_harvesters.auxiliary import ckan_configuration
+from ckanapi_harvesters.auxiliary.ckan_model import CkanState
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceUnmanaged
+from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.builder.specific_builder_abc import SpecificBuilderABC
+from ckanapi_harvesters.builder.builder_package_1_basic import example_package_resources_dir
 
 
 class ConfigurationBuilder(SpecificBuilderABC):
@@ -20,9 +24,16 @@ class ConfigurationBuilder(SpecificBuilderABC):
                          description="Configuration for use with Python scripts",
                          private=True,
                          )
+        self.package_attributes.state = CkanState.Active
+        self.package_attributes.private = False
+        self.set_resources_base_dir(example_package_resources_dir)
         self.resource_builders[ckan_configuration.policy_resource] = \
             BuilderResourceUnmanaged(name=ckan_configuration.policy_resource, format="JSON",
                                      description="CKAN Data format policy for use with Python scripts")
+        self.resource_builders[ckan_configuration.datastore_sample_resource] = \
+            BuilderDataStoreFile(name=ckan_configuration.datastore_sample_resource, format="CSV",
+                                 description="Sample DataStore for API tests",
+                                 file_name="users_local.csv")
 
     def patch_policy(self, ckan:CkanApi, policy: CkanPackageDataFormatPolicy,
                      *, reduced_size:bool=None, update_ckan:bool=True):
@@ -62,5 +73,20 @@ class ConfigurationBuilder(SpecificBuilderABC):
         ckan.map_resources(package_list, owner_org=owner_org)
         return ckan.policy_check(package_list, policy=policy, buffer=buffer, verbose=verbose, raise_error=raise_error)
 
+
+if __name__ == '__main__':
+    ckan = CkanApi()
+    ckan.initialize_from_cli_args()
+    ckan.input_missing_info(input_args_if_necessary=True, input_owner_org=True)
+    ckan.set_verbosity(True)
+
+    mdl = ConfigurationBuilder(ckan, organization_name=ckan.owner_org)
+    ckan = mdl.init_ckan(ckan)
+    ckan.test_ckan_login(raise_error=True, verbose=True)
+
+    mdl.patch_request_full(ckan)
+    mdl.patch_request_final(ckan)
+
+    print("Done.")
 
 

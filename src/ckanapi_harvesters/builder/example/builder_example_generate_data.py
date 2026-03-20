@@ -10,7 +10,7 @@ import re
 import pandas as pd
 import numpy as np
 
-from ckanapi_harvesters.builder.example import example_package_dir
+from ckanapi_harvesters.builder.example import example_package_resources_dir
 self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
 
@@ -39,16 +39,17 @@ def run():
               {"user_id": 1, "origin": point_0, "destination": degrees_DMS('48°50\'01.7"N', '2°19\'57.1"E')},
               {"user_id": 2, "origin": point_0, "destination": degrees_DMS('48°52\'45.2"N', '2°18\'32.8"E')},
     ]
-    users_file = os.path.join(example_package_dir, "users_local.csv")
+    users_file = os.path.join(example_package_resources_dir, "users_local.csv")
     df_users.to_csv(users_file, index=False)
-    traces_dir = os.path.join(example_package_dir, "traces")
-    traces_dir_multi = os.path.join(example_package_dir, "traces_multi")
+    traces_dir = os.path.join(example_package_resources_dir, "traces")
+    traces_dir_multi = os.path.join(example_package_resources_dir, "traces_multi")
     for trace_id, trace in enumerate(traces):
         table_index = np.array([0, N-1])
         table_lat = np.array([trace["origin"][0], trace["destination"][0]])
         table_lon = np.array([trace["origin"][1], trace["destination"][1]])
         df_trace = pd.DataFrame()
         index = np.arange(N)
+        xp_index = np.array([0, N-1])
         df_trace["index_in_trace"] = index
         df_trace.insert(loc=0, column="trace_id", value=trace_id)
         df_trace["user_id"] = trace["user_id"]
@@ -56,8 +57,8 @@ def run():
         df_trace["timestamp_local"] = df_trace["timestamp"] + pd.Timedelta(hours=1)  # local = UTC+1 for winter light saving time in Paris
         df_trace["timestamp"] = df_trace["timestamp"].apply(pd.Timestamp.isoformat)  # ISO-8601 format
         df_trace["timestamp_local"] = df_trace["timestamp_local"].apply(pd.Timestamp.isoformat)  # ISO-8601 format
-        df_trace["latitude"] = np.interp(index, xp=table_lat, fp=table_lat)
-        df_trace["longitude"] = np.interp(index, xp=table_lat, fp=table_lon)
+        df_trace["latitude"] = np.interp(index, xp=xp_index, fp=table_lat)
+        df_trace["longitude"] = np.interp(index, xp=xp_index, fp=table_lon)
         df_trace["latitude"] = df_trace["latitude"].values.round(GPS_DIGITS)
         df_trace["longitude"] = df_trace["longitude"].values.round(GPS_DIGITS)
         df_trace.set_index(keys=["trace_id", "index_in_trace"], drop=False, inplace=True, verify_integrity=True)

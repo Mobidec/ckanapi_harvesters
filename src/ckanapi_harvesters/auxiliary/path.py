@@ -176,10 +176,10 @@ def glob_rm_glob(glob_str:str, *, default_rec_dir:str=None) -> str:
     :return: a path without glob characters
 
     Examples:
-    >>> glob_rm_glob(r"test\*.csv")
+    >>> glob_rm_glob("test\\*.csv")
     'test'
 
-    >>> glob_rm_glob(r"**\*.csv", default_rec_dir="hello")
+    >>> glob_rm_glob("**\\*.csv", default_rec_dir="hello")
     'hello'
     """
     glob_free = glob_str
@@ -197,7 +197,7 @@ def glob_name(glob_str:str):
     :return:
 
     Example:
-    >>> glob_name(r"**\*.csv")
+    >>> glob_name("**\\*.csv")
     '*.csv'
     """
     glob_dir, glob_file = os.path.split(glob_str)
