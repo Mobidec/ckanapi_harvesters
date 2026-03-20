@@ -45,12 +45,12 @@ class DatabaseHarvesterMongoServer(DatabaseHarvesterABC):
     def __init__(self, params:DatabaseParams=None):
         super().__init__(params)
         if pymongo.MongoClient is None:
-            raise HarvesterRequirementError("pymongo", "pymongo")
-        self.params.harvest_method = "Pymongo"
+            raise HarvesterRequirementError("pymongo", "mongodb")
+        self.params.harvest_method = "MongoDB"
         self.mongo_client: Union[pymongo.MongoClient,None] = None
         self.mongo_session: Union[pymongo.client_session.ClientSession,None] = None
         if self.params.auth_url is None and self.params.port is None and self.params.host is None:
-            raise HarvesterArgumentRequiredError("auth-url", "pymongo", "This argument defines the url used to authenticate.")
+            raise HarvesterArgumentRequiredError("auth-url", "mongodb", "This argument defines the url used to authenticate.")
 
     @staticmethod
     def init_from_options_string(options_string:str, base_dir:str=None) -> "DatabaseHarvesterMongoServer":
@@ -150,7 +150,7 @@ class DatasetHarvesterMongoDatabase(DatabaseHarvesterMongoServer, DatasetHarvest
         if self.params.dataset is None:
             self.params.dataset = self.params.database
         if self.params.dataset is None:
-            raise HarvesterArgumentRequiredError("dataset", "pymongo", "This argument defines the mongo database used")
+            raise HarvesterArgumentRequiredError("dataset", "mongodb", "This argument defines the mongo database used")
 
     @staticmethod
     def init_from_options_string(options_string:str, base_dir:str=None) -> "DatasetHarvesterMongoDatabase":
@@ -243,7 +243,7 @@ class TableHarvesterMongoCollection(DatasetHarvesterMongoDatabase, TableHarveste
             # File/URL attribute has priority over CLI
             self.params.table = self.params.file_url_attr
         if self.params.table is None:
-            raise HarvesterArgumentRequiredError("table", "pymongo", "This argument defines the mongo collection used")
+            raise HarvesterArgumentRequiredError("table", "mongodb", "This argument defines the mongo collection used")
 
     @staticmethod
     def init_from_options_string(options_string:str, *, base_dir:str=None, file_url_attr:str=None) -> "TableHarvesterMongoCollection":
@@ -348,7 +348,7 @@ class TableHarvesterMongoCollection(DatasetHarvesterMongoDatabase, TableHarveste
         if isinstance(query, str):
             query = json.loads(query)
         if self.params.verbose_harvester:
-            print(f"Pymongo request {query} on table {self.params.table}")
+            print(f"MongoDB request {query} on table {self.params.table}")
         cursor = self.mongo_collection.find(query["$match"], session=self.mongo_session).skip(query["$skip"])
         if "$limit" in query.keys():
             cursor = cursor.limit(query["$limit"])

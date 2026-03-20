@@ -11,8 +11,12 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ### Changed
 
+- Minimum Python version requirement was changed from 3.10 to 3.14 for compatibility issues with certain dependencies.
 - User-defined upload function prototypes: keyword argument `file_name` has been renamed `file_query`. 
 Argument `file_name` still works but is marked as deprecated.
+- __TODO__: change docstrings to numpy format using 
+[pyment](https://stackoverflow.com/questions/57143859/how-do-i-convert-python-docstrings-to-a-different-style)
+or docstring_parser, docformatter
 
 
 ## [0.0.13] - 2026-03-18

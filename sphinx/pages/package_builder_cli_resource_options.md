@@ -265,7 +265,7 @@ options:
 Example of arguments enabling a connection to a database without using SSL:
 
 ```
---harvester Pymongo --login-file mongodb_login.txt 
+--harvester MongoDB --login-file mongodb_login.txt 
 --ca False --host mongodb://my-postgre-server.com:27017/admin 
 --url --host mongodb://my-postgre-server.com:27017
 --dataset My_Schema 

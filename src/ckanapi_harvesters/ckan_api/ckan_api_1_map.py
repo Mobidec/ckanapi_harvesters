@@ -190,22 +190,41 @@ class CkanApiMap(CkanApiBase):
                       only_missing:bool=True, error_not_found:bool=True,
                       owner_org:str=None) -> CkanMap:
         """
-        Map the resources of a given package to obtain resource ids associated with the package name and resources within the pacakge.
-        NB: Packages were previously referred to as DataSets in previous CKAN implementations.
-        A same name can be shared between multiple resources within a package. The first occurrence is used as a reference
-        and a warning is issued in this case.
+        Map the resources of a given package to obtain resource IDs associated with the package name
+        and its resources.
 
-        :param package_list: list of packages to request (optional, by default, the result of package_search is used)
-        :param params: optional parameters to pass to API calls (not recommended)
-        :param datastore_info: option to enable the request of api_datastore_info. This will return information about
-        the DataStore fields, aliases and row count. It is required to enable search of a DataStore by alias.
-        :param resource_view_list: option to enable the request of view_list API for each resource
-        :param organization_info: option to enable the request of organization_list API before any other request
-        :param license_list: option to enable the request of license_list API
-        :param only_missing: option to disable the request of already mapped packages
-        :param error_not_found: option to ignore the packages which were not found by the API (do not raise an error)
-        :param owner_org: option to filter packages of a given organization (only if package_search is used)
-        :return:
+        Notes
+        -----
+        - Packages were previously referred to as DataSets in earlier CKAN implementations.
+        - A single name can be shared across multiple resources within a package. In such cases,
+          the first occurrence is used as a reference, and a warning is issued.
+
+        Parameters
+        ----------
+        package_list : Union[str, List[str]], optional
+            List of packages to request. If not provided, the result of `package_search` is used.
+        params : dict, optional
+            Additional parameters to pass to all API calls (not recommended).
+        datastore_info : bool, optional
+            If True, enables the request of the API `datastore_info` to return information about
+            DataStore fields, aliases, and row count. Required to search a DataStore by alias.
+        resource_view_list : bool, optional
+            If True, enables the request of the `view_list` API for each resource.
+        organization_info : bool, optional
+            If True, enables the request of the `organization_list` API before other requests.
+        license_list : bool, optional
+            If True, enables the request of the `license_list` API.
+        only_missing : bool, default=True
+            If True, skips requesting already-mapped packages.
+        error_not_found : bool, default=True
+            If True, packages not found by the API are ignored (no error is raised).
+        owner_org : str, optional
+            Filters packages by a specific organization (only if `package_search` is used).
+
+        Returns
+        -------
+        CkanMap
+            A mapping of resources for the specified package(s).
         """
         start = time.time()
         self.set_default_map_mode(datastore_info=datastore_info, resource_view_list=resource_view_list,
