@@ -5,8 +5,10 @@ Adding support for geometries
 """
 from typing import Any, Tuple, Union
 from types import SimpleNamespace
-import json
 import re
+from warnings import warn
+
+import numpy as np
 
 try:
     import shapely
@@ -31,6 +33,8 @@ postgre_geojson_mapping = {
     "polygon": "Polygon",
    }
 
+multi_geometry_types = {'MultiPoint', 'MultiLineString', 'MultiPolygon', 'GeometryCollection'}
+
 def shapely_geometry_from_value(value:Any) -> Union[shapely.Geometry,None]:
     if shapely.Geometry is None:
         raise CleanerRequirementError("shapely", "geometry")
@@ -54,6 +58,23 @@ def shapely_geometry_from_value(value:Any) -> Union[shapely.Geometry,None]:
     else:
         raise FormatError(value, "geometry")
 
+def has_invalid_coordinates(shape: shapely.Geometry) -> Tuple[bool, bool]:
+    all_nonfinite = True
+    any_nonfinite = False
+    if shape.geom_type in multi_geometry_types:
+        # recurse
+        for sub_geom in shape.geoms:
+            sub_any_nonfinite, sub_all_nonfinite = has_invalid_coordinates(sub_geom)
+            any_nonfinite = any_nonfinite or sub_any_nonfinite
+            all_nonfinite = all_nonfinite and sub_all_nonfinite
+    else:
+        for coord in shape.coords:
+            if any(not (np.isfinite(c)) for c in coord):
+                any_nonfinite = True
+            else:
+                all_nonfinite = False
+    return any_nonfinite, all_nonfinite
+
 
 class CkanDataCleanerUploadGeom(CkanDataCleanerUploadBasic):
     def __init__(self):
@@ -64,11 +85,19 @@ class CkanDataCleanerUploadGeom(CkanDataCleanerUploadBasic):
         return "GeoJSON"
 
     def _replace_standard_value_bypass(self, value: Any, field: CkanField, *, field_data_type: str) -> Tuple[Any, bool]:
-        if field_data_type == "geometry" or field_data_type.startswith("geometry("):  #  and field.internal_attrs.geometry_as_source:
+        if value is None:
+            return value, False
+        elif field_data_type == "geometry" or field_data_type.startswith("geometry("):  #  and field.internal_attrs.geometry_as_source:
             value_shape = shapely_geometry_from_value(value)
-            geojson_type = field.internal_attrs.geometry_type
-            if geojson_type is not None:
-                assert_or_raise(value_shape.geom_type.casefold() == geojson_type.casefold(), UnexpectedGeometryError(value_shape.geom_type, geojson_type))
+            any_nonfinite, all_nonfinite = has_invalid_coordinates(value_shape)
+            if any_nonfinite:
+                if not all_nonfinite:
+                    msg = "Shape was ignored because it contains non-finite coordinates: " + shapely.to_geojson(value)
+                    warn(msg)
+                return None, True
+            field_geojson_type = field.internal_attrs.geometry_type
+            if field_geojson_type is not None and not field_geojson_type.casefold() == "geometry":
+                assert_or_raise(value_shape.geom_type.casefold() == field_geojson_type.casefold(), UnexpectedGeometryError(value_shape.geom_type, field_geojson_type))
             if field.internal_attrs.epsg_source is not None and field.internal_attrs.epsg_target is not None:
                 if not field.internal_attrs.epsg_source == field.internal_attrs.epsg_target:
                     if pyproj is None:
@@ -76,8 +105,10 @@ class CkanDataCleanerUploadGeom(CkanDataCleanerUploadBasic):
                     crs_source = pyproj.CRS.from_epsg(field.internal_attrs.epsg_source)
                     crs_target = pyproj.CRS.from_epsg(field.internal_attrs.epsg_target)
                     transformer = pyproj.Transformer.from_crs(crs_source, crs_target, always_xy=True)
+                    value_shape_prev = value_shape  # for debug
                     value_shape = shapely.transform(value_shape, transformer.transform, interleaved=False)
-            return shapely.to_wkb(value_shape, hex=True), True
+            value_wkb = shapely.to_wkb(value_shape, hex=True)
+            return value_wkb, True
         elif field_data_type in postgre_geojson_mapping.keys():
             if field.internal_attrs.geometry_as_source:
                 value_shape = shapely_geometry_from_value(value)

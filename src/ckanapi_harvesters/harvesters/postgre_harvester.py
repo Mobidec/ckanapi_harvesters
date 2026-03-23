@@ -6,6 +6,7 @@ Harvest from a PostgreSQL database using sqlalchemy
 from typing import Union, List, Any, Dict, Tuple
 from types import SimpleNamespace
 from collections import OrderedDict
+from warnings import warn
 import urllib.parse
 
 import pandas as pd
@@ -24,7 +25,7 @@ from ckanapi_harvesters.harvesters.harvester_model import FieldMetadata, TableMe
 from ckanapi_harvesters.harvesters.harvester_params import DatabaseParams
 from ckanapi_harvesters.harvesters.postgre_params import DatasetParamsPostgreSchema, TableParamsPostgre
 from ckanapi_harvesters.auxiliary.urls import url_join, url_insert_login
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import ssl_arguments_decompose
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import ssl_arguments_decompose, sql_varname_escape
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import parse_geometry_native_type
 from ckanapi_harvesters.auxiliary.ckan_errors import UrlError
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
@@ -105,7 +106,11 @@ class DatabaseHarvesterPostgre(DatabaseHarvesterABC):
         if self.alchemy_engine is not None:
             if self.alchemy_connection is not None:
                 self.alchemy_connection.close()
-            self.alchemy_engine.dispose()
+            try:
+                self.alchemy_engine.dispose()
+            except Exception as e:
+                msg = f"Error while disconnecting PostgreSQL alchemy engine {self.params.url}: " + str(e)
+                warn(msg)
             self.alchemy_engine = None
             self.alchemy_connection = None
 
@@ -269,10 +274,6 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
             dest = TableHarvesterPostgre()
         super().copy(dest=dest)
         return dest
-
-    def disconnect(self) -> None:
-        if super().is_connected():
-            super().disconnect()
 
     def _finalize_connection(self):
         super()._finalize_connection()
@@ -438,13 +439,13 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
         """
         if field_metadata.harvester_attrs["datatype_keyword"] == "geometry":
             if self.params.ckan_postgis:
-                return f"{field_metadata.name}"  # TODO: test if transfer is successful without converting to a GeoJSON string
+                return sql_varname_escape(field_metadata.name)  # TODO: test if transfer is successful without converting to a GeoJSON string
             else:
-                return f"ST_AsGeoJSON({field_metadata.name})"
+                return f"ST_AsGeoJSON({sql_varname_escape(field_metadata.name)})"
         elif field_metadata.data_type == "jsonb":
-            return f"{field_metadata.name}::text"
+            return f"{sql_varname_escape(field_metadata.name)}::text"
         else:
-            return field_metadata.name
+            return sql_varname_escape(field_metadata.name)
 
     def clean_table_metadata(self) -> TableMetadata:
         table_metadata = self.query_table_metadata().copy()

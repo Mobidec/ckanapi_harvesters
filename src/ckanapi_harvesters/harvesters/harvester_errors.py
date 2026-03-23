@@ -22,7 +22,7 @@ class HarvesterArgumentRequiredError(HarvesterArgumentError):
 
 class HarvesterRequirementError(RequirementError):
     def __init__(self, requirement:str, harvest_method:str):
-        super().__init__(f"The package {requirement} is required for this harvester ({harvest_method}).")
+        Exception.__init__(self, f"The package {requirement} is required for this harvester ({harvest_method}).")
 
 class ResourceNotFoundError(Exception):
     def __init__(self, resource_type:str, table_name:str, host:str):

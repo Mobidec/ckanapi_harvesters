@@ -722,9 +722,11 @@ class CkanApiBase(CkanApiABC):
                 response = self.ckan_session.post(url, data=data, headers=headers, params=params, files=files, json=json,
                                                   timeout=timeout,
                                                   proxies=self.params.proxies, verify=self.params.ckan_ca, auth=self.params.proxy_auth)
-            if response.status_code in HTTP_STATUS_CODE_RETRY:
+            if self.params.dry_run:
+                pass
+            elif response.status_code in HTTP_STATUS_CODE_RETRY:
                 raise HttpRetryCodeError(response.status_code)
-            if self.params.action_requests_retry_always and not response.status_code == 200:
+            elif self.params.action_requests_retry_always and not response.status_code == 200:
                 raise HttpRetryCodeError(response.status_code)
             elif self.params.action_requests_retry_always:
                 action_response = CkanActionResponse(response, self.params.dry_run)
@@ -742,8 +744,9 @@ class CkanApiBase(CkanApiABC):
             _attempt_traceback.append(f"Attempt {_attempt_counts}: \n{current_traceback}")
             self._error_print_debug_response(response, url=url, params=params, headers=headers, json=json, error=e)
             is_retry_case = (self.params.action_requests_retry_always
-                             or response.status_code in HTTP_STATUS_CODE_RETRY
-                             or isinstance(e, ProxyError) or isinstance(e, HttpRetryCodeError) or isinstance(e, ReadTimeout))
+                             or isinstance(e, HttpRetryCodeError)
+                             or (response is not None and response.status_code in HTTP_STATUS_CODE_RETRY)
+                             or isinstance(e, ProxyError) or isinstance(e, ReadTimeout))
             if (is_retry_case and response is not None and _attempt_counts <= self.params.max_requests_attempts):
                 # current_response = CkanActionResponse(response, self.params.dry_run)
                 msg = f"Waiting to retry API call to {action} after server error (attempt {_attempt_counts}): {str(e)}"

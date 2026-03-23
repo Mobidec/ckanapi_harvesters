@@ -316,6 +316,7 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
         # iterate on records
         mode_df = isinstance(records, pd.DataFrame)
         if mode_df:
+            records = records.astype(object)  # Convert all columns to object type
             for new_field in self.field_subs_path.values():
                 records[new_field] = None
             for column in records.columns:
@@ -323,11 +324,12 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
                 # records[column] = records[column].apply(self.clean_value_field, field=field)
                 for value_loc, value in zip(records.index, records[column]):
                     self._new_columns_in_row = {}
-                    records.loc[value_loc, column] = self.clean_value_field(value, field=field)
+                    records.at[value_loc, column] = self.clean_value_field(value, field=field)
+                    # copy-columns created at clean_value_field request are stored in attribute _new_columns_in_row
                     for path, new_value in self._new_columns_in_row.items():
                         if path in self.field_subs_path.keys():
                             new_field = self.field_subs_path[path]
-                            records.loc[value_loc, new_field] = new_value
+                            records.at[value_loc, new_field] = new_value
         else:
             for row in records:
                 self._new_columns_in_row = {}

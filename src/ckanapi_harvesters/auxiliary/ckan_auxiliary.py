@@ -265,6 +265,8 @@ def _bool_from_string(string:str, default_value:Union[bool,None]=False) -> Union
         return None
     elif isinstance(string, bool):
         return string
+    elif isinstance(string, float) and np.isnan(string):
+        return None
     else:
         keyword = string.lower().strip()
         if keyword == "true":
@@ -348,6 +350,14 @@ def import_args_kwargs_dict(args_kwargs:str) -> dict:
     return kwargs_dict
 
 
+## SQL
+def sql_varname_escape(var_name:str) -> str:
+    var_name = var_name.strip()
+    var_name = var_name.replace("%", "%%")
+    return '"' + var_name + '"'
+
+
+## FileChunkDataFrame
 class FileChunkDataFrame:
     """
     Class to hold a chunk of a DataFrame of a file (only for DataStores), with the file name, index and an indication of the position in the file

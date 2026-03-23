@@ -23,7 +23,7 @@ class ApiKey:
     API key storage class.
     """
 
-    def __init__(self, remote_url:str, *, apikey:str=None, apikey_file:str=None,
+    def __init__(self, remote_url:str=None, *, apikey:str=None, apikey_file:str=None,
                  api_key_header_name:Union[str, Iterable[str]]=None):
         """
         CKAN Database API key storage class.

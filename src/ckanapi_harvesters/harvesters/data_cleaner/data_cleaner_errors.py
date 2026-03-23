@@ -12,7 +12,7 @@ class CleanError(Exception):
 
 class CleanerRequirementError(RequirementError):
     def __init__(self, requirement:str, data_type:str):
-        super().__init__(f"The package {requirement} is required to clean using this data type ({data_type}).")
+        Exception.__init__(self, f"The package {requirement} is required to clean using this data type ({data_type}).")
 
 class UnexpectedGeometryError(Exception):
     def __init__(self, found_type:str, expected_type:str):
