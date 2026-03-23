@@ -164,7 +164,7 @@ class CkanApiParamsBasic:
 
         :param args:
         :param base_dir: base directory to find the CKAN API key file, if a relative path is provided
-        (recommended: leave None to use cwd)
+            (recommended: leave None to use cwd)
         :param error_not_found: option to raise an exception if the CKAN API key file is not found
         :param default_proxies: proxies used if proxies="default"
         :param proxy_headers: headers used to access the proxies, generally for authentication

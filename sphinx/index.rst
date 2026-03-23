@@ -17,7 +17,7 @@ Welcome to ckanapi_harvesters's documentation!
 
     src/ckanapi_harvesters/
 
-    modules
+    modules/modules
 
 
 

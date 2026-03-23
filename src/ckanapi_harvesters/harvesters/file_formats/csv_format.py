@@ -16,7 +16,7 @@ from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileForma
 
 
 class CsvFileFormat(FileFormatABC):
-    default_read_kwargs = dict(dtype=str, keep_default_na=False, sep=None, engine='python')  # read
+    default_read_kwargs = dict(dtype=str, keep_default_na=False, sep=None, engine='python')  # read, (sep=None, engine='python') enables the detection of the column separator
     default_write_kwargs = df_download_to_csv_kwargs  # write
 
     # read -------------------

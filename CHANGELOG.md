@@ -9,6 +9,10 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ## [Unreleased] - 2026-03-24
 
+- __TODO__: change docstrings to numpy format using 
+[pyment](https://stackoverflow.com/questions/57143859/how-do-i-convert-python-docstrings-to-a-different-style)
+or docstring_parser, docformatter
+
 
 ## [0.0.14] - 2026-03-23
 
@@ -18,9 +22,6 @@ When publishing a new release, copy the relevant section on the [Github release 
 - Dependency versions were changed to minimum values. Missing optional dependency `sqlalchemy` for PostgreSQL database harvesting was added. 
 - User-defined upload function prototypes: keyword argument `file_name` has been renamed `file_query`. 
 Argument `file_name` still works but is marked as deprecated.
-- __TODO__: change docstrings to numpy format using 
-[pyment](https://stackoverflow.com/questions/57143859/how-do-i-convert-python-docstrings-to-a-different-style)
-or docstring_parser, docformatter
 
 
 ## [0.0.13] - 2026-03-18

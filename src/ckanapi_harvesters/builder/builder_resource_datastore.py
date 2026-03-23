@@ -58,7 +58,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
     :param aux_write_fun_name: Name of the function used to write file contents (defines local_file_format as a UserFileFormat)
     :param local_file_format: Class used to read/write files
     :param df_mapper: DataFrame mapper function. This object adds certain indexes and applies the upload/download functions.
-    It is responsible for mapping DataStore queries to file outputs.
+        It is responsible for mapping DataStore queries to file outputs.
     :param data_cleaner_upload: Data sanitizer used to automate certain tasks and replacing invalid values (default is None)
     """
 

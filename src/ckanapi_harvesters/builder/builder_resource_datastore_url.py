@@ -148,6 +148,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
                       reupload: bool = None, override_ckan:bool=False, resources_base_dir:str=None) -> CkanResourceInfo:
         """
         Specific implementation of patch_request which does not upload any data and only updates the fields currently present in the database
+
         :param resources_base_dir:
         :param ckan:
         :param package_id:

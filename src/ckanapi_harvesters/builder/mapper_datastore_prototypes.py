@@ -32,6 +32,7 @@ def simple_upload_fun(df_local: Union[pd.DataFrame, List[dict]], *,
 
 def replace_empty_str(df_local: Union[pd.DataFrame, List[dict]], *,
                       fields:Dict[str, CkanField]=None, file_query:str=None, total_lines_read:int=None, **kwargs) -> Union[pd.DataFrame, List[dict]]:
+    df_local = df_local.astype(object)  # set all columns to object dtype
     df_local.replace("", None, inplace=True)
     return df_local
 

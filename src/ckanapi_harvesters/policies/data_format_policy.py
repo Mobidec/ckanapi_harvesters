@@ -258,7 +258,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
 
         :param package_info: package and resources metadata
         :param package_buffer: you can specify a list object to indirectly obtain the detailed list of error messages.
-        The keys of this dictionary are the package names.
+            The keys of this dictionary are the package names.
         :param display_message: option to display the messages in the command line
         :param raise_error: option to raise an exception if any rule with a high error level is encountered
         :return: True if no error was encountered

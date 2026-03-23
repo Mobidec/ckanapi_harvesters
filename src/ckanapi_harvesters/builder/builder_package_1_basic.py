@@ -172,7 +172,7 @@ class BuilderPackageBasic:
         Call before instantiating any package builder (BuilderPackage).
 
         :param mode_auto: set to True/False to setup at the same time the package state during upload
-        and the default package state, applied at the end of the upload, if not specified by the user in the Excel workbook.
+            and the default package state, applied at the end of the upload, if not specified by the user in the Excel workbook.
         :param draft_state_by_default: specific setting for the default package state (applied at the end of the upload).
         """
         global builder_default_package_state, initial_package_building_state
@@ -972,7 +972,8 @@ class BuilderPackageBasic:
         """
         Function to perform all the necessary requests to initiate/reupload the package on the CKAN server.
         This function does not upload the package resources.
-        NB: the organization must be provided, especially if the package is private
+
+        .. note :: The organization must be provided, especially if the package is private
 
         :param ckan:
         :return:

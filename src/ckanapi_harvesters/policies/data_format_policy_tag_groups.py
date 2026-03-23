@@ -19,6 +19,7 @@ class TagListPolicy(ValueListPolicy):
     def get_tags_list_dict(self, vocabulary_id: str=None) -> List[Dict[str, str]]:
         """
         Generate tags dictionary to initiate a vocabulary using the CKAN API.
+
         :param vocabulary_id:
         :return:
         """

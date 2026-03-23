@@ -203,7 +203,7 @@ class CkanApiManage(CkanApiReadWrite):
         """
         Initialization of the `fields` parameter for datastore_create.
         Only parts used by this package are present.
-        To complete the field's dictionnaries, refer to datastore_field_patch_dict.
+        To complete the field's dictionaries, refer to datastore_field_patch_dict.
 
         :param fields: first source of field information, usually the fields from the DataStore
         :param fields_merge: second source. Values from this dictionary will overwrite fields
@@ -213,6 +213,7 @@ class CkanApiManage(CkanApiReadWrite):
         :param fields_label:
         :param return_list:
         :return: dict if return_list is False, list if return_list is True.
+
         You can easily transform the dict to a list with the following code:
         ```python
         fields = list(fields_update.values())
@@ -378,12 +379,13 @@ class CkanApiManage(CkanApiReadWrite):
         The field_update argument would be e.g. field_update={"id": {"info": {"type_override": "text"}}}
         This is equivalent to the option field_type_override={"id": "text"}
 
-        __NB__: it is not possible to rename a field after creation through the API. To do this, the change must be done in the database.
+        .. note::
+            It is not possible to rename a field after creation through the API. To do this, the change must be done in the database.
 
         :param resource_id: resource id
         :param fields_update: dictionary of field id and properties to change. The update of the property dictionary is
-        recursive, ensuring only the fields appearing in the update are changed.
-        This field can be overridden by the values given in field_type_override, field_description, or field_label.
+            recursive, ensuring only the fields appearing in the update are changed.
+            This field can be overridden by the values given in field_type_override, field_description, or field_label.
         :param fields_type_override: argument to simplify the edition of the info.type_override value for each field id.
         :param field_description: argument to simplify the edition of the info.notes value for each field id
         :param fields_label: argument to simplify the edition of the info.label value for each field id
@@ -637,8 +639,9 @@ class CkanApiManage(CkanApiReadWrite):
         :param url: url of the resource to replace resource
         :param params: additional parameters such as resource_type can be set
 
-        For file uploads, the following parameters are taken, by order of priority:
-        See upload_prepare_requests_files_arg for an example of formatting.
+        .. note ::
+            For file uploads, the following parameters are taken, by order of priority:
+            See upload_prepare_requests_files_arg for an example of formatting.
 
         :param files: files pass through argument to the requests.post function. Use to send other data formats.
         :param payload: bytes to upload as a file
@@ -721,13 +724,14 @@ class CkanApiManage(CkanApiReadWrite):
         :param format:
         :param params:
         :param cancel_if_exists: check if a resource with the same name already exists in the package on CKAN server
-        If a resource with the same name already exists, the info for this resource is returned
+            If a resource with the same name already exists, the info for this resource is returned
         :param update_if_exists: If a resource with the same name already exists (and cancel_if_exists=True), a call to resource_patch is performed.
         :param reupload: re-upload the resource if a resource with the same name already exists and cancel_if_exists=True and update_if_exists=True
         :param create_default_view:
 
-        For file uploads, the following parameters are taken, by order of priority:
-        See upload_prepare_requests_files_arg for an example of formatting.
+        .. note ::
+            For file uploads, the following parameters are taken, by order of priority:
+            See upload_prepare_requests_files_arg for an example of formatting.
 
         :param files: files pass through argument to the requests.post function. Use to send other data formats.
         :param payload: bytes to upload as a file

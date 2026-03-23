@@ -98,6 +98,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     def setup_default_file_mapper(self, primary_key:List[str]=None, file_query_list:Collection[Tuple[str, dict]]=None) -> None:
         """
         This function enables the user to define the primary key and initializes the default file mapper.
+
         :param primary_key: manually specify the primary key
         :return:
         """

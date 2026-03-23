@@ -193,38 +193,23 @@ class CkanApiMap(CkanApiBase):
         Map the resources of a given package to obtain resource IDs associated with the package name
         and its resources.
 
-        Notes
-        -----
-        - Packages were previously referred to as DataSets in earlier CKAN implementations.
-        - A single name can be shared across multiple resources within a package. In such cases,
-          the first occurrence is used as a reference, and a warning is issued.
-
-        Parameters
-        ----------
-        package_list : Union[str, List[str]], optional
-            List of packages to request. If not provided, the result of `package_search` is used.
-        params : dict, optional
-            Additional parameters to pass to all API calls (not recommended).
-        datastore_info : bool, optional
-            If True, enables the request of the API `datastore_info` to return information about
+        :param package_list: List of packages to request. If not provided, the result of `package_search` is used.
+        :param params: Additional parameters to pass to all API calls (not recommended).
+        :param datastore_info: If True, enables the request of the API `datastore_info` to return information about
             DataStore fields, aliases, and row count. Required to search a DataStore by alias.
-        resource_view_list : bool, optional
-            If True, enables the request of the `view_list` API for each resource.
-        organization_info : bool, optional
-            If True, enables the request of the `organization_list` API before other requests.
-        license_list : bool, optional
-            If True, enables the request of the `license_list` API.
-        only_missing : bool, default=True
-            If True, skips requesting already-mapped packages.
-        error_not_found : bool, default=True
-            If True, packages not found by the API are ignored (no error is raised).
-        owner_org : str, optional
-            Filters packages by a specific organization (only if `package_search` is used).
+        :param resource_view_list: If True, enables the request of the `view_list` API for each resource.
+        :param organization_info: If True, enables the request of the `organization_list` API before other requests.
+        :param license_list: If True, enables the request of the `license_list` API.
+        :param only_missing: If True, skips requesting already-mapped packages.
+        :param error_not_found: If True, packages not found by the API are ignored (no error is raised).
+        :param owner_org: Filters packages by a specific organization (only if `package_search` is used).
+        :return: A mapping of resources for the specified package(s).
 
-        Returns
-        -------
-        CkanMap
-            A mapping of resources for the specified package(s).
+        .. note::
+            - Packages were previously referred to as DataSets in earlier CKAN implementations.
+            - A single name can be shared across multiple resources within a package. In such cases,
+              the first occurrence is used as a reference, and a warning is issued.
+
         """
         start = time.time()
         self.set_default_map_mode(datastore_info=datastore_info, resource_view_list=resource_view_list,
@@ -489,7 +474,7 @@ class CkanApiMap(CkanApiBase):
 
         :param owner_org: ability to filter packages by owner_org
         :param filter: dict of filters to apply, which translate to the API fq argument
-        fq documentation: any filter queries to apply. Note: +site_id:{ckan_site_id} is added to this string prior to the query being executed.
+            fq documentation: any filter queries to apply. Note: +site_id:{ckan_site_id} is added to this string prior to the query being executed.
         :param q: the solr query. Optional. Default is '*:*'
         :param include_private: if True, private datasets will be included in the results. Only private datasets from the user’s organizations will be returned and sysadmins will be returned all private datasets. Optional, the default is False in the API
         :param include_drafts:  if True, draft datasets will be included in the results. A user will only be returned their own draft datasets, and a sysadmin will be returned all draft datasets. Optional, the default is False.
@@ -544,7 +529,7 @@ class CkanApiMap(CkanApiBase):
         :see: _api_package_search()
         :param owner_org: ability to filter packages by owner_org
         :param filter: dict of filters to apply, which translate to the API fq argument
-        fq documentation: any filter queries to apply. Note: +site_id:{ckan_site_id} is added to this string prior to the query being executed.
+            fq documentation: any filter queries to apply. Note: +site_id:{ckan_site_id} is added to this string prior to the query being executed.
         :param q: the solr query. Optional. Default is '*:*'
         :param include_private: if True, private datasets will be included in the results. Only private datasets from the user’s organizations will be returned and sysadmins will be returned all private datasets. Optional, the default is False in the API
         :param include_drafts:  if True, draft datasets will be included in the results. A user will only be returned their own draft datasets, and a sysadmin will be returned all draft datasets. Optional, the default is False.
@@ -627,7 +612,7 @@ class CkanApiMap(CkanApiBase):
         :param resource_id: resource id.
         :param params: N/A
         :param display_request_not_found: whether to display the request in the command window, in case of a CkanNotFoundError.
-        This option is recommended if you are testing whether the resource has a DataStore or not.
+            This option is recommended if you are testing whether the resource has a DataStore or not.
         :return:
         """
         if params is None: params = {}

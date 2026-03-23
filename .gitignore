@@ -74,6 +74,8 @@ instance/
 
 # Sphinx documentation
 sphinx/_build/
+sphinx/modules/
+sphinx/jupyter_execute/
 
 # PyBuilder
 .pybuilder/
