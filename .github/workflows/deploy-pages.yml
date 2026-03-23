@@ -27,7 +27,7 @@ jobs:
       - name: Build Sphinx documentation
         run: |
           rm -rf ./public/*
-          sphinx-apidoc -f -o sphinx $PYTHON_PATH
+          sphinx-apidoc -f -o sphinx/modules $PYTHON_PATH
           sphinx-build -b html ./sphinx ./public
       - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
