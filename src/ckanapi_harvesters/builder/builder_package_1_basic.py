@@ -33,8 +33,9 @@ from ckanapi_harvesters.auxiliary.ckan_configuration import unlock_external_url_
 from ckanapi_harvesters.builder.builder_errors import (MissingDataStoreInfoError, UnsupportedBuilderVersionError,
                                                        MissingDataStoreColumnsSheet)
 from ckanapi_harvesters.builder import BUILDER_FILE_FORMAT_VERSION as BUILDER_VER
-from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC
+from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC, BuilderFileABC, BuilderUrl
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiFile, multi_file_exclude_other_files
+from ckanapi_harvesters.builder.builder_resource_datastore_url import BuilderDataStoreUrl
 from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC
 from ckanapi_harvesters.builder.builder_resource_multi_datastore import BuilderMultiDataStore
 from ckanapi_harvesters.builder.builder_resource_datastore_multi_abc import BuilderDataStoreMultiABC
@@ -93,6 +94,8 @@ class BuilderPackageBasic:
     - External Python module (.py) containing DataFrame modification functions for upload/download of a DataStore
     """
     default_to_json_reduced_size:bool = False
+    default_sample_url_suffix:str = "-sample"
+    default_sample_title_suffix:str = " - Sample"
 
     def __init__(self, package_name:str=None, *, package_id:str=None,
                  title: str = None, description: str = None, private: bool = None, state: CkanState = None,
@@ -124,6 +127,7 @@ class BuilderPackageBasic:
         self.ckan_builder: BuilderCkan = BuilderCkan()
         self.external_python_code: Union[PythonUserCode, None] = None
         self.comment: str = ""
+        self.built_from_ckan:bool = False
 
     def __str__(self):
         return f"Package builder for {self.package_name} ({len(self.resource_builders)} resources)"
@@ -142,6 +146,7 @@ class BuilderPackageBasic:
         dest._default_out_dir = self._default_out_dir
         dest.resource_builders = OrderedDict()
         dest.comment = self.comment
+        dest.built_from_ckan = self.built_from_ckan
         for key, value in self.resource_builders.items():
             dest.resource_builders[key] = value.copy()
         dest.ckan_builder = self.ckan_builder.copy()
@@ -686,6 +691,7 @@ class BuilderPackageBasic:
         mdl.update_package_name_in_resources()
         mdl.init_resources_options_and_metadata(ckan, base_dir=base_dir)
         mdl.builder_source_file = "ckan"
+        mdl.built_from_ckan = True
         return mdl
 
     def update_from_ckan(self, ckan:CkanApiMap, *, error_not_found:bool=True) -> None:
@@ -1000,7 +1006,8 @@ class BuilderPackageBasic:
     def patch_request_full(self, ckan:CkanApi, *,
                            reupload:bool=False, override_ckan:bool=False, resources_base_dir:str=None,
                            create_default_view:bool=True, delete_all_resources:bool=False,
-                           progress_callback:Union[CkanProgressCallback,Callable]=None) \
+                           progress_callback:Union[CkanProgressCallback,Callable]=None,
+                           sample_df_dict:Dict[str, Union[bytes, pd.DataFrame]]=None) \
             -> Tuple[CkanPackageInfo, Dict[str, CkanResourceInfo]]:
         """
         Perform necessary requests to initiate/reupload the package and resources on the CKAN server.
@@ -1033,8 +1040,22 @@ class BuilderPackageBasic:
                 progress_callback.task_progress(resource_index+1, len(self.resource_builders), level=CkanCallbackLevel.Resources)
             if create_default_view is not None:
                 resource_builder.create_default_view = create_default_view
-            resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
-                                                           resources_base_dir=resources_base_dir)
+            if sample_df_dict is not None and resource_builder.name in sample_df_dict.keys():
+                data_upload = sample_df_dict[resource_builder.name]
+            else:
+                data_upload = None
+            if data_upload is not None:
+                if isinstance(resource_builder, BuilderDataStoreABC):
+                    assert(isinstance(data_upload, pd.DataFrame) or isinstance(data_upload, list))
+                    resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
+                                                                   resources_base_dir=resources_base_dir, df_upload=data_upload)
+                else:
+                    assert(isinstance(data_upload, bytes))
+                    resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
+                                                                   resources_base_dir=resources_base_dir, payload=data_upload)
+            else:
+                resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
+                                                               resources_base_dir=resources_base_dir)
             resource_info_dict[resource_builder.name] = resource_info
             if resource_info is not None:  # this would be the case for BuilderMultiFile
                 pkg_info.update_resource(resource_info)
@@ -1236,7 +1257,8 @@ class BuilderPackageBasic:
                 resource_builder.download_request(ckan, out_dir=out_dir, full_download=full_download,
                                                   threads=threads, force=force, excluded_resource_names=mono_resource_names)
 
-    def download_sample_df(self, ckan:CkanApi, resource_name:str=None, *, search_all:bool=False, **kwargs) -> Dict[str, pd.DataFrame]:
+    def download_sample_df(self, ckan:CkanApi, resource_name:str=None, *, search_all:bool=False,
+                           **kwargs) -> Dict[str, pd.DataFrame]:
         """
         Download a sample DataFrame for the DataStore type resources.
 
@@ -1251,19 +1273,29 @@ class BuilderPackageBasic:
             resource_builders = {resource_name: self.resource_builders[resource_name]}
         self.update_package_name_in_resources()
         self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
-        df_dict = {}
+        sample_df_dict = {}
         for resource_builder in resource_builders.values():
             if isinstance(resource_builder, BuilderDataStoreABC):
-                df_dict[resource_builder.name] = resource_builder.download_sample_df(ckan, search_all=search_all, **kwargs)
-        return df_dict
+                sample_df_dict[resource_builder.name] = resource_builder.download_sample_df(ckan, search_all=search_all, **kwargs)
+        return sample_df_dict
 
-    def download_sample(self, ckan:CkanApi, resource_name:str=None, *, datastores_as_df:bool=True, search_all:bool=False, **kwargs) -> Dict[str, Union[bytes, pd.DataFrame]]:
+    def download_sample(self, ckan:CkanApi, resource_name:str=None, *,
+                        datastores_as_df:bool=True, download_url_resources:bool=False,
+                        include_files:bool=True, empty_files:bool=False,
+                        search_all:bool=False,
+                        **kwargs) -> Dict[str, Union[bytes, pd.DataFrame]]:
         """
-        Download samples from all resources.
+        Download samples for all resources. Resources which are not DataStores are downloaded entirely as bytes.
 
         :param ckan:
-        :param resource_name:
-        :return:
+        :param resource_name: option to restrict to a single resource
+        :param datastores_as_df: Download DataStores as DataFrames (do not convert to bytes)
+        :param download_url_resources: Option to download resources aiming for an external URL.
+        :param include_files: Option to include resources which are files as bytes.
+        :param empty_files: Option to force file contents to an empty file.
+        :param search_all: Option to search all resources before downloading (only applies to DataStores).
+        :param kwargs: applies to download_sample_df
+        :return: a dictionary with a sample for each resource
         """
         self.info_request_package(ckan=ckan)
         if resource_name is None:
@@ -1272,13 +1304,64 @@ class BuilderPackageBasic:
             resource_builders = {resource_name: self.resource_builders[resource_name]}
         self.update_package_name_in_resources()
         self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
-        df_dict = {}
+        sample_df_dict = {}
         for resource_builder in resource_builders.values():
-            if isinstance(resource_builder, BuilderDataStoreABC) and datastores_as_df:
-                df_dict[resource_builder.name] = resource_builder.download_sample_df(ckan, search_all=search_all, **kwargs)
+            if (not download_url_resources) and (isinstance(resource_builder, BuilderUrl)
+                    or isinstance(resource_builder, BuilderDataStoreUrl)):
+                sample_df_dict[resource_builder.name] = None
+            elif isinstance(resource_builder, BuilderDataStoreABC) and datastores_as_df:
+                sample_df_dict[resource_builder.name] = resource_builder.download_sample_df(ckan, search_all=search_all, **kwargs)
+            elif include_files and not empty_files:
+                sample_df_dict[resource_builder.name] = resource_builder.download_resource_bytes(ckan, search_all=search_all, **kwargs)
+            elif empty_files:
+                sample_df_dict[resource_builder.name] = bytes()
             else:
-                df_dict[resource_builder.name] = resource_builder.download_sample(ckan, search_all=search_all, **kwargs)
-        return df_dict
+                sample_df_dict[resource_builder.name] = None
+        return sample_df_dict
+
+    def setup_sample_package(self, ckan: CkanApi, package_name:str=None, *,
+                             sample_url_suffix:str=None, sample_title_suffix:str=None,
+                             sample_df_dict: Dict[str, Union[bytes, pd.DataFrame]]=None, return_sample:bool=False, **kwargs) \
+        -> Union["BuilderPackageBasic", Tuple["BuilderPackageBasic", Dict[str, Union[bytes, pd.DataFrame]]]]:
+        """
+        Returns a package builder configured to represent a sample of the current package builder.
+        Limitation: the current package builder must be created from CKAN.
+
+        :param ckan:
+        :param package_name: If specified, derives the package metadata from the specified package name. By default, the current package builder will be used.
+        :param sample_url_suffix: Suffix to add to the package_name (default is "-sample")
+        :param sample_title_suffix: Suffix to add to the package title (default is " - Sample")
+        :param sample_df_dict: Option to transmit the data of each resource to the output of function.
+        :param return_sample: Option to return the data of each resource.
+        :param kwargs: Optional arguments to pass to the download_sample function.
+        :return: a package builder configured to represent a sample of the current package builder.
+            Optionally, the dictionary of resources to transmit
+        """
+        if sample_url_suffix is None:
+            sample_url_suffix = BuilderPackageBasic.default_sample_url_suffix
+        if sample_title_suffix is None:
+            sample_title_suffix = BuilderPackageBasic.default_sample_title_suffix
+        if package_name is None:
+            mdl = self
+        else:
+            mdl = BuilderPackageBasic.from_ckan(ckan, package_name)
+        if not mdl.built_from_ckan:
+            msg = "To setup a sample package, the source package must be built from CKAN (for implementation reasons)"
+            raise RuntimeError(msg)
+        sample_mdl = mdl.copy()
+        sample_mdl.package_name = mdl.package_name + sample_url_suffix
+        sample_mdl.package_attributes.title = mdl.package_attributes.title + sample_title_suffix
+        sample_mdl.package_attributes.url = ckan.get_package_page_url(mdl.get_or_query_package_id(ckan))  # mark as source
+        sample_mdl.package_attributes.state = CkanState.Active  # publish at the end of the process
+        for resource_builder in sample_mdl.resource_builders.values():
+            resource_builder.aliases = []
+        sample_mdl.clear_ids()
+        if return_sample and sample_df_dict is None:
+            sample_df_dict = mdl.download_sample(ckan=ckan, **kwargs)
+        if return_sample:
+            return sample_mdl, sample_df_dict
+        else:
+            return sample_mdl
 
     def info_request_package(self, ckan:CkanApi) -> CkanPackageInfo:
         pkg_info = ckan.get_package_info_or_request(package_name=self.package_name)

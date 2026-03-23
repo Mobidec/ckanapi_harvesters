@@ -10,6 +10,18 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-03-24
 
 
+## [0.0.16] - 2026-03-23
+
+### Added
+
+- Functions to initiate a sample package from an existing CKAN package builder: 
+`setup_sample_package` and `download_sample`. An example was added to document usage.
+
+### Changed
+
+- DataStore resource builder function `download_sample_df` removes the `_id` column by default. 
+
+
 ## [0.0.15] - 2026-03-23
 
 ### Added

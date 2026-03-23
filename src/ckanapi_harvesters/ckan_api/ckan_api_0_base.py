@@ -79,8 +79,6 @@ class CkanApiBase(CkanApiABC):
         self.params: CkanApiParamsBasic = params
         self.ckan_session: Union[requests.Session, None] = None
         self.extern_session: Union[requests.Session, None] = None
-        if apikey_file is not None and apikey is None:
-            self.load_apikey()
         self.debug: CkanApiDebug = CkanApiDebug()
         self._apikey: CkanApiKey = CkanApiKey()
         # properties
@@ -88,6 +86,8 @@ class CkanApiBase(CkanApiABC):
         if apikey is None or not isinstance(apikey, CkanApiKey):
             apikey = CkanApiKey(remote_url=self.url, apikey=apikey, apikey_file=apikey_file)
         self._apikey: CkanApiKey = apikey
+        if apikey_file is not None and apikey is None:
+            self.load_apikey()
 
     def __del__(self):
         self.disconnect()
@@ -748,7 +748,7 @@ class CkanApiBase(CkanApiABC):
                              or isinstance(e, HttpRetryCodeError)
                              or (response is not None and response.status_code in HTTP_STATUS_CODE_RETRY)
                              or isinstance(e, ProxyError) or isinstance(e, ReadTimeout))
-            if (is_retry_case and response is not None and _attempt_counts <= self.params.max_requests_attempts):
+            if (is_retry_case and _attempt_counts <= self.params.max_requests_attempts):
                 # current_response = CkanActionResponse(response, self.params.dry_run)
                 msg = f"Waiting to retry API call to {action} after server error (attempt {_attempt_counts}): {str(e)}"
                 warn(msg)

@@ -501,7 +501,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
     #         if ckan.verbose_extra:
     #             print("End of multi-threaded download...")
 
-    def download_sample(self, ckan:CkanApi, full_download:bool=True, **kwargs) -> Union[bytes, None]:
+    def download_resource_bytes(self, ckan:CkanApi, full_download:bool=True, **kwargs) -> Union[bytes, None]:
         return None
 
     def download_request(self, ckan: CkanApi, out_dir: str, *, full_download:bool=True, threads:int=1,
