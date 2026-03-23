@@ -305,7 +305,7 @@ class BuilderResourceABC(ABC):
             ckan.resource_patch(resource_id, state=self.resource_attributes.state)
 
     @abstractmethod
-    def download_sample(self, ckan:CkanApi, full_download:bool=True, **kwargs) -> bytes:
+    def download_resource_bytes(self, ckan:CkanApi, full_download:bool=True, **kwargs) -> bytes:
         """
         Download the resource and return the data as bytes.
 
@@ -317,11 +317,16 @@ class BuilderResourceABC(ABC):
         """
         raise NotImplementedError()
 
+    def download_sample_df(self, ckan: CkanApi, *, limit: int = 100,
+                           search_all: bool = False, download_alter: bool = False,
+                           **kwargs) -> Union[pd.DataFrame, None]:
+        return None
+
     @abstractmethod
     def download_request(self, ckan:CkanApi, out_dir:str, *, full_download:bool=True, force:bool=False, threads:int=1, return_data:bool=False) -> Any:
         """
         Download the resource and save in a file pointed by out_dir.
-        In most implementations, this calls the download_sample method.
+        In most implementations, this calls the download_resource_bytes method.
 
         :param ckan:
         :param out_dir:
@@ -428,11 +433,11 @@ class BuilderFileABC(BuilderResourceABC, ABC):
         self.upload_request_final(ckan)
         return res_info
 
-    def download_sample(self, ckan:CkanApi, full_download:bool=True, **kwargs) -> Union[bytes, None]:
+    def download_resource_bytes(self, ckan:CkanApi, full_download:bool=True, search_all:bool=True, **kwargs) -> Union[bytes, None]:
         resource_id = self.get_or_query_resource_id(ckan=ckan, error_not_found=self.download_error_not_found)
         if resource_id is None and not self.download_error_not_found:
             return None
-        resource_info, response = ckan.resource_download(resource_id, **kwargs)
+        resource_info, response = ckan.resource_download(resource_id)
         if response is not None:
             return response.content
         else:
@@ -448,7 +453,7 @@ class BuilderFileABC(BuilderResourceABC, ABC):
             self.downloaded_destination = resolve_rel_path(out_dir, self.file_name, field=f"File/URL of resource {self.name}")
             if self.download_skip_existing and os.path.exists(self.downloaded_destination):
                 return
-        content = self.download_sample(ckan=ckan, full_download=full_download, **kwargs)
+        content = self.download_resource_bytes(ckan=ckan, full_download=full_download, **kwargs)
         if out_dir is not None and content is not None:
             os.makedirs(out_dir, exist_ok=True)
             with open(self.downloaded_destination, "wb") as f:

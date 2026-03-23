@@ -425,12 +425,12 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     #         if ckan.verbose_extra:
     #             print("End of multi-threaded download...")
 
-    def download_sample_df(self, ckan: CkanApi, search_all:bool=False, **kwargs) -> pd.DataFrame:
+    def download_resource_df(self, ckan: CkanApi, search_all:bool=False, **kwargs) -> pd.DataFrame:
         # alias with search_all=False by default
-        return super().download_sample_df(ckan=ckan, search_all=search_all, **kwargs)
+        return super().download_resource_df(ckan=ckan, search_all=search_all, **kwargs)
 
-    def download_sample(self, ckan:CkanApi, full_download:bool=False, **kwargs) -> bytes:
+    def download_resource_bytes(self, ckan:CkanApi, full_download:bool=False, **kwargs) -> bytes:
         # alias with full_download=False by default
-        return super().download_sample(ckan=ckan, full_download=full_download, **kwargs)
+        return super().download_resource_bytes(ckan=ckan, full_download=full_download, **kwargs)
 
 
