@@ -10,7 +10,8 @@ from typing import Union
 configuration_package_name = "configuration"
 policy_resource = "data_format_policy.json"
 datastore_sample_resource = "sample_datastore.csv"
-datastore_default_index_col_name: Union[str,None] = "py_upload_index"
+datastore_default_upload_index_col_name: Union[str,None] = "py_upload_index"
+datastore_default_source_file_col_name: Union[str,None] = "py_source_file"
 
 default_ckan_has_postgis: bool = True
 epsg_wgs84 = 4326  # WGS-84

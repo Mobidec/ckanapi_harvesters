@@ -9,9 +9,17 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ## [Unreleased] - 2026-03-24
 
-- __TODO__: change docstrings to numpy format using 
-[pyment](https://stackoverflow.com/questions/57143859/how-do-i-convert-python-docstrings-to-a-different-style)
-or docstring_parser, docformatter
+
+## [0.0.15] - 2026-03-23
+
+### Added
+
+- Option `--include-source-file` to add a column `py_source_file` naming the file each line of a DataStore originates from.
+
+### Changed
+
+- Documentation format issues.
+- Changed default JSON file reading option to not expect one document per line.
 
 
 ## [0.0.14] - 2026-03-23

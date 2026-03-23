@@ -22,9 +22,13 @@ class JsonFileFormat(FileFormatABC):
     In this case, use CLI arguments `--allow-chunks --read-kwargs lines=True`
 
     Recommended: use with CLI argument `--allow-chunks --read-kwargs orient=records,lines=True`
+
+    NB: argument typ="frame" cannot be overridden for read arguments.
     """
-    # NB: default is orient=records
-    default_read_kwargs = dict(orient="records", lines=True)
+    # NB: here, default is orient=records, lines=False for read
+    #     pandas default for typ="frame" is orient=index, lines=False
+    default_read_kwargs = dict(orient="records", lines=False)
+    # by default, write one line per row (lines=True)
     default_write_kwargs = dict(orient="records", lines=True)
 
     # read -------------------

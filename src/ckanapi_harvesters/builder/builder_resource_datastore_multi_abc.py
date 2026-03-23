@@ -19,7 +19,7 @@ from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataSto
 from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 from ckanapi_harvesters.builder.builder_aux import positive_end_index
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanResourceInfo, CkanField
-from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_index_col_name
+from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name, datastore_default_source_file_col_name
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestFileMapperABC, default_file_mapper_from_primary_key
@@ -82,16 +82,16 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         :param override_ckan: when True, override the values from the CKAN server, if present
         """
         super()._update_metadata(ckan=ckan, base_dir=base_dir)
-        if self.primary_key is not None and len(self.primary_key) == 1 and self.primary_key[0] == datastore_default_index_col_name:
+        if self.primary_key is not None and len(self.primary_key) == 1 and self.primary_key[0] == datastore_default_upload_index_col_name:
             if self.field_builders_user is None:
                 self.field_builders_user = OrderedDict()
-            if datastore_default_index_col_name not in self.field_builders_user.keys():
-                self.field_builders_user[datastore_default_index_col_name] = BuilderField(name=datastore_default_index_col_name, type_override="int8")
-            field_builder = self.field_builders_user[datastore_default_index_col_name]
+            if datastore_default_upload_index_col_name not in self.field_builders_user.keys():
+                self.field_builders_user[datastore_default_upload_index_col_name] = BuilderField(name=datastore_default_upload_index_col_name, type_override="int8")
+            field_builder = self.field_builders_user[datastore_default_upload_index_col_name]
             known_field = None
             if self.known_resource_info is not None and self.known_resource_info.datastore_info is not None and self.known_resource_info.datastore_info.fields_dict is not None:
-                if datastore_default_index_col_name in self.known_resource_info.datastore_info.fields_dict.keys():
-                    known_field = self.known_resource_info.datastore_info.fields_dict[datastore_default_index_col_name]
+                if datastore_default_upload_index_col_name in self.known_resource_info.datastore_info.fields_dict.keys():
+                    known_field = self.known_resource_info.datastore_info.fields_dict[datastore_default_upload_index_col_name]
             if known_field is None or known_field.notes is None:
                 field_builder.description = "Index of the line in the upload process"
 
@@ -105,9 +105,11 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         df_mapper_mem = self.df_mapper
         if primary_key is not None:
             self.primary_key = primary_key
-        if (self.primary_key is None or len(self.primary_key) == 0) and self.enable_upload_index:
-            self.primary_key = [datastore_default_index_col_name]
+        if (self.primary_key is None or len(self.primary_key) == 0) and self.column_enable_upload_index:
+            self.primary_key = [datastore_default_upload_index_col_name]
         self.df_mapper = default_file_mapper_from_primary_key(self.primary_key, file_query_list)
+        if self.column_enable_source_file:
+            self.df_mapper.source_file_column = datastore_default_source_file_col_name
         if file_query_list is not None:
             self.downloaded_file_query_list = file_query_list
         # preserve upload/download functions

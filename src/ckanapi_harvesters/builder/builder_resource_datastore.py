@@ -31,7 +31,7 @@ from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataSt
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, find_duplicates, datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
-from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_index_col_name
+from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name, datastore_default_source_file_col_name
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_init import init_data_cleaner
 
@@ -86,7 +86,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.reupload_needed: Union[bool,None] = None
         self.df_mapper = DataSchemeConversion()
         self.local_file_format: Union[FileFormatABC,None] = None
-        self.enable_upload_index: bool = True
+        self.column_enable_upload_index: bool = True
+        self.column_enable_source_file: bool = False
         self.read_line_counter:int = 0
         self.upload_start_line:int = 0
 
@@ -106,7 +107,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         dest.reupload_on_update = self.reupload_on_update
         dest.reupload_if_needed = self.reupload_if_needed
         dest.reupload_needed = self.reupload_needed
-        dest.enable_upload_index = self.enable_upload_index
+        dest.column_enable_upload_index = self.column_enable_upload_index
+        dest.column_enable_source_file = self.column_enable_source_file
         dest.df_mapper = self.df_mapper.copy()
         dest.local_file_format = self.local_file_format.copy()
         return dest
@@ -132,8 +134,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                             help="Fields of the primary key defining the request to reconstruct a file, in --one-frame-per-primary-key mode, separated by a comma (no spaces). \n"
                                  "By default, the first columns of the primary, except the last one is used. \n"
                                  "At least one field of the primary key must be unused here. \n")
+        parser.add_argument("--include-source-file",
+                            help="Add a column for the file name of the original data (named " + datastore_default_source_file_col_name + ")", action="store_true", default=False)
         parser.add_argument("--no-upload-index",
-                            help="Disable the generation of an upload index column in case no primary key was given (named " + datastore_default_index_col_name + ")", action="store_true", default=False)
+                            help="Disable the generation of an upload index column in case no primary key was given (named " + datastore_default_upload_index_col_name + ")", action="store_true", default=False)
         return parser
 
     def _setup_cli_parser_external(self, parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
@@ -158,7 +162,9 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             msg = GroupByError("Argument --group-by cannot be used without option --one-frame-per-primary-key")
             warn(msg)
         if args.no_upload_index:
-            self.enable_upload_index = False
+            self.column_enable_upload_index = False
+        if args.include_source_file:
+            self.column_enable_source_file = True
 
     def apply_one_frame_per_primary_key(self, group_by_argument:Union[str, List[str]]=None):
         """

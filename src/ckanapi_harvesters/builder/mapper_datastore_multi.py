@@ -15,7 +15,7 @@ from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
-from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_index_col_name
+from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name
 from ckanapi_harvesters.ckan_api import CkanApi
 
 
@@ -264,11 +264,11 @@ def default_file_mapper_from_primary_key(primary_key:List[str]=None, file_query_
     else:
         mapper = RequestFileMapperLimit()
     if primary_key is not None:
-        if (len(primary_key) == 1 and datastore_default_index_col_name is not None
-                and primary_key[0].strip() == datastore_default_index_col_name):
+        if (len(primary_key) == 1 and datastore_default_upload_index_col_name is not None
+                and primary_key[0].strip() == datastore_default_upload_index_col_name):
             # user can explicitly specify he wants to rely on the index created by default
-            mapper.upload_upload_index_column = datastore_default_index_col_name
+            mapper.upload_index_column = datastore_default_upload_index_col_name
         elif len(primary_key) > 0:
-            mapper.upload_upload_index_column = ""  # do not create an extra index if the primary key is defined
+            mapper.upload_index_column = ""  # do not create an extra index if the primary key is defined
     return mapper
 

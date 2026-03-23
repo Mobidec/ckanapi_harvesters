@@ -7,6 +7,7 @@ This file implements functions to convert formats between database and local fil
 """
 from typing import Dict, List, Callable, Any, Tuple, Union, Set
 import copy
+import os
 
 import pandas as pd
 
@@ -28,7 +29,8 @@ class DataSchemeConversion:
         """
         self.df_upload_fun:Union[Callable[[GeneralDataFrame, Any], GeneralDataFrame], None] = df_upload_fun
         self.df_download_fun:Union[Callable[[GeneralDataFrame, Any], GeneralDataFrame], None] = df_download_fun
-        self.upload_upload_index_column: str = ""
+        self.upload_index_column: str = ""
+        self.source_file_column: str = ""
 
     def copy(self):
         return copy.deepcopy(self)
@@ -51,19 +53,22 @@ class DataSchemeConversion:
         mapper_kwargs["file_name"] = file_query  # retro-compatible argument (deprecated)
         mapper_kwargs["fields"] = fields
         mapper_kwargs["total_lines_read"] = total_lines_read
-        if self.upload_upload_index_column:
+        if file_query is not None and (isinstance(df_local, pd.DataFrame) or isinstance(df_local, ListRecords)):
+            df_local.attrs["source"] = file_query
+        if self.upload_index_column:
             # insert an extra column keeping track of the last read line (default primary key)
             index_offset = total_lines_read - len(df_local)
             if isinstance(df_local, pd.DataFrame):
                 index_offset -= df_local.index[0]  # index of DataFrame in file, not 0 if the file is read by chunks
-                assert_or_raise(not(self.upload_upload_index_column in df_local.keys()), KeyError(f"{self.upload_upload_index_column} already exists"))
-                df_local[self.upload_upload_index_column] = df_local.index + index_offset
+                assert_or_raise(not(self.upload_index_column in df_local.keys()), KeyError(f"{self.upload_index_column} already exists"))
+                df_local[self.upload_index_column] = df_local.index + index_offset
             else:
                 for index, line in enumerate(df_local):
-                    assert_or_raise(not(self.upload_upload_index_column in line.keys()), KeyError(f"{self.upload_upload_index_column} already exists"))
-                    line[self.upload_upload_index_column] = index + index_offset
-        if file_query is not None and (isinstance(df_local, pd.DataFrame) or isinstance(df_local, ListRecords)):
-            df_local.attrs["source"] = file_query
+                    assert_or_raise(not(self.upload_index_column in line.keys()), KeyError(f"{self.upload_index_column} already exists"))
+                    line[self.upload_index_column] = index + index_offset
+        if self.source_file_column:
+            _, file_name = os.path.split(file_query)
+            df_local[self.source_file_column] = file_name
         df_database = df_local
         if self.df_upload_fun is not None:
             # df_database = df_local.copy()  # unnecessary copy
