@@ -1,30 +1,44 @@
-# Python >= 3.14
-requests == 2.32.5
-pandas == 2.3.3
-numpy == 2.2.6
-openpyxl == 3.1.5      # requirement for builder
+# requirements for ckanapi-harvesters
+# Python >= 3.12
+requests >= 2.32.5
+pandas >= 2.3.3
+numpy >= 2.4.3
+openpyxl >= 3.1.5      # requirement for builder
 # extras
-pymongo[extras] == 4.16.0    # optional requirement for harvesters (MongoDB), includes a bson implementation
-psycopg2[extras] == 2.9.11  # optional requirement for harvesters (PostgreSQL)
-shapely[extras] == 2.1.2    # GeoJSON support
-pyproj[extras] == 3.6.1     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10 ... to be confirmed)
-geopandas[extras] == 1.1.2  # Shapefile reading functions
+pymongo[extras] >= 4.16.0    # optional requirement for harvesters (MongoDB), includes a bson implementation
+psycopg2[extras] >= 2.9.11  # optional requirement for harvesters (PostgreSQL)
+sqlalchemy[extras] >= 2.0.48  # optional requirement for harvesters (PostgreSQL)
+shapely[extras] >= 2.1.2    # GeoJSON support
+pyproj[extras] >= 3.7.2     # GeoJSON transformations
+geopandas[extras] >= 1.1.2  # Shapefile reading functions
 # harvesters
-pymongo[harvesters] == 4.16.0    # optional requirement for harvesters (MongoDB), includes a bson implementation
-psycopg2[harvesters] == 2.9.11  # optional requirement for harvesters (PostgreSQL)
-shapely[harvesters] == 2.1.2    # GeoJSON support
-pyproj[harvesters] == 3.6.1     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
+pymongo[harvesters] >= 4.16.0    # optional requirement for harvesters (MongoDB), includes a bson implementation
+psycopg2[harvesters] >= 2.9.11  # optional requirement for harvesters (PostgreSQL)
+shapely[harvesters] >= 2.1.2    # GeoJSON support
+pyproj[harvesters] >= 3.7.2     # GeoJSON transformations
 # alt
-shapely[alt] == 2.1.2    # GeoJSON support
-pyproj[alt] == 3.6.1     # GeoJSON transformations (v3.6.1 is compatible with Python 3.10)
-bson[alt]  # if you need bson but do not want to install pymongo
-geopandas[alt] == 1.1.2  # Shapefile reading functions
+bson[alt] >= 0.5.10  # if you need bson but do not want to install pymongo
+shapely[alt] >= 2.1.2    # GeoJSON support
+pyproj[alt] >= 3.7.2     # GeoJSON transformations
+geopandas[alt] >= 1.1.3  # Shapefile reading functions
 # reading MAT files
-scipy[mat] == 1.15.3
-h5py[mat] == 3.16.0
-# sshtunnel
-sshtunnel[sshtunnel] == 0.4.0
-paramiko[sshtunnel] == 3.5.1
-# management
-pre-commit[management] == 4.5.1
+scipy[mat] >= 1.17.1
+h5py[mat] >= 3.16.0
+# sshtunnel (usage not functional now)
+sshtunnel[sshtunnel] >= 0.4.0
+paramiko[sshtunnel] >= 4.0.0
+# dev
+pytest[dev] >= 9.0.2  # strict version 8.0.1 in the package template
+build[dev] >= 1.4.0
+twine[dev] >= 6.2.0
+ruff[dev] >= 0.15.7
+sphinx[dev] >= 9.1.0
+sphinx_design[dev] >= 0.7.0
+# myst-parser[dev] >= 5.0.0  # included with myst_nb
+furo[dev] >= 2025.12.19
+sphinx_autopackagesummary[dev] >= 1.3
+sphinxcontrib-napoleon[dev] >= 0.7
+sphinx-rtd-theme[dev] >= 3.1.0
+numpydoc[dev] >= 1.10.0
+myst_nb[dev] >= 1.4.0  # Jupyter Notebook inclusion in sphinx
 

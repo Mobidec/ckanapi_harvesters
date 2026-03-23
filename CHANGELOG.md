@@ -7,11 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 When publishing a new release, copy the relevant section on the [Github release page](https://github.com/Mobidec/ckanapi_harvesters/releases).
 
 
-## [Unreleased] - 2026-03-19
+## [Unreleased] - 2026-03-23
 
 ### Changed
 
-- Minimum Python version requirement was changed from 3.10 to 3.14 for compatibility issues with certain dependencies.
+- Minimum Python version requirement was changed from 3.10 to 3.12 for compatibility issues with certain dependencies.
+- Dependency versions were changed to minimum values. Missing optional dependency `sqlalchemy` for PostgreSQL database harvesting was added. 
 - User-defined upload function prototypes: keyword argument `file_name` has been renamed `file_query`. 
 Argument `file_name` still works but is marked as deprecated.
 - __TODO__: change docstrings to numpy format using 
