@@ -6,15 +6,12 @@ The metadata is defined by the user in an Excel worksheet
 This file implements the ckan connection definition.
 """
 from typing import Union
-import os
-import json
 from collections import OrderedDict
 
 import pandas as pd
 
 from ckanapi_harvesters.ckan_api import CkanApi
-from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
-from ckanapi_harvesters.auxiliary.path import make_path_relative, path_rel_to_dir
+from ckanapi_harvesters.auxiliary.path import make_path_relative
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import ca_file_rel_to_dir, ca_arg_to_str
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig

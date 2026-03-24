@@ -4,7 +4,6 @@
 CKAN configuration builder
 """
 from typing import Union, List, Dict
-import os
 
 from ckanapi_harvesters.auxiliary import ckan_configuration
 from ckanapi_harvesters.auxiliary.ckan_model import CkanState

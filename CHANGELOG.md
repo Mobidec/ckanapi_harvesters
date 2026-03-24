@@ -7,7 +7,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 When publishing a new release, copy the relevant section on the [Github release page](https://github.com/Mobidec/ckanapi_harvesters/releases).
 
 
-## [Unreleased] - 2026-03-24
+## [Unreleased] - 2026-03-25
+
+
+## [0.0.17] - 2026-03-25
+
+### Fixed
+
+- Bug ignoring __Primary key__ specified in the Excel workbook from package 
+[version 0.0.13 (18/03/2026, commit a8dd7b32)](#0013---2026-03-18). 
+`py_upload_index` was created even though a primary key was specified.
+
+### Changed
+
+- Function headers for DataStore reading API calls (`datastore_search`, `datastore_dump`, `datastore_search_sql`)
+and the `page_generator` and `cursor` variants. The latter has the default argument `search_all=True` changed.
+The limitation of the number of requests is managed by the user. 
+
+### Added
+
+- If the first line of the API key file is an URL, it is checked against the URL of the CKAN server.
+- Added charset=utf-8 in the Content-type HTTP header to ensure characters are correctly interpreted by CKAN server.
+- Added support for `tqdm` progress bar appearing by default in the console output, if package is installed.
 
 
 ## [0.0.16] - 2026-03-23

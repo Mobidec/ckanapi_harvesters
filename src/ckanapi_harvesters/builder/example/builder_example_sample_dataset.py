@@ -6,16 +6,10 @@ Upload a sample dataset from the example package (needs to be online)
 Samples are used to expose a portion of a dataset to a user, which can be publicly exposed,
 so he can contact the data provider to demand full access.
 """
-
-import os
-
-import pandas as pd
-
 from ckanapi_harvesters.builder.builder_package import BuilderPackage
 from ckanapi_harvesters.ckan_api import CkanApi
 
 from ckanapi_harvesters.builder.example import example_package_xls
-self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
 
 def run(ckan:CkanApi = None):

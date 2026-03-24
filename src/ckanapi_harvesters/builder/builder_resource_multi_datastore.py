@@ -212,6 +212,8 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
         ds_builder, _ = self._data_store_builder_of_file(file_path=resource_name)
         file_dir = resolve_rel_path(out_dir, glob_rm_glob(self.dir_name), field=f"File/URL of resource {self.name}")
         df = ds_builder.download_request(ckan, out_dir=file_dir, full_download=full_download)
+        if df is not None:
+            self.read_line_counter += len(df)
         return ds_builder.downloaded_destination, df
 
     def download_file_query_item(self, ckan: CkanApi, out_dir: str, file_query_item: str, full_download:bool=True) -> Tuple[Union[str,None], Union[requests.Response,None]]:

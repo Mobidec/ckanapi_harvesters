@@ -23,7 +23,7 @@ class ApiKeyFileError(Exception):
 
 class HostContraintError(Exception):
     def __init__(self, host_url:str, url:str):
-        super().__init__(f"URL {url} does not match constraint: {host_url}")
+        super().__init__(f"URL {url} does not match constraint from file: {host_url}")
 
 class LoginFileError(Exception):
     pass
@@ -93,6 +93,9 @@ class UrlError(Exception):
 class MaxRequestsCountError(Exception):
     def __init__(self):
         super().__init__("Maximum requests count was reached.")
+
+class IncompletePatchError(Exception):
+    pass
 
 class MaxAttemptsError(Exception):
     def __init__(self, accumulated_traceback:List[str]):

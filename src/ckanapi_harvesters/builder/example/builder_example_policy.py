@@ -3,27 +3,19 @@
 """
 Tests to perform after the example package was uploaded
 """
-from typing import Tuple
 import os
-import re
 import json
-import io
 
-import pandas as pd
-import numpy as np
-
-from ckanapi_harvesters.auxiliary import CkanMap
 from ckanapi_harvesters.builder.builder_package import BuilderPackage
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.policies.data_format_policy import (SingleValueListPolicy, ValueListPolicy, StringValueSpecification,
                                                             ListChoiceMode, CustomFieldsPolicy, CustomFieldSpecification,
-                                                            GroupedValueListPolicy, ErrorLevel, DataPolicyError,
+                                                            ErrorLevel, DataPolicyError,
                                                             StringMatchMode, TagListPolicy, TagGroupsListPolicy)
 
 from ckanapi_harvesters.builder.specific.configuration_builder import ConfigurationBuilder
 from ckanapi_harvesters.builder.example import example_package_xls
-self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
 
 enable_write = False  # be careful, setting this to True could erase your CKAN data format policy !!!

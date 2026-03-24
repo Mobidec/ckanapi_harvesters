@@ -11,8 +11,6 @@ from enum import IntEnum
 
 import pandas as pd
 
-from ckanapi_harvesters.harvesters.file_formats.csv_format import CsvFileFormat
-
 try:
     import geopandas as gpd
 except ImportError:
@@ -129,9 +127,9 @@ class ShapeFileFormat(FileFormatABC):
         # TODO: how could this work because there are multiple files?
         write_kwargs = self._get_write_kwargs()
         gdf = self.downloaded_df_to_gdf(df, fields=fields)
-        buffer = io.StringIO()
-        gdf.to_file(buffer, driver="ESRI Shapefile", **write_kwargs)
-        return buffer.getvalue().encode("utf8")
+        with io.StringIO() as buffer:
+            gdf.to_file(buffer, driver="ESRI Shapefile", **write_kwargs)
+            return buffer.getvalue().encode("utf8")
 
     def append_allowed(self) -> bool:
         # NB: not all drivers support appending.
@@ -146,12 +144,12 @@ class ShapeFileFormat(FileFormatABC):
         gdf = self.downloaded_df_to_gdf(df, fields=fields, context=file_path)
         gdf.to_file(file_path, mode='a', driver="ESRI Shapefile", **write_kwargs)
 
-    def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
+    def append_in_memory(self, stream: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
         write_kwargs = self._get_write_kwargs()
         gdf = self.downloaded_df_to_gdf(df, fields=fields)
-        buffer = io.StringIO(buffer.decode("utf8"))
-        gdf.to_file(buffer, mode='a', driver="ESRI Shapefile", **write_kwargs)
-        return buffer.getvalue().encode("utf8")
+        with io.StringIO(stream.decode("utf8")) as string_buffer:
+            gdf.to_file(string_buffer, mode='a', driver="ESRI Shapefile", **write_kwargs)
+            return string_buffer.getvalue().encode("utf8")
 
     # misc ------------------
     def copy(self, dest=None):

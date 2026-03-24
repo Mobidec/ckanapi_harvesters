@@ -3,10 +3,9 @@
 """
 Class to parameterize and establish an SSH tunnel to a distant server
 """
-from typing import Union, Sequence, Tuple
+from typing import Union
 import io
 import argparse
-from warnings import warn
 import getpass
 
 try:
@@ -127,9 +126,9 @@ class SshTunnel:
         parser = self._setup_cli_parser()
         if display:
             parser.print_help()
-        buffer = io.StringIO()
-        parser.print_help(buffer)
-        return buffer.getvalue()
+        with io.StringIO() as stream:
+            parser.print_help(stream)
+            return stream.getvalue()
 
     def _cli_args_apply(self, args: argparse.Namespace, *, base_dir: str = None, error_not_found: bool = True) -> None:
         if args.ssh_host is not None:

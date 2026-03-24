@@ -51,6 +51,8 @@ Field specification:
   - The string `environ` loads the URL from the environment variable `CKAN_URL`. 
 - __CKAN API key file__: Path to a file containing the API key in the first line, or:
   - The string `environ` loads the API key from the environment variables `CKAN_API_KEY_FILE`, or not recommended `CKAN_API_KEY`.
+  - _NB_: If the first line of the API key file is an URL, it is checked against the CKAN URL. 
+  This reduces the risk of using the API key on another CKAN server. 
 - __Proxies__: Proxies configuration. It is applied to all requests made by the package (to CKAN server and external sources). 
 If not specified, the proxies set in the environment variables are used (at least `http_proxy`, `https_proxy`, `no_proxy`). The values entered can be either:
   - one unique url or
@@ -294,6 +296,7 @@ def progress_callback_example(position:int, total:int, info:Any=None, *, context
                               lines_chunk:int=None, total_lines_read:int=None,
                               canceled_upload: bool=False, end_message: bool=False, 
                               level:CkanCallbackLevel=None, start_time: float=None,
+                              last_position:int=None, last_progress_position:int=None,
                               **kwargs) -> None:
     if level == CkanCallbackLevel.ResourceChunks:
         f.value = int(position/total*100)

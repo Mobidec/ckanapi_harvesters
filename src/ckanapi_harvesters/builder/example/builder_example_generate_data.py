@@ -11,7 +11,6 @@ import pandas as pd
 import numpy as np
 
 from ckanapi_harvesters.builder.example import example_package_resources_dir
-self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
 
 GPS_DIGITS = 6
@@ -61,7 +60,8 @@ def run():
         df_trace["longitude"] = np.interp(index, xp=xp_index, fp=table_lon)
         df_trace["latitude"] = df_trace["latitude"].values.round(GPS_DIGITS)
         df_trace["longitude"] = df_trace["longitude"].values.round(GPS_DIGITS)
-        df_trace.set_index(keys=["trace_id", "index_in_trace"], drop=False, inplace=True, verify_integrity=True)
+        df_trace.set_index(keys=["trace_id", "index_in_trace"], drop=False, inplace=True)
+        assert(df_trace.index.is_unique)  # verify integrity
         trace_file = os.path.join(traces_dir, f"trace_{trace_id:03d}.csv")
         df_trace.to_csv(trace_file, index=False)
         trace_file_multi = os.path.join(traces_dir_multi, f"trace_{trace_id:03d}.csv")

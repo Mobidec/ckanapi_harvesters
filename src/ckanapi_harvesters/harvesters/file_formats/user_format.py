@@ -93,18 +93,18 @@ class UserFileFormat(FileFormatABC):
     def write_in_memory(self, df: pd.DataFrame, fields: Union[Dict[str, CkanField],None]) -> bytes:
         if self.df_write_fun is None:
             raise MissingIOFunctionError("Write function")
-        buffer = io.StringIO()
-        write_kwargs = self._get_write_kwargs()
-        self.df_write_fun(df, buffer, append=False, fields=fields, params=self, **write_kwargs)
-        return buffer.getvalue().encode("utf8")
+        with io.StringIO() as buffer:
+            write_kwargs = self._get_write_kwargs()
+            self.df_write_fun(df, buffer, append=False, fields=fields, params=self, **write_kwargs)
+            return buffer.getvalue().encode("utf8")
 
-    def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
+    def append_in_memory(self, stream: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
         if self.df_write_fun is None:
             raise MissingIOFunctionError("Write function")
-        buffer = io.StringIO(buffer.decode("utf8"))
-        write_kwargs = self._get_write_kwargs()
-        self.df_write_fun(df, buffer, append=True, fields=fields, params=self, **write_kwargs)
-        return buffer.getvalue().encode("utf8")
+        with io.StringIO(stream.decode("utf8")) as string_stream:
+            write_kwargs = self._get_write_kwargs()
+            self.df_write_fun(df, string_stream, append=True, fields=fields, params=self, **write_kwargs)
+            return string_stream.getvalue().encode("utf8")
 
     # misc ------------------
     def copy(self, dest=None):

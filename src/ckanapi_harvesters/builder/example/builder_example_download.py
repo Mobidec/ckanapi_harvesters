@@ -3,18 +3,12 @@
 """
 Example code to download the builder example from a CKAN server
 """
-from typing import Tuple
 import os
-import re
-
-import pandas as pd
-import numpy as np
 
 from ckanapi_harvesters.builder.builder_package import BuilderPackage
 from ckanapi_harvesters.ckan_api import CkanApi
 
 from ckanapi_harvesters.builder.example import example_package_xls
-self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 example_package_download_dir = os.path.abspath("package_download")
 
 

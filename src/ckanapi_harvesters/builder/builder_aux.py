@@ -3,8 +3,8 @@
 """
 Auxiliary functions
 """
-from typing import List, Union
-import os
+from typing import Union
+
 
 def positive_end_index(end_index:Union[int,None], total:int) -> int:
     """

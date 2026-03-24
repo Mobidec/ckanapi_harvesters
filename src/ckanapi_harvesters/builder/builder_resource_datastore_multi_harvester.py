@@ -4,28 +4,20 @@
 Code to initiate a DataStore defined by a large number of files to concatenate into one table.
 This concrete implementation is linked to the file system.
 """
-from typing import Dict, List, Collection, Any, Tuple, Generator, Union, Set
+from typing import List, Collection, Any, Tuple, Generator, Union
 from collections import OrderedDict
 from warnings import warn
-import glob
-import copy
 
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
+from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
-from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
-from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
+from ckanapi_harvesters.auxiliary.list_records import ListRecords
 # from ckanapi_harvesters.auxiliary.path import list_files_scandir
-from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
-from ckanapi_harvesters.builder.builder_resource_datastore_multi_abc import BuilderDataStoreMultiABC
-from ckanapi_harvesters.builder.builder_resource_datastore_multi_abc import datastore_multi_apply_last_condition_intermediary
 from ckanapi_harvesters.builder.builder_field import BuilderField
-from ckanapi_harvesters.auxiliary.ckan_model import CkanField, CkanResourceInfo, UpsertChoice
+from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, UpsertChoice
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
-from ckanapi_harvesters.builder.mapper_datastore_multi import RequestMapperABC, RequestFileMapperABC
-from ckanapi_harvesters.builder.mapper_datastore_multi import default_file_mapper_from_primary_key
 from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
 from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.harvesters.harvester_abc import TableHarvesterABC

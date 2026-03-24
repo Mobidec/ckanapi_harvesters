@@ -31,7 +31,6 @@ from ckanapi_harvesters.auxiliary.ckan_errors import UrlError
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_2_geom import CkanDataCleanerUploadGeom
-from ckanapi_harvesters.auxiliary.list_records import ListRecords
 
 postgre_type_mapper = {}
 
@@ -351,7 +350,8 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
             """
             # DataFrame with columns: ["column_name", "order", "is_not_null", "apparent_data_type", "full_data_type", "description", "is_indexed", "is_unique"]
             fields_df = pd.read_sql(query, self.alchemy_engine)
-            fields_df.set_index("column_name", inplace=True, drop=False, verify_integrity=True)
+            fields_df.set_index("column_name", inplace=True, drop=False)
+            assert(fields_df.index.is_unique)  # verify integrity
             # querying details on column types
             fields_df["definitive_data_type"] = fields_df["full_data_type"]
             fields_df["geo_type"] = ""

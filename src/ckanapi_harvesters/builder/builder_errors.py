@@ -31,8 +31,5 @@ class ResourceFileNotExistMessage(ContextErrorLevelMessage):
     def __init__(self, resource_name:str, error_level:ErrorLevel, specific_message: str):
         super().__init__(f"Resource {resource_name}", error_level, specific_message)
 
-class IncompletePatchError(Exception):
-    pass
-
 class GroupByError(Exception):
     pass

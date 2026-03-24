@@ -3,7 +3,7 @@
 """
 Functions to clean data before upload.
 """
-from typing import Union, List, Any, Dict, Set, Type, Tuple
+from typing import Union, List, Any, Dict, Set, Tuple
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 
@@ -11,7 +11,6 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import dict_recursive_update
 
 non_finite_authorized_types = {"numeric", "float4", "float8", "float2"}
 real_number_types = non_finite_authorized_types

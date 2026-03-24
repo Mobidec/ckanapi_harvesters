@@ -52,10 +52,10 @@ class ExcelFileFormat(FileFormatABC):
         df.to_excel(file_path, index=False, **write_kwargs)
 
     def write_in_memory(self, df: pd.DataFrame, fields: Union[Dict[str, CkanField],None]) -> bytes:
-        buffer = io.BytesIO()
-        write_kwargs = self._get_write_kwargs()
-        df.to_excel(buffer, index=False, **write_kwargs)
-        return buffer.getvalue()
+        with io.BytesIO() as buffer:
+            write_kwargs = self._get_write_kwargs()
+            df.to_excel(buffer, index=False, **write_kwargs)
+            return buffer.getvalue()
 
     def append_allowed(self) -> bool:
         return False
@@ -64,7 +64,7 @@ class ExcelFileFormat(FileFormatABC):
                     fields: Union[Dict[str, CkanField], None]) -> None:
         raise NotImplementedError()
 
-    def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
+    def append_in_memory(self, stream: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
         raise NotImplementedError()
 
     # misc ------------------

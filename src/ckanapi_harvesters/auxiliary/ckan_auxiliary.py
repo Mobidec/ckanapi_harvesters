@@ -83,9 +83,9 @@ class CkanFieldInternalAttrs:
         parser = self._setup_cli_ckan_parser()
         if display:
             parser.print_help()
-        buffer = io.StringIO()
-        parser.print_help(buffer)
-        return buffer.getvalue()
+        with io.StringIO() as stream:
+            parser.print_help(stream)
+            return stream.getvalue()
 
     def _cli_ckan_args_apply(self, args: argparse.Namespace) -> None:
         if args.epsg_src:
@@ -121,7 +121,7 @@ HTTP_STATUS_CODE_RETRY = {500,  # Internal Server Error
                           499,  # Client Closed Request (nginx)
                           }
 
-json_headers = {"Content-Type": "application/json", 'Accept': 'text/plain'}
+json_headers = {"Content-Type": "application/json; charset=utf-8", 'Accept': 'text/plain'}
 max_len_debug_print = 5000
 
 
@@ -154,12 +154,12 @@ def requests_multipart_data(json_dict:dict, files:dict) -> dict:
     :return:
     """
     json_payload = json.dumps(json_dict)
-    multipart_data = {"json": (None, json_payload, "application/json")}
+    multipart_data = {"json": (None, json_payload, "application/json; charset=utf-8")}
     assert_or_raise(isinstance(files, dict) and not "json" in files.keys(), ValueError("files"))
     multipart_data.update(files)
     return multipart_data
 
-df_upload_to_csv_kwargs = dict()
+df_upload_to_csv_kwargs = dict(encoding="utf-8")
 df_download_to_csv_kwargs = dict()
 
 def upload_prepare_requests_files_arg(*, files:dict=None, file_path:str=None, df:pd.DataFrame=None,
@@ -296,7 +296,9 @@ def empty_str_to_None(value:Union[str,None]) -> Union[str,None]:
     else:
         return value
 
-def bytes_to_megabytes(size_bytes:int) -> float:
+def bytes_to_megabytes(size_bytes:Union[int,None]) -> Union[float,None]:
+    if size_bytes is None:
+        return None
     return round(size_bytes / 1024 / 1024, 2)
 
 ## json

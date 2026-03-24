@@ -3,8 +3,6 @@
 """
 Function to load the example package
 """
-import pandas as pd
-
 from ckanapi_harvesters.builder.builder_package import BuilderPackage
 from ckanapi_harvesters.builder.example import example_package_xls
 

@@ -71,9 +71,9 @@ class FileFormatABC(ABC):
         parser = self._setup_cli_parser()
         if display:
             parser.print_help()
-        buffer = io.StringIO()
-        parser.print_help(buffer)
-        return buffer.getvalue()
+        with io.StringIO() as buffer:
+            parser.print_help(buffer)
+            return buffer.getvalue()
 
     def _apply_arguments(self, args: argparse.Namespace, extra_args: list):
         if args.no_chunks is not None:
@@ -146,7 +146,7 @@ class FileFormatABC(ABC):
         """
         raise NotImplementedError()
 
-    def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
+    def append_in_memory(self, stream: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
         """
         This function writes a DataFrame or ListRecords to a file in memory, appending its to the end of the buffer.
         """

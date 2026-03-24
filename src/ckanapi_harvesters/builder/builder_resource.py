@@ -349,6 +349,7 @@ class BuilderResourceABC(ABC):
         if self.known_id is None and check_id:
             msg = MissingIdError("resource", self.name)
             raise msg
+        self._merge_resource_attributes(override_ckan=True)
         resource_info = CkanResourceInfo()
         resource_info.id = self.known_id
         resource_info.package_id = package_id
@@ -428,7 +429,8 @@ class BuilderFileABC(BuilderResourceABC, ABC):
                                         description=self.resource_attributes.description,
                                         state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                         files=files, datastore_create=False, auto_submit=False, create_default_view=self.create_default_view,
-                                        cancel_if_exists=True, update_if_exists=True, reupload=reupload)
+                                        cancel_if_exists=True, update_if_exists=True, reupload=reupload,
+                                        progress_callback=self.progress_callback)
         self.known_id = res_info.id
         self.upload_request_final(ckan)
         return res_info
@@ -545,7 +547,8 @@ class BuilderResourceUnmanaged(BuilderFileABC):  #, BuilderResourceUnmanagedABC)
                                         description=self.resource_attributes.description,
                                         state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                         files=files, datastore_create=False, auto_submit=False, create_default_view=self.create_default_view,
-                                        cancel_if_exists=True, update_if_exists=True, reupload=reupload)
+                                        cancel_if_exists=True, update_if_exists=True, reupload=reupload,
+                                        progress_callback=self.progress_callback)
         self.known_id = res_info.id
         self.upload_request_final(ckan)
         return res_info
@@ -681,7 +684,8 @@ class BuilderUrl(BuilderUrlABC):
                                     description=self.resource_attributes.description,
                                     state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                     url=self.url, auto_submit=False, datastore_create=False, create_default_view=self.create_default_view,
-                                    cancel_if_exists=True, update_if_exists=True, reupload=reupload)
+                                    cancel_if_exists=True, update_if_exists=True, reupload=reupload,
+                                    progress_callback=self.progress_callback)
         self.upload_request_final(ckan)
         return resource_info
 

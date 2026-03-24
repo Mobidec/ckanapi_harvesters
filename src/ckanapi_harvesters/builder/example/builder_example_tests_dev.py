@@ -3,21 +3,21 @@
 """
 Tests to perform after the example package was uploaded
 """
-from typing import Tuple
 import os
-import re
-import getpass
 import json
 
 import pandas as pd
-import numpy as np
 
 from ckanapi_harvesters.auxiliary import CkanMap
 from ckanapi_harvesters.builder.builder_package import BuilderPackage
 from ckanapi_harvesters.ckan_api import CkanApi
 
-from ckanapi_harvesters.builder.example import example_package_xls
-self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
+from ckanapi_harvesters.builder.example import example_package_xls, example_package_resources_dir
+
+
+def traces_chunks_generator(chunksize:int):
+    traces_file = os.path.join(example_package_resources_dir, "traces", "trace_000.csv")
+    return pd.read_csv(traces_file, chunksize=chunksize)
 
 
 def run(ckan:CkanApi = None):
@@ -28,6 +28,11 @@ def run(ckan:CkanApi = None):
     ckan.initialize_from_cli_args()
     ckan.input_missing_info(input_args_if_necessary=True, input_owner_org=True)
     ckan.set_verbosity(True)
+
+    # Test sending the traces in a generator mode
+    resource_id = mdl.get_or_query_resource_id(ckan, resource_name="traces.csv")
+    with traces_chunks_generator(chunksize=6) as records_generator:
+        ckan.datastore_upsert_generator(records_generator, resource_id=resource_id, request_threshold=15, offset=12)
 
     # Test re-encoding the Excel file from the loaded model
     example_package_xls_reencoded = os.path.abspath("builder_package_example-reencoded.xlsx")

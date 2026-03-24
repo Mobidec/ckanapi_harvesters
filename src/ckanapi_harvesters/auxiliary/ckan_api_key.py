@@ -13,7 +13,7 @@ import  io
 
 from ckanapi_harvesters.auxiliary.ckan_errors import ApiKeyFileError, HostContraintError
 from ckanapi_harvesters.auxiliary.path import sanitize_path, path_rel_to_dir
-from ckanapi_harvesters.auxiliary.urls import clean_base_url, url_matches_host
+from ckanapi_harvesters.auxiliary.urls import clean_base_url, url_matches_host, is_valid_url
 from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
 
 
@@ -131,7 +131,13 @@ class ApiKey:
             warn(msg)
             return False
         with open(apikey_file, 'r') as f:
-            apikey = f.readline().strip()
+            candidate = f.readline().strip()
+            if is_valid_url(candidate):
+                # when first line is an url, it restricts the usage of the API key to the given CKAN URL
+                self.remote_url_constraint = candidate
+                apikey = f.readline().strip()
+            else:
+                apikey = candidate
             f.close()
         self.value = apikey
         self.apikey_file = apikey_file
@@ -174,9 +180,9 @@ class ApiKey:
         parser = self._setup_cli_parser()
         if display:
             parser.print_help()
-        buffer = io.StringIO()
-        parser.print_help(buffer)
-        return buffer.getvalue()
+        with io.StringIO() as stream:
+            parser.print_help(stream)
+            return stream.getvalue()
 
     def _cli_args_apply(self, args: argparse.Namespace, *, base_dir: str = None, error_not_found: bool = True) -> None:
         if args.apikey is not None:

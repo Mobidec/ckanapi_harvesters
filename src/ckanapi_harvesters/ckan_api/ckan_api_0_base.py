@@ -4,7 +4,7 @@
 
 """
 from abc import ABC
-from typing import List, Dict, Callable, Union, Any, Generator, Sequence, Tuple, Collection
+from typing import List, Callable, Union, Any, Generator, Sequence, Tuple, Collection
 import time
 from warnings import warn
 import argparse
@@ -12,22 +12,23 @@ import shlex
 import os
 import io
 import traceback
+import math
 
 import requests
 from requests.auth import AuthBase
 from requests.exceptions import ProxyError, ReadTimeout
 import pandas as pd
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.external_code_import import unlock_external_code_execution
 from ckanapi_harvesters.auxiliary.ckan_configuration import download_external_resource_urls, \
     unlock_external_url_resource_download, allow_no_ca, unlock_no_ca
 from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
-from ckanapi_harvesters.auxiliary.path import path_rel_to_dir
 from ckanapi_harvesters.auxiliary.urls import urlsep, url_join, clean_base_url, url_matches_host
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, max_len_debug_print, assert_or_raise, HTTP_STATUS_CODE_RETRY
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
-from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse, CkanActionError, CkanNotFoundError
+from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse, CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import (MaxRequestsCountError, UnexpectedError, InvalidParameterError,
                                                       ExternalUrlLockedError, UrlError, MaxAttemptsError, RequestError,
                                                       HttpRetryCodeError)
@@ -80,7 +81,7 @@ class CkanApiBase(CkanApiABC):
         self.ckan_session: Union[requests.Session, None] = None
         self.extern_session: Union[requests.Session, None] = None
         self.debug: CkanApiDebug = CkanApiDebug()
-        self._apikey: CkanApiKey = CkanApiKey()
+        self._apikey: CkanApiKey = CkanApiKey(apikey_auto_load=False)
         # properties
         self.url = url  # url of the CKAN server (property)
         if apikey is None or not isinstance(apikey, CkanApiKey):
@@ -360,9 +361,9 @@ class CkanApiBase(CkanApiABC):
         parser = self._setup_cli_ckan_parser()
         if display:
             parser.print_help()
-        buffer = io.StringIO()
-        parser.print_help(buffer)
-        return buffer.getvalue()
+        with io.StringIO() as stream:
+            parser.print_help(stream)
+            return stream.getvalue()
 
     def _cli_ckan_args_apply(self, args: argparse.Namespace, *, base_dir:str=None, error_not_found:bool=True,
                              default_proxies:dict=None, proxy_headers:dict=None) -> None:
@@ -583,7 +584,7 @@ class CkanApiBase(CkanApiABC):
 
     def download_url_proxy(self, url:str, *, method:str=None, auth_if_ckan:bool=None,
                            proxies:dict=None, headers:dict=None, auth: Union[AuthBase, Tuple[str,str]]=None,
-                           verify:Union[bool,str,None]=None, timeout:float=None) -> requests.Response:
+                           verify:Union[bool,str,None]=None, stream:bool=False, timeout:float=None) -> requests.Response:
         """
         Download a URL using the CKAN parameters (proxy, authentication etc.)
 
@@ -609,11 +610,11 @@ class CkanApiBase(CkanApiABC):
             elif url_is_internal_auth:
                 self.debug.ckan_request_counter += 1
                 response = self.ckan_session.request(method, url, timeout=timeout,
-                                                     proxies=proxies, **request_kwargs, auth=auth)
+                                                     proxies=proxies, **request_kwargs, auth=auth, stream=stream)
             else:
                 self.debug.extern_request_counter += 1
                 response = self.extern_session.request(method, url, timeout=timeout,
-                                                       proxies=proxies, **request_kwargs, auth=auth)
+                                                       proxies=proxies, **request_kwargs, auth=auth, stream=stream)
         except Exception as e:
             self._error_print_debug_response(response, url=url, headers=headers, error=e)
             raise e from e
@@ -720,6 +721,8 @@ class CkanApiBase(CkanApiABC):
                 response = self.ckan_session.get(url, params=params, headers=headers, timeout=timeout,
                                                  proxies=self.params.proxies, verify=self.params.ckan_ca, auth=self.params.proxy_auth)
             else:
+                if json is not None and files is None:
+                    headers["content-type"] = "application/json; charset=utf-8"  # add character set information
                 response = self.ckan_session.post(url, data=data, headers=headers, params=params, files=files, json=json,
                                                   timeout=timeout,
                                                   proxies=self.params.proxies, verify=self.params.ckan_ca, auth=self.params.proxy_auth)
@@ -856,9 +859,10 @@ class CkanApiBase(CkanApiABC):
 
 
     ## Multiple queries with limited responses until full contents are obtained ------------------
-    def _request_all_results_generator(self, api_fun:Callable, *, params:dict=None,
-                                          limit:int=None, offset:int=0, search_all:bool=True,
-                                          **kwargs) -> Generator[Any, Any, None]:
+    def _request_all_results_page_generator(self, api_fun:Callable, *, params:dict=None,
+                                            limit:int=None, offset:int=0, requests_limit:int=None,
+                                            search_all:bool=True, progress_callback:CkanProgressCallbackABC=None,
+                                            **kwargs) -> Generator[Any, Any, None]:
         """
         Multiply request with a limited length until no more data is transmitted thanks to the offset parameter.
         Lazy auxiliary function which yields a result for each request.
@@ -890,16 +894,34 @@ class CkanApiBase(CkanApiABC):
             time.sleep(self.params.multi_requests_time_between_requests)
         if self.params.verbose_multi_requests:
             print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit} results from {api_fun.__name__}...")
+        if progress_callback is not None:
+            progress_callback.start_task(None, level=CkanCallbackLevel.Requests)  # total is unknown here
         result_add: Union[pd.DataFrame, CkanActionResponse, Collection] = api_fun(params=params, limit=limit, offset=offset, **kwargs)
         if self.params.store_last_response_debug_info:
             self.debug.multi_requests_last_successful_offset = offset
             self.debug.last_response_request_count = requests_count
         offset += len(result_add)
         n_received += len(result_add)
+        # NB: total len can be an estimation
+        if isinstance(result_add, CkanActionResponse):
+            total_len = result_add.total_len
+        elif isinstance(result_add, pd.DataFrame):
+            total_len = result_add.attrs.get("total", None)
+        else:
+            total_len = None
+        if total_len is not None and limit is not None:
+            total_requests_estimation = int(math.ceil(total_len / limit))
+        else:
+            total_requests_estimation = None
+        if progress_callback is not None:
+            progress_callback.task_progress(n_received, total_len, file_index=requests_count, file_count=total_requests_estimation,
+                                            level=CkanCallbackLevel.Requests)
         yield result_add
         current = time.time()
         timeout = (current - start) > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
-        flag = search_all and len(result_add) > 0 and (requests_count < self.params.max_requests_count or self.params.max_requests_count == 0) and not timeout
+        flag = search_all and (len(result_add) > 0 and not timeout and
+                (self.params.max_requests_count == 0 or requests_count < self.params.max_requests_count) and
+                (requests_limit is None or requests_count < requests_limit))
         while flag:
             if self.params.multi_requests_time_between_requests > 0:
                 time.sleep(self.params.multi_requests_time_between_requests)
@@ -913,10 +935,15 @@ class CkanApiBase(CkanApiABC):
                 self.debug.last_response_request_count = requests_count
             offset += len(result_add)
             n_received += len(result_add)
-            yield result_add
             current = time.time()
             timeout = (current - start) > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
-            flag = len(result_add) > 0 and (requests_count < self.params.max_requests_count or self.params.max_requests_count == 0) and not timeout
+            flag = (len(result_add) > 0 and not timeout and
+                    (self.params.max_requests_count == 0 or requests_count < self.params.max_requests_count) and
+                    (requests_limit is None or requests_count < requests_limit))
+            if progress_callback is not None and flag:
+                progress_callback.task_progress(n_received, total_len, file_index=requests_count, file_count=total_requests_estimation,
+                                                level=CkanCallbackLevel.Requests)
+            yield result_add
         if timeout:
             raise TimeoutError()
         if requests_count >= self.params.max_requests_count and not self.params.max_requests_count == 0:
@@ -924,10 +951,15 @@ class CkanApiBase(CkanApiABC):
         current = time.time()
         if self.params.verbose_multi_requests:
             print(f"{self.identifier} Multi-requests {api_fun.__name__} done in {requests_count} calls and {round(current - start, 2)} seconds. {n_received} lines received.")
+        if progress_callback is not None:
+            progress_callback.end_task(position=n_received, total=total_len,
+                                       file_index=requests_count, file_count=total_requests_estimation,
+                                       level=CkanCallbackLevel.Requests)
         return
 
     def _request_all_results_df(self, api_fun:Callable, *, params:dict=None, list_attrs:bool=True,
-                                limit:int=None, offset:int=0, search_all:bool=True,
+                                limit:int=None, offset:int=0, requests_limit:int=None,
+                                search_all:bool=True, progress_callback:CkanProgressCallbackABC=None,
                                 **kwargs) -> pd.DataFrame:
         """
         Multiply request with a limited length until no more data is transmitted thanks to the offset parameter.
@@ -943,13 +975,15 @@ class CkanApiBase(CkanApiABC):
         :return:
         """
         start = time.time()
-        iter = self._request_all_results_generator(api_fun=api_fun, params=params,
-                                                   limit=limit, offset=offset, search_all=search_all, **kwargs)
+        page_generator = self._request_all_results_page_generator(api_fun=api_fun, params=params,
+                                                                  limit=limit, offset=offset, search_all=search_all,
+                                                                  requests_limit=requests_limit,
+                                                                  progress_callback=progress_callback, **kwargs)
         requests_count = 1
-        df = next(iter)
+        df = next(page_generator)
         if list_attrs:
             df.attrs = {key: [value] for key, value in df.attrs.items()}
-        for df_add in iter:
+        for df_add in page_generator:
             requests_count += 1
             if len(df_add) > 0:
                 if list_attrs:
@@ -963,7 +997,9 @@ class CkanApiBase(CkanApiABC):
         return df
 
     def _request_all_results_list(self, api_fun:Callable, *, params:dict=None,
-                                  limit:int=None, offset:int=0, search_all:bool=True, **kwargs) -> Union[List[CkanActionResponse], list]:
+                                  limit:int=None, offset:int=0, requests_limit:int=None,
+                                  search_all:bool=True, progress_callback:CkanProgressCallbackABC=None,
+                                  **kwargs) -> Union[List[CkanActionResponse], list]:
         """
         Multiply request with a limited length until no more data is transmitted thanks to the offset parameter.
         List implementation returns the list of the unitary function return values.
@@ -976,8 +1012,9 @@ class CkanApiBase(CkanApiABC):
         :param kwargs: additional keyword arguments to pass to api_fun
         :return:
         """
-        return list(self._request_all_results_generator(api_fun=api_fun, params=params, limit=limit, offset=offset,
-                                                            search_all=search_all, **kwargs))
+        return list(self._request_all_results_page_generator(api_fun=api_fun, params=params, limit=limit, offset=offset,
+                                                             requests_limit=requests_limit, progress_callback=progress_callback,
+                                                             search_all=search_all, **kwargs))
 
     def is_url_internal(self, url:str) -> bool:
         """

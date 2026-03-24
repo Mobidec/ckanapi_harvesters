@@ -4,8 +4,7 @@
 Code to initiate a DataStore defined by a large number of files to concatenate into one table.
 This concrete implementation is linked to the file system.
 """
-from typing import Dict, List, Collection, Callable, Any, Tuple, Generator, Union
-from collections import OrderedDict
+from typing import List, Collection, Any, Tuple, Generator, Union
 import os
 from warnings import warn
 import glob
@@ -14,19 +13,15 @@ import copy
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
-from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
 from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
 from ckanapi_harvesters.builder.builder_resource_datastore_multi_abc import BuilderDataStoreMultiABC
-from ckanapi_harvesters.builder.builder_resource_datastore_multi_abc import datastore_multi_apply_last_condition_intermediary
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
-from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name
-from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
-from ckanapi_harvesters.auxiliary.path import resolve_rel_path, glob_rm_glob, list_files_scandir
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
+from ckanapi_harvesters.auxiliary.path import resolve_rel_path, glob_rm_glob
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
-from ckanapi_harvesters.builder.mapper_datastore_multi import RequestMapperABC, RequestFileMapperABC
-from ckanapi_harvesters.builder.mapper_datastore_multi import default_file_mapper_from_primary_key
+from ckanapi_harvesters.builder.mapper_datastore_multi import RequestFileMapperABC
 
 
 class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
@@ -37,7 +32,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         self.dir_name = dir_name
         # Functions inputs/outputs
         self.df_mapper: RequestFileMapperABC
-        self.setup_default_file_mapper(self.primary_key, file_query_list)
+        self.setup_default_file_mapper(file_query_list=file_query_list)
         self.local_file_list_base_dir:Union[str,None] = None
         self.local_file_list:Union[List[str],None] = None
         self.local_file_size:Union[List[int],None] = None
@@ -262,10 +257,13 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
                     print(f"Skipping existing file {file_out}")
                 return (file_out, None) if return_df else None
         if self.local_file_format.append_allowed() and not return_df:
-            download_generator = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query)
+            download_generator = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query, progress_callback=self.progress_callback)
             first_df = None
             for df_download in download_generator:
                 df = self.df_mapper.df_download_alter(df_download, file_query=file_query, fields=self._get_fields_info())
+                self.file_semaphore.acquire()
+                self.read_line_counter += len(df)
+                self.file_semaphore.release()
                 if out_dir is not None:
                     if first_df is None:
                         self.local_file_format.write_file(df, file_out, fields=self._get_fields_info())
@@ -276,7 +274,11 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
                     file_out = None
         else:
             df_download_concat = pd.concat([self.df_mapper.df_download_alter(df_download, file_query=file_query, fields=self._get_fields_info())
-                                            for df_download in self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query)])
+                                            for df_download in self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query,
+                                                                                                  progress_callback=self.progress_callback)])
+            self.file_semaphore.acquire()
+            self.read_line_counter += len(df_download_concat)
+            self.file_semaphore.release()
             if return_df:
                 return file_out, df_download_concat
         return file_out

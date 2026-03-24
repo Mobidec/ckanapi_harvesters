@@ -3,7 +3,7 @@
 """
 
 """
-from typing import List, Dict, Callable, Union, Any, Generator, Sequence, Tuple, Collection
+from typing import List, Dict, Union
 from collections import OrderedDict
 import time
 import copy
@@ -16,12 +16,11 @@ from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanLicens
 from ckanapi_harvesters.auxiliary.urls import urlsep, url_join
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
-from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse, CkanActionError, CkanNotFoundError
+from ckanapi_harvesters.auxiliary.ckan_action import CkanActionError, CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import CkanApiBase, use_ckan_owner_org_as_default
-from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_2_geom import CkanDataCleanerUploadGeom
 
 
 ## Main class ------------------

@@ -4,7 +4,7 @@
 Data format policy representation and enforcing
 """
 from collections import OrderedDict
-from typing import List, Set, Union, Tuple, Dict
+from typing import List, Set, Union, Tuple
 from warnings import warn
 import json
 import os
@@ -13,16 +13,14 @@ import copy
 import requests
 from requests.auth import AuthBase
 
-from ckanapi_harvesters.auxiliary.ckan_configuration import allow_policy_from_url, download_external_resource_urls
+from ckanapi_harvesters.auxiliary.ckan_configuration import allow_policy_from_url
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.urls import is_valid_url
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import empty_str_to_None
-from ckanapi_harvesters.auxiliary.ckan_errors import ExternalUrlLockedError
 from ckanapi_harvesters.policies import POLICY_FILE_FORMAT_VERSION
 from ckanapi_harvesters.policies.data_format_policy_errors import (DataPolicyError, UnsupportedPolicyVersionError,
                                                                    _policy_msg, ErrorCount, ErrorLevel, UrlPolicyLockedError)
-from ckanapi_harvesters.policies.data_format_policy_defs import StringMatchMode, newline_char
+from ckanapi_harvesters.policies.data_format_policy_defs import StringMatchMode
 from ckanapi_harvesters.policies.data_format_policy_defs import ListChoiceMode, StringValueSpecification
 from ckanapi_harvesters.policies.data_format_policy_abc import DataPolicyABC
 from ckanapi_harvesters.policies.data_format_policy_lists import ValueListPolicy, GroupedValueListPolicy, SingleValueListPolicy

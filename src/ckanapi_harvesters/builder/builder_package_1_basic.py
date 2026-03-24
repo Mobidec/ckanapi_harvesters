@@ -17,23 +17,23 @@ from collections import OrderedDict
 import pandas as pd
 import numpy as np
 
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanProgressCallbackABC, CkanCallbackLevel
 from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.ckan_api import CkanApi, CkanApiMap
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
-from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanState, CkanPackageInfo, CkanResourceInfo, CkanDataStoreInfo, CkanLicenseInfo
-from ckanapi_harvesters.auxiliary.path import sanitize_path, path_rel_to_dir, make_path_relative
+from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanState, CkanPackageInfo, CkanResourceInfo, CkanLicenseInfo
+from ckanapi_harvesters.auxiliary.path import sanitize_path, make_path_relative
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, assert_or_raise, find_duplicates
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
-from ckanapi_harvesters.auxiliary.ckan_errors import (UnexpectedError, DuplicateNameError, ForbiddenNameError, MissingIdError,
+from ckanapi_harvesters.auxiliary.ckan_errors import (DuplicateNameError, ForbiddenNameError, MissingIdError,
                                                       MandatoryAttributeError, FileOrDirNotExistError)
 from ckanapi_harvesters.auxiliary.ckan_configuration import unlock_external_url_resource_download, unlock_no_ca
-from ckanapi_harvesters.builder.builder_errors import (MissingDataStoreInfoError, UnsupportedBuilderVersionError,
+from ckanapi_harvesters.builder.builder_errors import (UnsupportedBuilderVersionError,
                                                        MissingDataStoreColumnsSheet)
 from ckanapi_harvesters.builder import BUILDER_FILE_FORMAT_VERSION as BUILDER_VER
-from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC, BuilderFileABC, BuilderUrl
+from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC, BuilderUrl
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiFile, multi_file_exclude_other_files
 from ckanapi_harvesters.builder.builder_resource_datastore_url import BuilderDataStoreUrl
 from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC
@@ -812,11 +812,13 @@ class BuilderPackageBasic:
             sheet_names = set(xls.sheet_names)
             sheet_names_lower_index = {sheet_name.lower().strip(): sheet_name for sheet_name in sheet_names}
             package_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["package"], header=None)
-            package_df.set_index(0, inplace=True, verify_integrity=True)
+            package_df.set_index(0, inplace=True)
+            assert(package_df.index.is_unique)  # verify integrity
             package_df = package_df.T
             if "info" in sheet_names_lower_index.keys():
                 info_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["info"], header=None)
-                info_df.set_index(0, inplace=True, verify_integrity=True)
+                info_df.set_index(0, inplace=True)
+                assert(info_df.index.is_unique)  # verify integrity
                 info_df = info_df.T
             else:
                 info_df = None
@@ -824,7 +826,8 @@ class BuilderPackageBasic:
             mdl._load_from_df(info_df, package_df, base_dir=base_dir)
             if "ckan" in sheet_names_lower_index.keys():
                 ckan_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["ckan"], header=None)
-                ckan_df.set_index(0, inplace=True, verify_integrity=True)
+                ckan_df.set_index(0, inplace=True)
+                assert(ckan_df.index.is_unique)  # verify integrity
                 ckan_df = ckan_df.T
                 mdl.ckan_builder._load_from_df(ckan_df, base_dir=base_dir, proxies=proxies)
             resources_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["resources"])
@@ -1006,7 +1009,7 @@ class BuilderPackageBasic:
     def patch_request_full(self, ckan:CkanApi, *,
                            reupload:bool=False, override_ckan:bool=False, resources_base_dir:str=None,
                            create_default_view:bool=True, delete_all_resources:bool=False,
-                           progress_callback:Union[CkanProgressCallback,Callable]=None,
+                           progress_callback:Union[CkanProgressCallbackABC,Callable]=None,
                            sample_df_dict:Dict[str, Union[bytes, pd.DataFrame]]=None) \
             -> Tuple[CkanPackageInfo, Dict[str, CkanResourceInfo]]:
         """
@@ -1017,7 +1020,7 @@ class BuilderPackageBasic:
         :return:
         """
         # call to function update_request of package and update_request of resources
-        if not isinstance(progress_callback, CkanProgressCallback):
+        if not isinstance(progress_callback, CkanProgressCallbackABC):
             progress_callback = CkanProgressCallback(progress_callback)
         if ckan.params.policy_check_pre:
             self.local_policy_check()
@@ -1122,7 +1125,7 @@ class BuilderPackageBasic:
         return success
 
     def upload_large_datasets(self, ckan:CkanApi, *, resources_base_dir:str=None, threads:int=None,
-                              progress_callback:Union[CkanProgressCallback,Callable]=None,
+                              progress_callback:Union[CkanProgressCallbackABC,Callable]=None,
                               only_missing:bool=False, from_line_count:bool=False, allow_chunks:bool=True) -> None:
         """
         Method to upload large datasets of the package.
@@ -1137,7 +1140,7 @@ class BuilderPackageBasic:
         :param allow_chunks: read DataStore files by chunks, when available
         :return:
         """
-        if not isinstance(progress_callback, CkanProgressCallback):
+        if not isinstance(progress_callback, CkanProgressCallbackABC):
             progress_callback = CkanProgressCallback(progress_callback)
         if threads is None:
             threads = self.ckan_builder.default_thread_count

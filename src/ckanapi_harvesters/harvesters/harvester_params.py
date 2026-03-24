@@ -3,15 +3,13 @@
 """
 Harvester parameters. The base names of the parameters are shared between harvesters.
 """
-from typing import Union, Tuple, List, Any, Callable
-from collections import OrderedDict
-from abc import ABC, abstractmethod
+from typing import Union, Tuple
+from abc import abstractmethod
 import argparse
 import shlex
 from warnings import warn
 import io
 
-import pandas as pd
 from requests.auth import AuthBase
 
 from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckan_has_postgis, default_ckan_target_epsg
@@ -21,7 +19,6 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import ca_file_rel_to_dir, asse
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_api_key import ApiKey
 from ckanapi_harvesters.auxiliary.login import Login
-from ckanapi_harvesters.auxiliary.ssh_tunnel import SshLogin
 from ckanapi_harvesters.harvesters.harvester_errors import HarvestMethodRequiredError
 
 harvester_enforce_ca_verification: bool = False
@@ -115,9 +112,9 @@ class DatabaseParams:
         parser = self.setup_cli_harvester_parser()
         if display:
             parser.print_help()
-        buffer = io.StringIO()
-        parser.print_help(buffer)
-        return buffer.getvalue()
+        with io.StringIO() as buffer:
+            parser.print_help(buffer)
+            return buffer.getvalue()
 
     def initialize_from_cli_args(self, args: argparse.Namespace, base_dir: str = None, error_not_found: bool = True,
                                  default_proxies: dict = None, proxy_headers: dict = None) -> None:

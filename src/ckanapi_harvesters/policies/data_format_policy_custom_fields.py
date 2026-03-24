@@ -3,10 +3,7 @@
 """
 Data format policy representation and enforcing
 """
-from typing import List, Any, Iterable, Union, Dict, Set
-from abc import ABC, abstractmethod
-from warnings import warn
-import re
+from typing import List, Union, Dict
 import datetime
 from collections import OrderedDict
 
@@ -16,8 +13,7 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, _b
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.policies.data_format_policy_defs import DataType
 from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError, ErrorLevel, _policy_msg
-from ckanapi_harvesters.policies.data_format_policy_defs import newline_char, StringMatchMode, ListChoiceMode
-from ckanapi_harvesters.policies.data_format_policy_defs import StringValueSpecification
+from ckanapi_harvesters.policies.data_format_policy_defs import StringMatchMode
 from ckanapi_harvesters.policies.data_format_policy_abc import DataPolicyElementABC
 
 

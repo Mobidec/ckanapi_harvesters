@@ -11,8 +11,8 @@ from typing import Dict, List, Iterable, Callable, Any, Tuple, Generator, Set, U
 import numpy as np
 import pandas as pd
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC
 from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
-from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name
@@ -92,8 +92,8 @@ class RequestMapperABC(DataSchemeConversion, ABC):
         for file_query in self.download_file_query_list(ckan=ckan, resource_id=resource_id):
             yield file_query
 
-    def download_file_query(self, ckan: CkanApi, resource_id: str, file_query:dict) -> Generator[pd.DataFrame, Any, None]:
-        return ckan.datastore_search_generator(resource_id=resource_id, **file_query, search_all=True)
+    def download_file_query(self, ckan: CkanApi, resource_id: str, file_query:dict, *, progress_callback:CkanProgressCallbackABC) -> Generator[pd.DataFrame, Any, None]:
+        return ckan.datastore_search_page_generator(resource_id=resource_id, **file_query, search_all=True, progress_callback=progress_callback)
 
 
 class RequestFileMapperABC(RequestMapperABC, ABC):
@@ -159,8 +159,9 @@ class RequestFileMapperLimit(RequestFileMapperABC):
         row_count = ckan.datastore_search_row_count(resource_id)
         return [{"offset": self.limit*counter, "limit": self.limit} for counter in range(row_count // self.limit + 1)]
 
-    def download_file_query(self, ckan: CkanApi, resource_id: str, file_query:dict) -> Generator[pd.DataFrame, Any, None]:
-        return ckan.datastore_search_generator(resource_id=resource_id, offset=file_query["offset"], limit=file_query["limit"], search_all=True)
+    def download_file_query(self, ckan: CkanApi, resource_id: str, file_query:dict, *, progress_callback:CkanProgressCallbackABC) -> Generator[pd.DataFrame, Any, None]:
+        return ckan.datastore_search_page_generator(resource_id=resource_id, offset=file_query["offset"], limit=file_query["limit"],
+                                                    search_all=True, progress_callback=progress_callback)
 
 
 class RequestFileMapperIndexKeys(RequestFileMapperABC):

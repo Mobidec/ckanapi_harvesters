@@ -27,6 +27,8 @@ h5py[mat] >= 3.16.0
 # sshtunnel (usage not functional now)
 sshtunnel[sshtunnel] >= 0.4.0
 paramiko[sshtunnel] >= 4.0.0
+# more
+tqdm[more] >= 4.67.3  # Console/Jupyter progress bars
 # dev
 pytest[dev] >= 9.0.2  # strict version 8.0.1 in the package template
 build[dev] >= 1.4.0
@@ -41,4 +43,5 @@ sphinxcontrib-napoleon[dev] >= 0.7
 sphinx-rtd-theme[dev] >= 3.1.0
 numpydoc[dev] >= 1.10.0
 myst_nb[dev] >= 1.4.0  # Jupyter Notebook inclusion in sphinx
+pre-commit[dev] >= 4.5.1
 

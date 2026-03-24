@@ -11,7 +11,6 @@ from ckanapi_harvesters.builder.example.builder_example_tests_offline import run
 from ckanapi_harvesters.builder.example.builder_example_patch_upload import run as run_patch_upload
 from ckanapi_harvesters.builder.example.builder_example_download import run as run_download
 
-self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
 def run(ckan:CkanApi = None):
     run_tests_offline()

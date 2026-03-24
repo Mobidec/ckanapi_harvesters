@@ -9,6 +9,7 @@ import pandas as pd
 
 from ckanapi_harvesters import CkanField
 
+
 def users_upload(df_local: Union[pd.DataFrame, List[dict]], *,
                  fields:Dict[str, CkanField], file_name:str=None, total_lines_read:int=None, **kwargs) \
         -> Union[pd.DataFrame, List[dict]]:

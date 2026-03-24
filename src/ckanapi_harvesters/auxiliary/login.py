@@ -162,9 +162,9 @@ class Login:
         parser = self._setup_cli_parser()
         if display:
             parser.print_help()
-        buffer = io.StringIO()
-        parser.print_help(buffer)
-        return buffer.getvalue()
+        with io.StringIO() as stream:
+            parser.print_help(stream)
+            return stream.getvalue()
 
     def _cli_args_apply(self, args: argparse.Namespace, *, base_dir: str = None, error_not_found: bool = True) -> None:
         if args.login_file is not None:

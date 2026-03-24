@@ -16,10 +16,11 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import json_encode_params
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel
 from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckan_has_postgis, default_ckan_target_epsg
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
-from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanResourceInfo, CkanViewInfo, CkanField
-from ckanapi_harvesters.auxiliary.ckan_model import CkanState
+from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanResourceInfo, CkanViewInfo, CkanField,
+                                                     CkanState, UpsertChoice)
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, ckan_package_name_re, datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_files_arg, RequestType
 from ckanapi_harvesters.auxiliary.ckan_action import CkanNotFoundError
@@ -87,6 +88,18 @@ class CkanApiManageParams(CkanApiReadWriteParams):
                                      default_proxies=default_proxies, proxy_headers=proxy_headers)
         if args.admin:
             self.enable_admin = args.admin
+
+    def get_num_rows_datastore_create_partial(self, limit:int=None) -> int:
+        if limit is None:
+            limit = self.default_limit_write
+        if self.num_rows_datastore_create_partial is not None:
+            if limit is not None:
+                num_rows_partial = min(self.num_rows_datastore_create_partial, limit)
+            else:
+                num_rows_partial = self.num_rows_datastore_create_partial
+        else:
+            num_rows_partial = None
+        return num_rows_partial
 
 
 class CkanApiExtendedParams(CkanApiManageParams):
@@ -715,7 +728,8 @@ class CkanApiManage(CkanApiReadWrite):
                         cancel_if_exists:bool=True, update_if_exists:bool=False, reupload:bool=False, create_default_view:bool=True, auto_submit:bool=False,
                         datastore_create:bool=False, records:Union[dict, List[dict], pd.DataFrame]=None, fields:List[dict]=None,
                             primary_key: Union[str, List[str]] = None, indexes: Union[str, List[str]] = None,
-                            aliases: Union[str, List[str]] = None, data_cleaner:CkanDataCleanerABC=None) -> CkanResourceInfo:
+                            aliases: Union[str, List[str]] = None, data_cleaner:CkanDataCleanerABC=None,
+                            progress_callback:CkanProgressCallbackABC=None) -> CkanResourceInfo:
         """
         Proxy to API call resource_create verifying if a resource with the same name already exists and adding the default view.
 
@@ -785,7 +799,8 @@ class CkanApiManage(CkanApiReadWrite):
                             self.datastore_submit(resource_info.id)
                     if datastore_create or delete_previous_datastore:
                         info = self.datastore_create(resource_info.id, records=records, fields=fields, primary_key=primary_key,
-                                                     indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner)
+                                                     indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner,
+                                                     progress_callback=progress_callback)
                     return resource_info
                 else:
                     return resource_info
@@ -865,7 +880,8 @@ class CkanApiManage(CkanApiReadWrite):
                          fields:List[Union[dict,CkanField]]=None,
                          primary_key:Union[str, List[str]]=None, indexes:Union[str, List[str]]=None,
                          aliases: Union[str, List[str]]=None,
-                         params:dict=None,force:bool=None, data_cleaner:CkanDataCleanerABC=None) -> dict:
+                         params:dict=None,force:bool=None, data_cleaner:CkanDataCleanerABC=None,
+                         progress_callback:CkanProgressCallbackABC=None) -> dict:
         """
         Encapsulation of the datastore_create API call.
         This function can optionally clear the DataStore before creating it.
@@ -910,9 +926,28 @@ class CkanApiManage(CkanApiReadWrite):
             else:
                 aliases.append(default_alias_name)
             aliases = list(set(aliases))  # keep unique values
-        return self._api_datastore_create(resource_id, records=records, fields=fields,
+        limit = None
+        num_rows_partial = self.params.get_num_rows_datastore_create_partial(limit)
+        if num_rows_partial is not None and records is not None and len(records) > num_rows_partial:
+            df_upload_partial = records.iloc[:num_rows_partial]
+            df_upload_upsert = records.iloc[num_rows_partial:]
+        else:
+            df_upload_partial, df_upload_upsert = records, None
+        if df_upload_partial is not None and progress_callback is not None:
+            progress_callback.start_task(len(df_upload_partial), level=CkanCallbackLevel.Requests, context="datastore_create")
+        info = self._api_datastore_create(resource_id, records=df_upload_partial, fields=fields,
                                           primary_key=primary_key, indexes=indexes, aliases=aliases,
                                           params=params, force=force)
+        if df_upload_partial is not None and progress_callback is not None:
+            progress_callback.end_task(len(df_upload_partial), level=CkanCallbackLevel.Requests, context="datastore_create")
+        if df_upload_upsert is not None:
+            self.datastore_upsert(df_upload_upsert, resource_id, method=UpsertChoice.Insert,
+                                  always_last_condition=None, data_cleaner=self.data_cleaner_upload,
+                                  progress_callback=progress_callback)
+            # # case where a reupload was needed but is not permitted by self.reupload_if_needed
+            # msg = f"Did not upload the remaining part of the resource {self.name}."
+            # raise IncompletePatchError(msg)
+        return info
 
 
     ## Package creation/deletion/edit ------------------

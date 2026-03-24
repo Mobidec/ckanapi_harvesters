@@ -3,21 +3,13 @@
 """
 Tests to perform after the example package was uploaded
 """
-from typing import Tuple
 import os
-import re
-import getpass
 import json
 
-import pandas as pd
-import numpy as np
-
-from ckanapi_harvesters.auxiliary import CkanMap
 from ckanapi_harvesters.builder.builder_package import BuilderPackage
 from ckanapi_harvesters.ckan_api import CkanApi
 
 from ckanapi_harvesters.builder.example import example_package_xls
-self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
 def run():
     BuilderPackage.unlock_external_code_execution()  # comment to test if the safety feature is enabled

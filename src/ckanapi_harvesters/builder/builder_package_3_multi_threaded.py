@@ -3,9 +3,8 @@
 """
 Code to upload metadata to the CKAN server, with one thread per resource
 """
-from typing import List, Union, Dict, Callable, Any
+from typing import List, Dict
 import threading
-import copy
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanState
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback

@@ -17,7 +17,7 @@ except PackageNotFoundError:
 
 
 import os
-self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
+package_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
 
 from . import auxiliary
@@ -28,7 +28,7 @@ from . import builder
 from . import reports
 
 # usage shortcuts
-from .auxiliary import CkanMap, RequestType, CkanField, CkanState, CkanProgressCallback, CkanCallbackLevel
+from .auxiliary import CkanMap, RequestType, CkanField, CkanState, CkanProgressCallback, CkanCallbackLevel, CkanProgressBarType
 from .policies import CkanPackageDataFormatPolicy
 from .reports import CkanAdminReport
 from .ckan_api import CkanApi, CkanApiParams, CKAN_API_VERSION

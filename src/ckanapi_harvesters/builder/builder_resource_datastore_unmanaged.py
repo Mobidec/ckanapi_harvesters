@@ -5,27 +5,19 @@ Code to upload metadata to the CKAN server to create/update an existing package
 The metadata is defined by the user in an Excel worksheet
 This file implements functions to initiate a DataStore without uploading any data.
 """
-import time
-from abc import ABC, abstractmethod
-from typing import Dict, List, Callable, Any, Tuple, Union, Set, Generator
-import os
-from io import StringIO
-from warnings import warn
+from typing import List, Tuple, Union, Generator
 import copy
 
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
-from ckanapi_harvesters.builder.builder_resource_datastore import num_rows_patch_first_upload_partial
+from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage
 from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 # from ckanapi_harvesters.builder.builder_resource import BuilderResourceUnmanagedABC
-from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
 from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 from ckanapi_harvesters.auxiliary.ckan_errors import NotMappedObjectNameError, DataStoreNotFoundError
-from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, IncompletePatchError
-from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo
+from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.ckan_api import CkanApi
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, assert_or_raise, find_duplicates, datastore_id_col
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, datastore_id_col
 
 
 class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnmanagedABC):  # multiple inheritance can give undefined results
@@ -117,7 +109,6 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
             except DataStoreNotFoundError as e:
                 df_download = None
                 current_df_fields = set()
-            df_upload_partial, df_upload_upsert = None, None
             data_cleaner_fields = None
             data_cleaner_index = set()
         else:
@@ -125,18 +116,9 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
                                                                        reupload=reupload, override_ckan=override_ckan)
             df_download = df_upload
             current_df_fields = set(df_upload.columns)
-            if num_rows_patch_first_upload_partial is not None:
-                num_rows_patch_first_upload_partial_apply = min(num_rows_patch_first_upload_partial, ckan.params.default_limit_write)
-            else:
-                num_rows_patch_first_upload_partial_apply = None
-            if num_rows_patch_first_upload_partial_apply is not None and len(df_upload) > num_rows_patch_first_upload_partial_apply:
-                df_upload_partial = df_upload.iloc[:num_rows_patch_first_upload_partial_apply]
-                df_upload_upsert = df_upload.iloc[num_rows_patch_first_upload_partial_apply:]
-            else:
-                df_upload_partial, df_upload_upsert = df_upload, None
         empty_datastore = df_download is None or len(df_download) == 0
         current_df_fields -= {datastore_id_col}  # _id does not require documentation
-        execute_datastore_create = df_upload_partial is not None or not (self.initiate_by_user and (df_download is None or df_download.empty))
+        execute_datastore_create = df_upload is not None or not (self.initiate_by_user and (df_download is None or df_download.empty))
         aliases = self._get_alias_list(ckan)
         self._check_necessary_fields(current_df_fields, raise_error=False, empty_datastore=empty_datastore)
         self._check_undocumented_fields(current_df_fields)
@@ -148,22 +130,13 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
         resource_info = ckan.resource_create(package_id, name=self.name, format=self.resource_attributes.format, description=self.resource_attributes.description,
                                              state=self.resource_attributes.state,
                                              create_default_view=self.create_default_view,
-                                             cancel_if_exists=True, update_if_exists=True, reupload=reupload and df_upload_partial is not None,
-                                             datastore_create=execute_datastore_create, records=df_upload_partial, fields=fields,
-                                             primary_key=primary_key, indexes=indexes, aliases=aliases, data_cleaner=self.data_cleaner_upload)
-        reupload = reupload or resource_info.newly_created
+                                             cancel_if_exists=True, update_if_exists=True, reupload=reupload and df_upload is not None,
+                                             datastore_create=execute_datastore_create, records=df_upload, fields=fields,
+                                             primary_key=primary_key, indexes=indexes, aliases=aliases,
+                                             progress_callback=self.progress_callback)
         resource_id = resource_info.id
         self.known_id = resource_id
         self._compare_fields_to_datastore_info(resource_info, current_df_fields, ckan)
-        if df_upload_upsert is not None and reupload:
-            if reupload:
-                ckan.datastore_upsert(df_upload_upsert, resource_id, method=UpsertChoice.Insert,
-                                      always_last_condition=None, data_cleaner=self.data_cleaner_upload,
-                                      progress_callback=self.progress_callback)
-            else:
-                # case where a reupload was needed but is not permitted by self.reupload_if_needed
-                msg = f"Did not upload the remaining part of the resource {self.name}."
-                raise IncompletePatchError(msg)
         return resource_info
 
 

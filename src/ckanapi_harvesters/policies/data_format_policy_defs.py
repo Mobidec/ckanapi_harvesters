@@ -3,14 +3,9 @@
 """
 Data format policy representation and enforcing
 """
-from typing import List, Dict, Tuple, Union
+from typing import Tuple, Union
 from enum import IntEnum
 from collections import OrderedDict
-
-import pandas as pd
-
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
-from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 
 
 newline_char = '\n'
