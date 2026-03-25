@@ -11,14 +11,9 @@ import urllib.parse
 
 import pandas as pd
 
-try:
-    import sqlalchemy
-    import psycopg2
-except ImportError:
-    sqlalchemy = SimpleNamespace(Engine=None, Connection=None)
-    psycopg2 = None
 
-
+from ckanapi_harvesters.auxiliary.lazy_imports import sqlalchemy, lazy_import_sqlalchemy
+from ckanapi_harvesters.auxiliary.lazy_imports import psycopg2, lazy_import_psycopg2
 from ckanapi_harvesters.harvesters.harvester_errors import (HarvesterRequirementError, HarvesterArgumentRequiredError)
 from ckanapi_harvesters.harvesters.harvester_abc import TableHarvesterABC, DatasetHarvesterABC, DatabaseHarvesterABC
 from ckanapi_harvesters.harvesters.harvester_model import FieldMetadata, TableMetadata, DatasetMetadata
@@ -42,6 +37,9 @@ class DatabaseHarvesterPostgre(DatabaseHarvesterABC):
     """
     def __init__(self, params:DatabaseParams=None):
         super().__init__(params)
+        global sqlalchemy, psycopg2
+        sqlalchemy = lazy_import_sqlalchemy()
+        psycopg2 = lazy_import_psycopg2()
         if sqlalchemy.Engine is None:
             raise HarvesterRequirementError("sqlalchemy", "postgre")
         if psycopg2 is None:

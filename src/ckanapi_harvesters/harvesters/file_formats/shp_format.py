@@ -11,15 +11,9 @@ from enum import IntEnum
 
 import pandas as pd
 
-try:
-    import geopandas as gpd
-except ImportError:
-    gpd = SimpleNamespace(GeoDataFrame=None)
-try:
-    import pyproj
-except ImportError:
-    pyproj = None
 
+from ckanapi_harvesters.auxiliary.lazy_imports import gpd, lazy_import_geopandas_gpd
+from ckanapi_harvesters.auxiliary.lazy_imports import pyproj, lazy_import_pyproj
 from ckanapi_harvesters.auxiliary.list_records import ListRecords
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.ckan_errors import FileFormatRequirementError, UnknownTargetCRSError
@@ -38,6 +32,9 @@ class ShapeFileFormat(FileFormatABC):
     default_write_kwargs = dict(encoding='utf-8')  # write
 
     def __init__(self, options_string:str=None, *, read_kwargs:dict=None, write_kwargs:dict=None) -> None:
+        global gpd, pyproj
+        gpd = lazy_import_geopandas_gpd()
+        pyproj = lazy_import_pyproj()
         if gpd.GeoDataFrame is None:
             raise FileFormatRequirementError("geopandas", "SHP")
         if pyproj is None:

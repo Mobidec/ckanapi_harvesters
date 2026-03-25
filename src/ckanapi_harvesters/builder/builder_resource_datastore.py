@@ -506,8 +506,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                     self.field_builders[field_name] = field_builder.copy()
         # 4. Metadata generated from Data cleaner
         if data_cleaner_fields is not None:
-            for field_info in data_cleaner_fields.values():
-                field_builder = BuilderField._from_ckan_field(field_info)
+            for field_dict in data_cleaner_fields:
+                field_builder = BuilderField._from_ckan_field(CkanField.from_ckan_dict(field_dict))
                 if field_builder.name in self.field_builders.keys():
                     self.field_builders[field_builder.name].update_missing(field_builder)
                 else:

@@ -33,7 +33,7 @@ Changelog = "https://github.com/Mobidec/ckanapi_harvesters/blob/main/CHANGELOG.m
 
 [project.optional-dependencies]
 extras = [  # default extras
-    "pymongo >= 4.16.0",    # MongoDB harvester
+    "pymongo >= 4.8.0",    # MongoDB harvester
     "psycopg2 >= 2.9.11",  # Postgre harvester
     "sqlalchemy >= 2.0.48",  # Postgre harvester
     "shapely >= 2.1.2",    # GeoJSON support
@@ -41,7 +41,7 @@ extras = [  # default extras
     "geopandas >= 1.1.3",  # Shapefile reading functions
 ]
 harvesters = [  # dependencies for database harvesters
-    "pymongo >= 4.16.0",    # MongoDB harvester
+    "pymongo >= 4.8.0",    # MongoDB harvester
     "psycopg2 >= 2.9.11",  # Postgre harvester
     "shapely >= 2.1.2",    # GeoJSON support
     "pyproj >= 3.7.2",     # GeoJSON transformations

@@ -4,6 +4,7 @@
 Package with helper function for CKAN requests using pandas DataFrames.
 """
 
+from . import lazy_imports
 from . import ckan_defs
 from . import path
 from . import login

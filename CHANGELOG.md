@@ -14,9 +14,10 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ### Fixed
 
-- Bug ignoring __Primary key__ specified in the Excel workbook from package 
+- Bug ignoring __Primary key__ specified in the Excel workbook from ckanapi-harversters 
 [version 0.0.13 (18/03/2026, commit a8dd7b32)](#0013---2026-03-18). 
 `py_upload_index` was created even though a primary key was specified.
+- Reduced time to import the Python package by using lazy imports for optional dependencies.
 
 ### Changed
 

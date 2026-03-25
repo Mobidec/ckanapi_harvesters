@@ -8,11 +8,7 @@ import io
 import argparse
 import getpass
 
-try:
-    from sshtunnel import SSHTunnelForwarder
-except ImportError:
-    SSHTunnelForwarder = None
-
+from ckanapi_harvesters.auxiliary.lazy_imports import SSHTunnelForwarder, lazy_import_ssh_tunnel_SSHTunnelForwarder
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir
 from ckanapi_harvesters.auxiliary.ckan_errors import RequirementError
 from ckanapi_harvesters.auxiliary.login import Login
@@ -139,6 +135,10 @@ class SshTunnel:
             self.ssh_pkey_file = path_rel_to_dir(args.ssh_key_file, base_dir=base_dir)
 
     def start_tunnel(self):
+        # lazy import: only if necessary here
+        global SSHTunnelForwarder
+        SSHTunnelForwarder = lazy_import_ssh_tunnel_SSHTunnelForwarder()
+        # ----------
         if SSHTunnelForwarder is None:
             raise RequirementError("sshtunnel", "SshTunnel")
         ssh_proxy = self.socks_proxy.get_host_port() if self.socks_proxy.is_defined() else None
