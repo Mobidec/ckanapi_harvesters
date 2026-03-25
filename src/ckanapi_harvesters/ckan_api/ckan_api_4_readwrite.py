@@ -11,7 +11,7 @@ import argparse
 
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanState
@@ -41,6 +41,7 @@ class CkanApiReadWriteParams(CkanApiPolicyParams):
                  ckan_headers:dict=None, http_headers:dict=None):
         super().__init__(proxies=proxies, ckan_headers=ckan_headers, http_headers=http_headers)
         self.default_limit_write: Union[int,None] = self.default_limit_read  # limit the number of entries per upsert (used as default value)
+        self.num_rows_datastore_create_partial: Union[int,None] = 50  # number of lines transmitted through datastore_create (None means full DataFrame)
         self.default_force: bool = True  # set to True to edit a read-only resource
         self.read_only: bool = self.default_readonly
         self.submit_delay: float = 2.0      # delay between requests when running datapusher_submit
@@ -266,7 +267,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                          method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                          always_last_condition:bool=None, return_df:bool=None,
                          data_cleaner:CkanDataCleanerABC=None,
-                         progress_callback:CkanProgressCallback=None, params:dict=None) -> Union[pd.DataFrame, List[dict]]:
+                         progress_callback:CkanProgressCallbackABC=None, params:dict=None) -> Union[pd.DataFrame, List[dict]]:
         """
         Encapsulation of _api_datastore_upsert to cut the requests to a limited number of rows.
 
@@ -281,6 +282,9 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param dry_run: set to True to abort transaction instead of committing, e.g. to check for validation or type errors
         :param apply_last_condition: if True, the last upsert request applies the last insert operations (calculate_record_count and force_indexing).
         :param always_last_condition: if True, each request applies the last insert operations - default is False
+        :param return_df: if True, return a pandas DataFrame or else, a list of dictionaries.
+        :param data_cleaner: data cleaner instance. A data cleaner detects and changes invalid values before upload.
+        :param progress_callback: progress callback function
         :return: the inserted records as a pandas DataFrame, from the server response
         """
         method_str = str(method)
@@ -298,7 +302,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         else:
             assert(isinstance(records, pd.DataFrame))
         if progress_callback is not None:
-            progress_callback.start_task(len(records), level=CkanCallbackLevel.Request)
+            progress_callback.start_task(len(records), level=CkanCallbackLevel.Requests)
         if data_cleaner is None:
             data_cleaner = self.data_cleaner_upload
         if data_cleaner is not None:
@@ -319,7 +323,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                                               force=force, params=params,
                                               last_insertion=apply_last_condition or always_last_condition)
             if progress_callback is not None:
-                progress_callback.end_task(len(records), level=CkanCallbackLevel.Request)
+                progress_callback.end_task(len(records), level=CkanCallbackLevel.Requests)
             return value
         assert_or_raise(limit > 0, InvalidParameterError("limit"))
         n = len(records)
@@ -352,7 +356,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                                                 last_insertion=(last_insertion and apply_last_condition) or always_last_condition)
             n_cum += len(df_add)
             if progress_callback is not None:  # and not last_insertion
-                progress_callback.task_progress(n_cum, len(records), level=CkanCallbackLevel.Request)
+                progress_callback.task_progress(n_cum, len(records), level=CkanCallbackLevel.Requests)
             assert_or_raise(len(df_add) == n_add, IntegrityError("Second check on response len failed in datastore_upsert"))  # consistency check, in double of _api_datastore_upsert
             if self.params.store_last_response_debug_info:
                 self.debug.multi_requests_last_successful_offset = offset
@@ -387,65 +391,118 @@ class CkanApiReadWrite(CkanApiPolicy):
             raise MaxRequestsCountError()
         assert_or_raise(last_insertion, UnexpectedError("last_insertion should be True at last iteration"))
         if progress_callback is not None:
-            progress_callback.end_task(len(records), level=CkanCallbackLevel.Request)
+            progress_callback.end_task(len(records), level=CkanCallbackLevel.Requests)
         if mode_df:
             return df
         else:
             return returned_rows
 
     def datastore_upsert_generator(self, records_generator:Generator[GeneralDataFrame, None, None], resource_id:str, *,
-                                   dry_run:bool=False, limit:int=None, offset:int=0, force:bool=None,
+                                   dry_run:bool=False, limit:int=None, offset:int=0, request_threshold:int=None, force:bool=None,
                                    method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                                    always_last_condition:bool=None, return_df:bool=None,
-                                   data_cleaner:CkanDataCleanerABC=None, params:dict=None) -> int:
+                                   data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
+                                   params:dict=None) -> int:
         """
-        Encapsulation of datastore_upsert to send the rows by chunks defined by the records_generator.
+        Encapsulation of datastore_upsert to send the rows by chunks provided by records_generator.
 
-        :see: _api_datastore_upsert()
         :param records_generator: generator of records, e.g. chunks from a CSV file generated with pandas.read_csv(.., chunksize=1000)
         :param resource_id: destination resource id
         :param method: by default, set to Upsert
         :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
         :param limit: number of records per transaction
         :param offset: number of records to skip - use to restart the transfer
+        :param request_threshold: number of records to cumulate before sending a request
         :param params: additional parameters
         :param dry_run: set to True to abort transaction instead of committing, e.g. to check for validation or type errors
         :param apply_last_condition: if True, the last upsert request applies the last insert operations (calculate_record_count and force_indexing).
         :param always_last_condition: if True, each request applies the last insert operations - default is False
+        :param return_df: if True, return a pandas DataFrame or else, a list of dictionaries.
+        :param data_cleaner: data cleaner instance. A data cleaner detects and changes invalid values before upload.
+        :param progress_callback: progress callback function
         :return: the number of records inserted
         """
         line_count = 0
-        for chunk_index, records in enumerate(records_generator):
-            current_line_count = len(records)
+        records = None
+        calls_count = 0
+        for chunk_index, chunk_records in enumerate(records_generator):
+            mode_df = True
+            assert(chunk_records is not None)
+            if isinstance(chunk_records, dict):
+                chunk_records = pd.DataFrame.from_dict(chunk_records)
+            elif isinstance(chunk_records, list):
+                # chunk_records = records_to_df(chunk_records)
+                mode_df = False
+            else:
+                assert(isinstance(chunk_records, pd.DataFrame))
+            if records is None:
+                records = chunk_records
+            elif request_threshold is not None:
+                if mode_df:
+                    assert(isinstance(records, pd.DataFrame))
+                    records = pd.concat([records, chunk_records], ignore_index=True, axis=0)
+                else:
+                    assert(isinstance(records, list))
+                    records = records + chunk_records
+            else:
+                raise UnexpectedError("records should be None if request_threshold is defined")
             current_offset = max(0, offset - line_count)
+            if request_threshold is None or len(records) >= request_threshold:
+                self.datastore_upsert(records, resource_id=resource_id, dry_run=dry_run, limit=limit, offset=current_offset, force=force, method=method, params=params,
+                                      apply_last_condition=False, always_last_condition=always_last_condition, return_df=return_df, data_cleaner=data_cleaner,
+                                      progress_callback=progress_callback)
+                line_count += len(records)
+                calls_count += 1
+                records = None
+        current_offset = max(0, offset - line_count)
+        if records is not None:
             self.datastore_upsert(records, resource_id=resource_id, dry_run=dry_run, limit=limit, offset=current_offset, force=force, method=method, params=params,
-                                  apply_last_condition=False, always_last_condition=always_last_condition, return_df=return_df, data_cleaner=data_cleaner)
-            line_count += current_line_count
-        if apply_last_condition:
+                                  apply_last_condition=apply_last_condition, always_last_condition=always_last_condition, return_df=return_df, data_cleaner=data_cleaner,
+                                  progress_callback=progress_callback)
+            line_count += len(records)
+            calls_count += 1
+        elif apply_last_condition:
             self.datastore_upsert_last_line(resource_id)
         return line_count
 
     def datastore_upsert_auto(self, records_generator:Union[pd.DataFrame, List[dict], Generator[GeneralDataFrame, None, None]], resource_id:str, *,
-                                   dry_run:bool=False, limit:int=None, offset:int=0, force:bool=None,
-                                   method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
-                                   always_last_condition:bool=None, return_df:bool=None,
-                                   data_cleaner:CkanDataCleanerABC=None, params:dict=None) -> int:
+                              dry_run:bool=False, limit:int=None, offset:int=0, request_threshold:int=None, force:bool=None,
+                              method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
+                              always_last_condition:bool=None, return_df:bool=None,
+                              data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
+                              params:dict=None) -> int:
         """
         Version of datastore_upsert accepting generators or DataFrames.
+        The call to the correct function is made upon the type of the records_generator argument.
 
-        :return: number of records inserted
+        :see: datastore_upsert_generator(), datastore_upsert()
+        :param records_generator: generator of records, e.g. chunks from a CSV file generated with pandas.read_csv(.., chunksize=1000)
+        :param resource_id: destination resource id
+        :param method: by default, set to Upsert
+        :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
+        :param limit: number of records per transaction
+        :param offset: number of records to skip - use to restart the transfer
+        :param request_threshold: number of records to cumulate before sending a request
+        :param params: additional parameters
+        :param dry_run: set to True to abort transaction instead of committing, e.g. to check for validation or type errors
+        :param apply_last_condition: if True, the last upsert request applies the last insert operations (calculate_record_count and force_indexing).
+        :param always_last_condition: if True, each request applies the last insert operations - default is False
+        :param return_df: if True, return a pandas DataFrame or else, a list of dictionaries.
+        :param data_cleaner: data cleaner instance. A data cleaner detects and changes invalid values before upload.
+        :param progress_callback: progress callback function
+        :return: the number of records inserted
         """
         if isinstance(records_generator, pd.DataFrame) or isinstance(records_generator, list):
             df_insert = self.datastore_upsert(records_generator, resource_id=resource_id, dry_run=dry_run,
                                               limit=limit, offset=offset, force=force, method=method, params=params,
                                               apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
-                                              return_df=return_df, data_cleaner=data_cleaner)
+                                              return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback)
             return len(df_insert)
         else:
             return self.datastore_upsert_generator(records_generator, resource_id=resource_id, dry_run=dry_run,
-                                                   limit=limit, offset=offset, force=force, method=method, params=params,
+                                                   limit=limit, offset=offset, force=force, request_threshold=request_threshold, method=method, params=params,
                                                    apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
-                                                   return_df=return_df, data_cleaner=data_cleaner)
+                                                   return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback)
 
     def datastore_insert(self, records:Union[dict, List[dict], pd.DataFrame], resource_id:str, *,
                          dry_run:bool=False, limit:int=None, offset:int=0, apply_last_condition:bool=True,

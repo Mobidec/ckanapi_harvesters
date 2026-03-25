@@ -10,16 +10,8 @@ from warnings import warn
 
 import numpy as np
 
-try:
-    import shapely
-except ImportError:
-    shapely = SimpleNamespace(Geometry=None)
-
-try:
-    import pyproj
-except ImportError:
-    pyproj = None
-
+from ckanapi_harvesters.auxiliary.lazy_imports import shapely, lazy_import_shapely
+from ckanapi_harvesters.auxiliary.lazy_imports import pyproj, lazy_import_pyproj
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_1_basic import CkanDataCleanerUploadBasic
@@ -36,6 +28,8 @@ postgre_geojson_mapping = {
 multi_geometry_types = {'MultiPoint', 'MultiLineString', 'MultiPolygon', 'GeometryCollection'}
 
 def shapely_geometry_from_value(value:Any) -> Union[shapely.Geometry,None]:
+    global shapely
+    shapely = lazy_import_shapely()
     if shapely.Geometry is None:
         raise CleanerRequirementError("shapely", "geometry")
     if value is None:
@@ -100,6 +94,8 @@ class CkanDataCleanerUploadGeom(CkanDataCleanerUploadBasic):
                 assert_or_raise(value_shape.geom_type.casefold() == field_geojson_type.casefold(), UnexpectedGeometryError(value_shape.geom_type, field_geojson_type))
             if field.internal_attrs.epsg_source is not None and field.internal_attrs.epsg_target is not None:
                 if not field.internal_attrs.epsg_source == field.internal_attrs.epsg_target:
+                    global pyproj
+                    pyproj = lazy_import_pyproj()
                     if pyproj is None:
                         raise CleanerRequirementError("pyproj", "geometry projection")
                     crs_source = pyproj.CRS.from_epsg(field.internal_attrs.epsg_source)

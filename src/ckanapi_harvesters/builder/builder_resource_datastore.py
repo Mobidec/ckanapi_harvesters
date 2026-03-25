@@ -6,8 +6,7 @@ The metadata is defined by the user in an Excel worksheet
 This file implements functions to initiate a DataStore.
 """
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Union, Set, Any, Generator
-import os
+from typing import Dict, List, Tuple, Union, Set, Any, Collection
 import io
 from warnings import warn
 from collections import OrderedDict
@@ -17,8 +16,8 @@ import shlex
 
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
-from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
+from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 from ckanapi_harvesters.builder.builder_field import BuilderField
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestFileMapperIndexKeys
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
@@ -26,17 +25,14 @@ from ckanapi_harvesters.harvesters.file_formats.file_format_init import init_fil
 from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC, initial_resource_building_state
 from ckanapi_harvesters.auxiliary.ckan_errors import DuplicateNameError
-from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, GroupByError, IncompletePatchError
+from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, GroupByError
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo, CkanField, UpsertChoice
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, find_duplicates, datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
-from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name, datastore_default_source_file_col_name
+from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name, datastore_default_source_file_col_name, module_fields
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_init import init_data_cleaner
-
-# number of rows to upload to initiate DataStore with datapusher, before explicitly specifying field data types and indexes
-num_rows_patch_first_upload_partial: Union[int,None] = 50  # set to None to upload directly the whole DataFrame before the DataStore creation
 
 
 default_alias_keyword:Union[str,None] = "default"  # generate default alias if an alias with this value is found in parameters
@@ -115,7 +111,6 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
 
     def _update_metadata(self, ckan: CkanApi, *, base_dir:str=None) -> None:
         super()._update_metadata(ckan=ckan, base_dir=base_dir)
-        self.primary_key = self.primary_key_user
 
     @staticmethod
     def _setup_cli_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
@@ -149,22 +144,34 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self._setup_cli_parser_external(parser)
         if display:
             parser.print_help()
-        buffer = io.StringIO()
-        parser.print_help(buffer)
-        return buffer.getvalue()
+        with io.StringIO() as stream:
+            parser.print_help(stream)
+            return stream.getvalue()
 
     def _cli_args_apply(self, args: argparse.Namespace, *, base_dir: str = None, error_not_found: bool = True) -> None:
         if args.data_cleaner is not None:
             self.data_cleaner_upload = init_data_cleaner(args.data_cleaner)
+        if args.no_upload_index:
+            self.column_enable_upload_index = False
+        if args.include_source_file:
+            self.column_enable_source_file = True
+        self.setup_default_file_mapper()
         if args.one_frame_per_primary_key is not None and args.one_frame_per_primary_key:
             self.apply_one_frame_per_primary_key(args.group_by)
         elif args.group_by is not None:
             msg = GroupByError("Argument --group-by cannot be used without option --one-frame-per-primary-key")
             warn(msg)
-        if args.no_upload_index:
-            self.column_enable_upload_index = False
-        if args.include_source_file:
-            self.column_enable_source_file = True
+
+    def setup_default_file_mapper(self, *, primary_key:List[str]=None, file_query_list:Collection[Tuple[str, dict]]=None) -> None:
+        if primary_key is None:
+            if self.primary_key_user is not None:
+                self.primary_key = self.primary_key_user
+        else:
+            self.primary_key = primary_key
+        if self.column_enable_source_file:
+            self.df_mapper.source_file_column = datastore_default_source_file_col_name
+        else:
+            self.df_mapper.source_file_column = ""
 
     def apply_one_frame_per_primary_key(self, group_by_argument:Union[str, List[str]]=None):
         """
@@ -197,9 +204,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             # sort_by_keys = list(set(self.primary_key) - set(group_by_keys))
             sort_by_keys = self.primary_key
         self.df_mapper = RequestFileMapperIndexKeys(group_by_keys=group_by_keys, sort_by_keys=sort_by_keys)
-        if self.local_file_format.allow_chunks:
-            msg = "Mode --one-frame-per-primary-key is not compatible with reading files by chunks"
+        if self.local_file_format.read_by_chunks_enabled():
+            msg = "Mode --one-frame-per-primary-key is not compatible with reading files by chunks. Disabling this feature."
             warn(msg)
+            self.local_file_format.allow_chunks = False
 
     def initialize_extra_options_string(self, extra_options_string:str, base_dir:str) -> None:
         self.local_file_format = init_file_format_datastore(self.resource_attributes_user.format, extra_options_string, self.aux_read_fun_name, self.aux_write_fun_name)  # default file format is CSV (user can change)
@@ -279,6 +287,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                 self.indexes = [field.strip() for field in indexes_string.split(ckan_tags_sep)]
         if aliases_string is not None:
             self.aliases = aliases_string.split(ckan_tags_sep)
+        self.setup_default_file_mapper()
         self.initialize_from_options_string(base_dir=base_dir)
 
     @abstractmethod
@@ -332,6 +341,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         for row_loc, row in fields_df.iterrows():
             field_builder = BuilderField()
             field_builder._load_from_df_row(row=row)
+            if field_builder.name in self.field_builders_user.keys():
+                raise DuplicateNameError("field_builder", [field_builder.name])
             self.field_builders_user[field_builder.name] = field_builder
 
     def _to_ckan_resource_info(self, package_id:str, check_id:bool=True) -> CkanResourceInfo:
@@ -450,10 +461,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         return required_fields
 
     def _check_undocumented_fields(self, current_fields: Set[str]) -> None:
-        if self.field_builders is not None:
+        if self.field_builders_user is not None:
             # list fields which are not documented
-            fields_doc = set(self.field_builders.keys())
-            missing_doc = current_fields - fields_doc
+            fields_doc = set(self.field_builders_user.keys())
+            missing_doc = current_fields - fields_doc - module_fields
             extra_doc = fields_doc - current_fields
             if len(extra_doc) > 0:
                 msg = f"{len(extra_doc)} extra fields were documented but absent of sample data for table {self.name}: {', '.join(extra_doc)}"
@@ -474,19 +485,31 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         3. Metadata found automatically from the data source (e.g. in file header or database)
         4. Metadata found automatically by the data cleaner, especially for field typing
         """
+        # if current_df_fields is not None:
+        #     current_df_fields_lower = {field_name.lower() for field_name in current_df_fields}
+        # else:
+        #     current_df_fields_lower = None
         self.field_builders = OrderedDict()
+        allowed_fields = current_df_fields
         # 1. Information specified by user in Excel, for preserving field specified order
+        impose_user_fields = False
         if self.field_builders_user is not None:
             for field_name, field_builder in self.field_builders_user.items():
                 self.field_builders[field_name] = field_builder.copy()
+            if impose_user_fields:
+                if allowed_fields is not None:
+                    allowed_fields = allowed_fields.union(set(self.field_builders_user.keys()))
+                else:
+                    allowed_fields = set(self.field_builders_user.keys())
         # 2. Current CKAN information: update missing information
         if (not override_ckan) and self.known_resource_info is not None and self.known_resource_info.datastore_info is not None and self.known_resource_info.datastore_info.fields_dict is not None:
             known_fields = self.known_resource_info.datastore_info.fields_dict
             for field_name, field_info in known_fields.items():
-                if field_name in self.field_builders.keys():
-                    self.field_builders[field_name].update_missing(BuilderField._from_ckan_field(field_info))
-                else:
-                    self.field_builders[field_name] = BuilderField._from_ckan_field(field_info)
+                if current_df_fields is not None and field_name in current_df_fields:
+                    if field_name in self.field_builders.keys():
+                        self.field_builders[field_name].update_missing(BuilderField._from_ckan_field(field_info))
+                    else:
+                        self.field_builders[field_name] = BuilderField._from_ckan_field(field_info)
         # 3. Metadata generated from data source: update missing information
         if self.field_builders_data_source is not None:
             for field_name, field_builder in self.field_builders_data_source.items():
@@ -496,15 +519,15 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                     self.field_builders[field_name] = field_builder.copy()
         # 4. Metadata generated from Data cleaner
         if data_cleaner_fields is not None:
-            for field_info in data_cleaner_fields.values():
-                field_builder = BuilderField._from_ckan_field(field_info)
+            for field_dict in data_cleaner_fields:
+                field_builder = BuilderField._from_ckan_field(CkanField.from_ckan_dict(field_dict))
                 if field_builder.name in self.field_builders.keys():
                     self.field_builders[field_builder.name].update_missing(field_builder)
                 else:
                     self.field_builders[field_builder.name] = field_builder.copy()
         if self.field_builders is not None:
             if current_df_fields is not None:
-                builder_fields = [field_builder._to_ckan_field() for field_builder in self.field_builders.values() if field_builder.name in current_df_fields]
+                builder_fields = [field_builder._to_ckan_field() for field_builder in self.field_builders.values() if field_builder.name in allowed_fields]
             else:
                 # use case: get all known fields (before data_cleaner)
                 builder_fields = [field_builder._to_ckan_field() for field_builder in self.field_builders.values()]
@@ -595,15 +618,6 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             pass  # do not alter df_upload because it should already be in the database format
         df_upload, data_cleaner_fields, data_cleaner_index = self._apply_data_cleaner_before_patch(ckan, df_upload, reupload=reupload, override_ckan=override_ckan)
         current_df_fields = set(df_upload.columns) - {datastore_id_col}  # _id field cannot be documented
-        if num_rows_patch_first_upload_partial is not None:
-            num_rows_patch_first_upload_partial_apply = min(num_rows_patch_first_upload_partial, ckan.params.default_limit_write)
-        else:
-            num_rows_patch_first_upload_partial_apply = None
-        if num_rows_patch_first_upload_partial_apply is not None and len(df_upload) > num_rows_patch_first_upload_partial_apply:
-            df_upload_partial = df_upload.iloc[:num_rows_patch_first_upload_partial_apply]
-            df_upload_upsert = df_upload.iloc[num_rows_patch_first_upload_partial_apply:]
-        else:
-            df_upload_partial, df_upload_upsert = df_upload, None
         empty_datastore = df_upload is None or len(df_upload) == 0
         self._check_necessary_fields(current_df_fields, empty_datastore=empty_datastore, raise_error=True)
         self._check_undocumented_fields(current_df_fields)
@@ -618,21 +632,12 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                                              state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                              create_default_view=self.create_default_view,
                                              cancel_if_exists=True, update_if_exists=True, reupload=reupload,
-                                             datastore_create=True, records=df_upload_partial, fields=fields,
-                                             primary_key=primary_key, indexes=indexes, aliases=aliases)
+                                             datastore_create=True, records=df_upload, fields=fields,
+                                             primary_key=primary_key, indexes=indexes, aliases=aliases,
+                                             progress_callback=self.progress_callback)
         resource_id = resource_info.id
         self.known_id = resource_id
-        reupload = reupload or resource_info.newly_created
         self._compare_fields_to_datastore_info(resource_info, current_df_fields, ckan)
-        if df_upload_upsert is not None and reupload:
-            if reupload:
-                ckan.datastore_upsert(df_upload_upsert, resource_id, method=UpsertChoice.Insert,
-                                      always_last_condition=None, data_cleaner=self.data_cleaner_upload,
-                                      progress_callback=self.progress_callback)
-            else:
-                # case where a reupload was needed but is not permitted by self.reupload_if_needed
-                msg = f"Did not upload the remaining part of the resource {self.name}."
-                raise IncompletePatchError(msg)
         return resource_info
 
     def download_resource_df(self, ckan: CkanApi, search_all:bool=True, download_alter:bool=True, **kwargs) -> Union[pd.DataFrame,None]:
@@ -649,7 +654,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         resource_id = self.get_or_query_resource_id(ckan=ckan, error_not_found=self.download_error_not_found)
         if resource_id is None and not self.download_error_not_found:
             return None
-        df_download = ckan.datastore_dump(resource_id, search_all=search_all, **kwargs)
+        df_download = ckan.datastore_dump(resource_id, search_all=search_all, progress_callback=self.progress_callback, **kwargs)
         if download_alter:
             df_local = self.df_mapper.df_download_alter(df_download, fields=self._get_fields_info())
             return df_local

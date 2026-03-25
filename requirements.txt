@@ -5,14 +5,14 @@ pandas >= 2.3.3
 numpy >= 2.4.3
 openpyxl >= 3.1.5      # requirement for builder
 # extras
-pymongo[extras] >= 4.16.0    # optional requirement for harvesters (MongoDB), includes a bson implementation
+pymongo[extras] >= 4.8.0    # optional requirement for harvesters (MongoDB), includes a bson implementation
 psycopg2[extras] >= 2.9.11  # optional requirement for harvesters (PostgreSQL)
 sqlalchemy[extras] >= 2.0.48  # optional requirement for harvesters (PostgreSQL)
 shapely[extras] >= 2.1.2    # GeoJSON support
 pyproj[extras] >= 3.7.2     # GeoJSON transformations
 geopandas[extras] >= 1.1.2  # Shapefile reading functions
 # harvesters
-pymongo[harvesters] >= 4.16.0    # optional requirement for harvesters (MongoDB), includes a bson implementation
+pymongo[harvesters] >= 4.8.0    # optional requirement for harvesters (MongoDB), includes a bson implementation
 psycopg2[harvesters] >= 2.9.11  # optional requirement for harvesters (PostgreSQL)
 shapely[harvesters] >= 2.1.2    # GeoJSON support
 pyproj[harvesters] >= 3.7.2     # GeoJSON transformations
@@ -27,6 +27,8 @@ h5py[mat] >= 3.16.0
 # sshtunnel (usage not functional now)
 sshtunnel[sshtunnel] >= 0.4.0
 paramiko[sshtunnel] >= 4.0.0
+# more
+tqdm[more] >= 4.67.3  # Console/Jupyter progress bars
 # dev
 pytest[dev] >= 9.0.2  # strict version 8.0.1 in the package template
 build[dev] >= 1.4.0
@@ -41,4 +43,5 @@ sphinxcontrib-napoleon[dev] >= 0.7
 sphinx-rtd-theme[dev] >= 3.1.0
 numpydoc[dev] >= 1.10.0
 myst_nb[dev] >= 1.4.0  # Jupyter Notebook inclusion in sphinx
+pre-commit[dev] >= 4.5.1
 

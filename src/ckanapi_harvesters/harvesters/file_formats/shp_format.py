@@ -11,17 +11,9 @@ from enum import IntEnum
 
 import pandas as pd
 
-from ckanapi_harvesters.harvesters.file_formats.csv_format import CsvFileFormat
 
-try:
-    import geopandas as gpd
-except ImportError:
-    gpd = SimpleNamespace(GeoDataFrame=None)
-try:
-    import pyproj
-except ImportError:
-    pyproj = None
-
+from ckanapi_harvesters.auxiliary.lazy_imports import gpd, lazy_import_geopandas_gpd
+from ckanapi_harvesters.auxiliary.lazy_imports import pyproj, lazy_import_pyproj
 from ckanapi_harvesters.auxiliary.list_records import ListRecords
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.ckan_errors import FileFormatRequirementError, UnknownTargetCRSError
@@ -40,6 +32,9 @@ class ShapeFileFormat(FileFormatABC):
     default_write_kwargs = dict(encoding='utf-8')  # write
 
     def __init__(self, options_string:str=None, *, read_kwargs:dict=None, write_kwargs:dict=None) -> None:
+        global gpd, pyproj
+        gpd = lazy_import_geopandas_gpd()
+        pyproj = lazy_import_pyproj()
         if gpd.GeoDataFrame is None:
             raise FileFormatRequirementError("geopandas", "SHP")
         if pyproj is None:
@@ -129,9 +124,9 @@ class ShapeFileFormat(FileFormatABC):
         # TODO: how could this work because there are multiple files?
         write_kwargs = self._get_write_kwargs()
         gdf = self.downloaded_df_to_gdf(df, fields=fields)
-        buffer = io.StringIO()
-        gdf.to_file(buffer, driver="ESRI Shapefile", **write_kwargs)
-        return buffer.getvalue().encode("utf8")
+        with io.StringIO() as buffer:
+            gdf.to_file(buffer, driver="ESRI Shapefile", **write_kwargs)
+            return buffer.getvalue().encode("utf8")
 
     def append_allowed(self) -> bool:
         # NB: not all drivers support appending.
@@ -146,12 +141,12 @@ class ShapeFileFormat(FileFormatABC):
         gdf = self.downloaded_df_to_gdf(df, fields=fields, context=file_path)
         gdf.to_file(file_path, mode='a', driver="ESRI Shapefile", **write_kwargs)
 
-    def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
+    def append_in_memory(self, stream: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
         write_kwargs = self._get_write_kwargs()
         gdf = self.downloaded_df_to_gdf(df, fields=fields)
-        buffer = io.StringIO(buffer.decode("utf8"))
-        gdf.to_file(buffer, mode='a', driver="ESRI Shapefile", **write_kwargs)
-        return buffer.getvalue().encode("utf8")
+        with io.StringIO(stream.decode("utf8")) as string_buffer:
+            gdf.to_file(string_buffer, mode='a', driver="ESRI Shapefile", **write_kwargs)
+            return string_buffer.getvalue().encode("utf8")
 
     # misc ------------------
     def copy(self, dest=None):

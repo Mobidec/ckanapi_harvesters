@@ -19,7 +19,7 @@ except ImportError:
 
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
-from ckanapi_harvesters.auxiliary.list_records import ListRecords, records_to_df
+from ckanapi_harvesters.auxiliary.list_records import ListRecords
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_errors import CleanerRequirementError
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload import CkanDataCleanerUpload, _pd_series_type_instance_detect
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_init import data_cleaner_dict

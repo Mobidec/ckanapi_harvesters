@@ -5,7 +5,6 @@ Functions to define messages with an error level
 """
 from enum import IntEnum
 from collections import OrderedDict
-from warnings import warn
 
 
 class ErrorLevel(IntEnum):

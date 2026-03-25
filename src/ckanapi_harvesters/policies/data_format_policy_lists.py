@@ -3,13 +3,8 @@
 """
 Data format policy representation and enforcing for lists of values such as tags
 """
-from typing import List, Any, Iterable, Union, Dict, Set
-from abc import ABC, abstractmethod
-from warnings import warn
-import re
-from collections import OrderedDict
+from typing import List, Union, Set
 
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, assert_or_raise
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError, ErrorLevel, _policy_msg
 from ckanapi_harvesters.policies.data_format_policy_defs import ListChoiceMode

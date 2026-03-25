@@ -49,7 +49,7 @@ class CkanApiParamsBasic:
         self.action_requests_retry_always:bool = False  # when an error occurred during an API action request, systematically retry
         self.max_requests_count:int = 0  # when automating multiple requests, the number of requests is limited by this parameter. 0 means no limit.
         # timeouts
-        self.time_between_attempts:float = 10  # when a retry was decided, wait this time before a new tentative (* request number)
+        self.time_between_attempts:float = 11  # when a retry was decided, wait this time before a new tentative (* request number)
         self.response_time_wait_threshold:Union[None,float] = 30  # threshold to determine a long response time => wait the same duration in return
         self.multi_requests_timeout:float = 0  # when automating multiple requests, the total time elapsed is limited by this parameter (evaluated between each request). 0 means no limit.
         self.multi_requests_time_between_requests:float = 0.100  # when automating multiple requests, wait this additional time (in seconds) between each request

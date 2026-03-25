@@ -119,12 +119,13 @@ class BuilderField:
         ])
 
     def _to_ckan_field(self) -> CkanField:
-        field_info = CkanField(name=self.name, data_type=str(self.type_override) if self.type_override is not None else "",
+        field_info = CkanField(name=self.name, data_type=str(self.type_override) if self.type_override is not None else None,
                                notes=self.description, label=self.label)
         field_info.is_index = self.is_index
         field_info.uniquekey = self.uniquekey
         field_info.notnull = self.notnull
         field_info.internal_attrs = self.internal_attrs.copy()
+        field_info.type_override = self.type_override is not None
         return field_info
 
     def _to_ckan_dict(self) -> dict:

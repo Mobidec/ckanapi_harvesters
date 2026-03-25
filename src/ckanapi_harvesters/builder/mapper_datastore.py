@@ -5,7 +5,7 @@ Code to upload metadata to the CKAN server to create/update an existing package
 The metadata is defined by the user in an Excel worksheet
 This file implements functions to convert formats between database and local files.
 """
-from typing import Dict, List, Callable, Any, Tuple, Union, Set
+from typing import Dict, List, Callable, Any, Union, Set
 import copy
 import os
 

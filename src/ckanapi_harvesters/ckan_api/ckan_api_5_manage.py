@@ -16,10 +16,11 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import json_encode_params
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel
 from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckan_has_postgis, default_ckan_target_epsg
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
-from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanResourceInfo, CkanViewInfo, CkanField
-from ckanapi_harvesters.auxiliary.ckan_model import CkanState
+from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanResourceInfo, CkanViewInfo, CkanField,
+                                                     CkanState, UpsertChoice)
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, ckan_package_name_re, datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_files_arg, RequestType
 from ckanapi_harvesters.auxiliary.ckan_action import CkanNotFoundError
@@ -87,6 +88,18 @@ class CkanApiManageParams(CkanApiReadWriteParams):
                                      default_proxies=default_proxies, proxy_headers=proxy_headers)
         if args.admin:
             self.enable_admin = args.admin
+
+    def get_num_rows_datastore_create_partial(self, limit:int=None) -> int:
+        if limit is None:
+            limit = self.default_limit_write
+        if self.num_rows_datastore_create_partial is not None:
+            if limit is not None:
+                num_rows_partial = min(self.num_rows_datastore_create_partial, limit)
+            else:
+                num_rows_partial = self.num_rows_datastore_create_partial
+        else:
+            num_rows_partial = None
+        return num_rows_partial
 
 
 class CkanApiExtendedParams(CkanApiManageParams):
@@ -422,6 +435,7 @@ class CkanApiManage(CkanApiReadWrite):
         params["force"] = force
         response = self._api_action_request(f"datastore_delete", method=RequestType.Post, json=params)
         if response.success:
+            self.map._record_datastore_delete(resource_id)
             return response.result
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
             resource_info = self.resource_show(resource_id)  # will trigger another error if resource does not exist
@@ -471,7 +485,6 @@ class CkanApiManage(CkanApiReadWrite):
         if force is None: force = self.params.default_force
         try:
             result = self._api_datastore_delete(resource_id, params=params, force=force)
-            self.map._record_datastore_delete(resource_id)
             return result
         except CkanNotFoundError as e:
             if not error_not_found and e.object_type == "DataStore":
@@ -653,6 +666,7 @@ class CkanApiManage(CkanApiReadWrite):
         """
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         if params is None: params = {}
+        assert_or_raise(len(name) >= 2, NameFormatError("Resource name should be at least 2 characters long"))
         params["package_id"] = package_id
         params["name"] = name
         if format is not None:
@@ -715,7 +729,8 @@ class CkanApiManage(CkanApiReadWrite):
                         cancel_if_exists:bool=True, update_if_exists:bool=False, reupload:bool=False, create_default_view:bool=True, auto_submit:bool=False,
                         datastore_create:bool=False, records:Union[dict, List[dict], pd.DataFrame]=None, fields:List[dict]=None,
                             primary_key: Union[str, List[str]] = None, indexes: Union[str, List[str]] = None,
-                            aliases: Union[str, List[str]] = None, data_cleaner:CkanDataCleanerABC=None) -> CkanResourceInfo:
+                            aliases: Union[str, List[str]] = None, data_cleaner:CkanDataCleanerABC=None,
+                            progress_callback:CkanProgressCallbackABC=None) -> CkanResourceInfo:
         """
         Proxy to API call resource_create verifying if a resource with the same name already exists and adding the default view.
 
@@ -785,7 +800,8 @@ class CkanApiManage(CkanApiReadWrite):
                             self.datastore_submit(resource_info.id)
                     if datastore_create or delete_previous_datastore:
                         info = self.datastore_create(resource_info.id, records=records, fields=fields, primary_key=primary_key,
-                                                     indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner)
+                                                     indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner,
+                                                     progress_callback=progress_callback)
                     return resource_info
                 else:
                     return resource_info
@@ -850,6 +866,8 @@ class CkanApiManage(CkanApiReadWrite):
         if fields is not None:
             # list of dicts
             fields_list_dict = [field_info.to_ckan_dict() if isinstance(field_info, CkanField) else field_info for field_info in fields]
+            for field_dict in fields_list_dict:
+                CkanApiManage.verify_field_name_format(field_dict["id"])
             params["fields"] = fields_list_dict
         data_payload, json_headers = json_encode_params(params)
         response = self._api_action_request(f"datastore_create", method=RequestType.Post,
@@ -865,7 +883,8 @@ class CkanApiManage(CkanApiReadWrite):
                          fields:List[Union[dict,CkanField]]=None,
                          primary_key:Union[str, List[str]]=None, indexes:Union[str, List[str]]=None,
                          aliases: Union[str, List[str]]=None,
-                         params:dict=None,force:bool=None, data_cleaner:CkanDataCleanerABC=None) -> dict:
+                         params:dict=None,force:bool=None, data_cleaner:CkanDataCleanerABC=None,
+                         progress_callback:CkanProgressCallbackABC=None) -> dict:
         """
         Encapsulation of the datastore_create API call.
         This function can optionally clear the DataStore before creating it.
@@ -910,9 +929,28 @@ class CkanApiManage(CkanApiReadWrite):
             else:
                 aliases.append(default_alias_name)
             aliases = list(set(aliases))  # keep unique values
-        return self._api_datastore_create(resource_id, records=records, fields=fields,
+        limit = None
+        num_rows_partial = self.params.get_num_rows_datastore_create_partial(limit)
+        if num_rows_partial is not None and records is not None and len(records) > num_rows_partial:
+            df_upload_partial = records.iloc[:num_rows_partial]
+            df_upload_upsert = records.iloc[num_rows_partial:]
+        else:
+            df_upload_partial, df_upload_upsert = records, None
+        if df_upload_partial is not None and progress_callback is not None:
+            progress_callback.start_task(len(df_upload_partial), level=CkanCallbackLevel.Requests, context="datastore_create")
+        info = self._api_datastore_create(resource_id, records=df_upload_partial, fields=fields,
                                           primary_key=primary_key, indexes=indexes, aliases=aliases,
                                           params=params, force=force)
+        if df_upload_partial is not None and progress_callback is not None:
+            progress_callback.end_task(len(df_upload_partial), level=CkanCallbackLevel.Requests, context="datastore_create")
+        if df_upload_upsert is not None:
+            self.datastore_upsert(df_upload_upsert, resource_id, method=UpsertChoice.Insert,
+                                  always_last_condition=None, data_cleaner=self.data_cleaner_upload,
+                                  progress_callback=progress_callback)
+            # # case where a reupload was needed but is not permitted by self.reupload_if_needed
+            # msg = f"Did not upload the remaining part of the resource {self.name}."
+            # raise IncompletePatchError(msg)
+        return info
 
 
     ## Package creation/deletion/edit ------------------
@@ -930,7 +968,36 @@ class CkanApiManage(CkanApiReadWrite):
             else:
                 error_messages.append(NameFormatError(f"Package name badly formatted. Only the following characters are allowed: a-z, 0-9, -, _: '{package_name}'"))
         if not(2 <= len(package_name) <= 100):
-            error_messages.append(NameFormatError(f"Package name must be between 2 and 100 characters: 'package_name'"))
+            error_messages.append(NameFormatError(f"Package name must be between 2 and 100 characters: '{package_name}'"))
+        if raise_error and len(error_messages) > 0:
+            if len(error_messages) > 1:
+                raise MultipleErrors(error_messages)
+            else:
+                raise error_messages[0]
+        else:
+            return len(error_messages) == 0
+
+    @staticmethod
+    def verify_field_name_format(field_name:str, *, raise_error: bool = True, display_warnings:bool = True) -> bool:
+        """
+        Verifies that the field name format is correct.
+        """
+        assert_or_raise(len(field_name) > 0, NameFormatError("Empty field name"))
+        error_messages = []
+        warning_messages = []
+        if "." in field_name:
+            warning_messages.append(NameFormatError(f"Field name should not contain the dot character (.) because it is used for hierarchical object references: '{field_name}'"))
+        # if not re.match(ckan_field_name_re, field_name):
+        #     error_messages.append(NameFormatError(f"Field name badly formatted. Only the following characters are allowed: a-z, A-Z, 0-9, spaces, -, _: '{field_name}'"))
+        # if " " in field_name:
+        #     warning_messages.append(NameFormatError(f"It is not recommended to use spaces in field names: '{field_name}'"))
+        # if not field_name.lower() == field_name:
+        #     warning_messages.append(NameFormatError(f"Using lower case field names is recommended to make them case-insensitive: '{field_name}'"))
+        if not(1 <= len(field_name) <= 63):
+            error_messages.append(NameFormatError(f"Field name must be between 1 and 63 characters: '{field_name}'"))
+        if display_warnings and len(warning_messages) > 0:
+            for msg in warning_messages:
+                warn(str(msg))
         if raise_error and len(error_messages) > 0:
             if len(error_messages) > 1:
                 raise MultipleErrors(error_messages)

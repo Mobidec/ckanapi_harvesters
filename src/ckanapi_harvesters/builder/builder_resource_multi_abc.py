@@ -8,30 +8,16 @@ This file implements the basic resources. See builder_datastore for specific fun
 from concurrent.futures import ThreadPoolExecutor
 import threading
 from threading import current_thread, Semaphore
-from typing import Any, Generator, Union, Callable, Set, List, Dict, Tuple
+from typing import Any, Generator, List, Dict
 from abc import ABC, abstractmethod
-import io
-import os
-import glob
-import fnmatch
 from warnings import warn
-import copy
 
-import pandas as pd
-import requests
 
-from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
-from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
+from ckanapi_harvesters.auxiliary.ckan_errors import UnexpectedError
 from ckanapi_harvesters.ckan_api import CkanApi
-from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanResourceInfo
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import FileChunkDataFrame
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel
 from ckanapi_harvesters.builder.builder_aux import positive_end_index
-from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame, ListRecords
-from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
-from ckanapi_harvesters.builder.builder_field import BuilderField
-from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC
 
 multi_file_exclude_other_files:bool = True
 
@@ -47,6 +33,7 @@ class BuilderMultiABC(ABC):
         # from Resource (for code validation)
         self.name:str = ""
         self.enable_download:bool = True
+        self.read_line_counter:int = 0
 
     def copy(self, *, dest=None):
         dest.progress_callback = self.progress_callback.copy()
@@ -136,7 +123,7 @@ class BuilderMultiABC(ABC):
         raise NotImplementedError()
 
     def upload_request_final(self, ckan:CkanApi, *, force:bool=False) -> None:
-        return self.upsert_request_final(ckan=ckan, force=force)
+        raise UnexpectedError("Should not reach this function")
 
     def _unit_upload_apply(self, *, ckan:CkanApi, file_chunk: FileChunkDataFrame,
                            upload_alter:bool=True, overall_chunk_index:int, file_count: int, start_index:int, end_index:int, **kwargs) -> Any:
@@ -174,6 +161,7 @@ class BuilderMultiABC(ABC):
                 print(f"Launching single-threaded upload of multi-file resource {self.name}")
             total = self.get_local_file_count()
             end_index = positive_end_index(end_index, total)
+            self.read_line_counter = 0
             self.progress_callback.start_task(self.get_local_file_total_size(), file_count=total,
                                               context=f"{ckan.identifier} single-thread upload", level=CkanCallbackLevel.ResourceChunks)
             for overall_chunk_index, file_chunk in enumerate(self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, ckan=ckan, allow_chunks=allow_chunks, **kwargs)):
@@ -182,7 +170,7 @@ class BuilderMultiABC(ABC):
                     return
                 self._unit_upload_apply(ckan=ckan, file_chunk=file_chunk, overall_chunk_index=overall_chunk_index,
                                         start_index=start_index, end_index=end_index, file_count=total, **kwargs)
-            self.progress_callback.end_task(self.get_local_file_total_size(), file_count=total,
+            self.progress_callback.end_task(self.get_local_file_total_size(), file_count=total, total_lines_read=self.read_line_counter,
                                          context=f"{ckan.identifier} single-thread upload", level=CkanCallbackLevel.ResourceChunks)
             # at last, apply final actions:
             self.upload_request_final(ckan)
@@ -320,14 +308,15 @@ class BuilderMultiABC(ABC):
                 print(f"Launching single-threaded download of multi-file resource {self.name}")
             total = self.get_file_query_count()
             end_index = positive_end_index(end_index, total)
-            self.progress_callback.start_task(total, context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.ResourceChunks)
+            self.read_line_counter = 0
+            self.progress_callback.start_task(total, file_count=total, context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.ResourceChunks)
             for index, file_query_item in enumerate(self.get_file_query_generator()):
                 if external_stop_event is not None and external_stop_event.is_set():
                     print(f"{ckan.identifier} Interrupted")
                     return
                 self._unit_download_apply(ckan=ckan, file_query_item=file_query_item, out_dir=out_dir,
                                           index=index, start_index=start_index, end_index=end_index, total=total, **kwargs)
-            self.progress_callback.end_task(total, context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.ResourceChunks)
+            self.progress_callback.end_task(total, file_count=total, context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.ResourceChunks)
 
     def download_file_query_item_graceful(self, ckan: CkanApi, out_dir: str, file_query_item: Any, index:int,
                                           external_stop_event=None, start_index:int=0, end_index:int=None, **kwargs) -> None:
@@ -361,8 +350,9 @@ class BuilderMultiABC(ABC):
         """
         self.init_download_file_query_list(ckan=ckan, out_dir=out_dir, cancel_if_present=True, **kwargs)
         self._prepare_for_multithreading(ckan)
+        self.read_line_counter = 0
         total = self.get_file_query_count()
-        self.progress_callback.start_task(total, context=f"multi-thread download", level=CkanCallbackLevel.ResourceChunks)
+        self.progress_callback.start_task(total, file_count=total, context=f"multi-thread download", level=CkanCallbackLevel.ResourceChunks)
         try:
             with ThreadPoolExecutor(max_workers=threads, initializer=self._init_thread, initargs=(ckan,)) as executor:
                 if ckan.params.verbose_extra:
@@ -372,7 +362,7 @@ class BuilderMultiABC(ABC):
                            for index, file_chunk in enumerate(self.get_file_query_generator())]
                 for future in futures:
                     future.result()  # This will propagate the exception
-            self.progress_callback.end_task(total, context=f"multi-thread download", level=CkanCallbackLevel.ResourceChunks)
+            self.progress_callback.end_task(total, file_count=total, context=f"multi-thread download", level=CkanCallbackLevel.ResourceChunks)
         except Exception as e:
             self.stop_event.set()  # Ensure all threads stop
             if ckan.params.verbose_extra:

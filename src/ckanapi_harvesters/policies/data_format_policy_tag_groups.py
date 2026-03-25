@@ -5,12 +5,7 @@ Data format policy representation and enforcing for lists of tags grouped in voc
 """
 from typing import List, Dict
 
-from ckanapi_harvesters.auxiliary.error_level_message import ErrorLevel
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
-from ckanapi_harvesters.auxiliary.ckan_errors import MandatoryAttributeError
-from ckanapi_harvesters.policies.data_format_policy_lists import ValueListPolicy, GroupedValueListPolicy, ExtraValueListPolicy
-from ckanapi_harvesters.policies.data_format_policy_defs import ListChoiceMode
-from ckanapi_harvesters.policies.data_format_policy_defs import StringValueSpecification
+from ckanapi_harvesters.policies.data_format_policy_lists import ValueListPolicy, GroupedValueListPolicy
 
 tag_subs_re = r"[^a-zA-Z0-9_\-\.]"
 

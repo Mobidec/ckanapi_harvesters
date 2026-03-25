@@ -7,18 +7,9 @@ from typing import Union, List, Any, Dict, Tuple
 from types import SimpleNamespace
 from collections import OrderedDict
 import json
-import argparse
 
 
-try:
-    import pymongo
-    import pymongo.client_session
-    import pymongo.database
-except ImportError:
-    pymongo = SimpleNamespace(MongoClient=None, client_session=SimpleNamespace(ClientSession=None),
-                              database=SimpleNamespace(Database=None), collection=SimpleNamespace(Collection=None))
-
-
+from ckanapi_harvesters.auxiliary.lazy_imports import pymongo, lazy_import_pymongo
 from ckanapi_harvesters.harvesters.harvester_errors import (HarvesterRequirementError, HarvesterArgumentRequiredError, ResourceNotFoundError)
 from ckanapi_harvesters.harvesters.harvester_abc import TableHarvesterABC, DatasetHarvesterABC, DatabaseHarvesterABC
 from ckanapi_harvesters.harvesters.harvester_model import TableMetadata, DatasetMetadata
@@ -44,6 +35,8 @@ class DatabaseHarvesterMongoServer(DatabaseHarvesterABC):
     """
     def __init__(self, params:DatabaseParams=None):
         super().__init__(params)
+        global pymongo
+        pymongo = lazy_import_pymongo()
         if pymongo.MongoClient is None:
             raise HarvesterRequirementError("pymongo", "mongodb")
         self.params.harvest_method = "MongoDB"

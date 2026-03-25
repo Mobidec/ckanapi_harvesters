@@ -5,28 +5,22 @@ Code to upload metadata to the CKAN server to create/update an existing package
 The metadata is defined by the user in an Excel worksheet
 This file implements functions to initiate a DataStore without uploading any data.
 """
-import time
-from abc import ABC, abstractmethod
-from typing import Dict, List, Callable, Any, Tuple, Union, Set, Generator
-import os
+from typing import List, Union, Generator
 import io
-from warnings import warn
 
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.builder.builder_resource import builder_request_default_auth_if_ckan, initial_resource_building_state
 from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
 from ckanapi_harvesters.auxiliary.ckan_errors import NotMappedObjectNameError, DataStoreNotFoundError
-from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
-from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, ResourceFileNotExistMessage
-from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo
-from ckanapi_harvesters.auxiliary.ckan_errors import CkanArgumentError, FunctionMissingArgumentError, ExternalUrlLockedError
+from ckanapi_harvesters.auxiliary.list_records import ListRecords
+from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
+from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
+from ckanapi_harvesters.auxiliary.ckan_errors import CkanArgumentError, FunctionMissingArgumentError
 from ckanapi_harvesters.ckan_api import CkanApi
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, assert_or_raise, find_duplicates, datastore_id_col
-from ckanapi_harvesters.ckan_api.ckan_api_2_readonly import df_download_read_csv_kwargs
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, assert_or_raise, datastore_id_col
 
 
 class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple inheritance can give undefined results
@@ -83,44 +77,44 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
 
     def get_local_df_chunk_generator(self, resources_base_dir:str, ckan:CkanApi, **kwargs) -> Generator[FileChunkDataFrame, None, None]:
         payload = self.load_sample_data(resources_base_dir=resources_base_dir)
-        buffer = io.StringIO(payload.decode())
-        self.read_line_counter = 0
-        with self.local_file_format.read_buffer_full(buffer, fields=self._get_fields_info()) as df_file:
-            if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
-                self.file_semaphore.acquire()
-                self.read_line_counter += len(df_file)
-                line_counter = self.read_line_counter
-                self.file_semaphore.release()
-                yield FileChunkDataFrame(df_file, self.url, 0, 0, 0, line_counter)
-            else:  # iterator
-                with df_file as df_generator:
-                    if hasattr(df_file, "handles"):
-                        file_handle = df_file.handles.handle
-                    else:
-                        file_handle = None
-                    previous_file_position = 0
-                    # for chunk_index, df in enumerate(df_generator):
-                    chunk_index = 0
-                    file_position = 0
-                    while True:
-                        self.file_semaphore.acquire()
-                        if file_handle is not None:
-                            file_position = file_handle.buffer.tell()  # approximative position in file
+        with io.StringIO(payload.decode()) as stream:
+            self.read_line_counter = 0
+            with self.local_file_format.read_buffer_full(stream, fields=self._get_fields_info()) as df_file:
+                if isinstance(df_file, pd.DataFrame) or isinstance(df_file, ListRecords):
+                    self.file_semaphore.acquire()
+                    self.read_line_counter += len(df_file)
+                    line_counter = self.read_line_counter
+                    self.file_semaphore.release()
+                    yield FileChunkDataFrame(df_file, self.url, 0, 0, 0, line_counter)
+                else:  # iterator
+                    with df_file as df_generator:
+                        if hasattr(df_file, "handles"):
+                            file_handle = df_file.handles.handle
                         else:
-                            file_position = 0  # no position tracking available
-                        try:
-                            df = next(df_generator)
-                            if file_handle is None and hasattr(df, "attrs") and "file_position" in df.attrs:
-                                file_position = df.attrs["file_position"]
-                            self.read_line_counter += len(df)
-                            line_counter = self.read_line_counter
-                        except StopIteration:
+                            file_handle = None
+                        previous_file_position = 0
+                        # for chunk_index, df in enumerate(df_generator):
+                        chunk_index = 0
+                        file_position = 0
+                        while True:
+                            self.file_semaphore.acquire()
+                            if file_handle is not None:
+                                file_position = file_handle.buffer.tell()  # approximative position in file
+                            else:
+                                file_position = 0  # no position tracking available
+                            try:
+                                df = next(df_generator)
+                                if file_handle is None and hasattr(df, "attrs") and "file_position" in df.attrs:
+                                    file_position = df.attrs["file_position"]
+                                self.read_line_counter += len(df)
+                                line_counter = self.read_line_counter
+                            except StopIteration:
+                                self.file_semaphore.release()
+                                break
                             self.file_semaphore.release()
-                            break
-                        self.file_semaphore.release()
-                        yield FileChunkDataFrame(df, self.url, 0, chunk_index, previous_file_position, line_counter)
-                        previous_file_position = file_position
-                        chunk_index = chunk_index + 1
+                            yield FileChunkDataFrame(df, self.url, 0, chunk_index, previous_file_position, line_counter)
+                            previous_file_position = file_position
+                            chunk_index = chunk_index + 1
 
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
                             threads:int=1, external_stop_event=None,
@@ -188,7 +182,8 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
                                              state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                              url=self.url,
                                              datastore_create=False, auto_submit=False, create_default_view=self.create_default_view,
-                                             cancel_if_exists=True, update_if_exists=True, aliases=aliases, reupload=False, data_cleaner=self.data_cleaner_upload)
+                                             cancel_if_exists=True, update_if_exists=True, aliases=aliases, reupload=False, data_cleaner=self.data_cleaner_upload,
+                                             progress_callback=self.progress_callback)
         resource_id = resource_info.id
         self.known_id = resource_id
         self._compare_fields_to_datastore_info(resource_info, current_df_fields, ckan)

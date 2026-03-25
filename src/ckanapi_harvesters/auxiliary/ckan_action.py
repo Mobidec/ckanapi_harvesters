@@ -22,6 +22,7 @@ class CkanActionResponse:
         self.result:Union[dict,None] = None
         self.error_message: Union[None,str,dict] = None
         self.len:Union[int,None] = None
+        self.total_len:Union[int,None] = None
         self.dry_run:bool = dry_run
 
         if response.content is None and response.request is None:

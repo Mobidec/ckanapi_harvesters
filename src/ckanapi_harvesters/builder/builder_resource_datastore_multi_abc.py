@@ -3,24 +3,19 @@
 """
 Code to initiate a DataStore defined by a large number of files to concatenate into one table
 """
-from concurrent.futures import ThreadPoolExecutor
 import threading
-from threading import current_thread, Semaphore
-from abc import ABC, abstractmethod
-from typing import Dict, List, Callable, Any, Tuple, Generator, Union, Set, Collection
+from threading import Semaphore
+from abc import ABC
+from typing import Dict, List, Any, Tuple, Generator, Union, Set, Collection
 from warnings import warn
-import copy
 from collections import OrderedDict
 
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanCallbackLevel
 from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC
-from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
-from ckanapi_harvesters.builder.builder_aux import positive_end_index
-from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanResourceInfo, CkanField
+from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
 from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name, datastore_default_source_file_col_name
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestFileMapperABC, default_file_mapper_from_primary_key
 from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
@@ -45,7 +40,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
                          download_url=download_url, options_string=options_string, base_dir=base_dir)
         # Functions inputs/outputs
         self.df_mapper: RequestFileMapperABC
-        self.setup_default_file_mapper(self.primary_key)
+        self.setup_default_file_mapper()
         self.reupload_if_needed = False  # do not reupload if needed because this could cause data loss (the upload function only uploads the first table)
         self.upsert_method: UpsertChoice = UpsertChoice.Upsert
         # BuilderMultiABC:
@@ -68,7 +63,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None) -> None:
         super()._load_from_df_row(row=row, base_dir=base_dir)
-        self.setup_default_file_mapper(self.primary_key)
+        self.setup_default_file_mapper()
 
     def _update_metadata(self, ckan: CkanApi, *, base_dir:str=None) -> None:
         """
@@ -95,7 +90,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
             if known_field is None or known_field.notes is None:
                 field_builder.description = "Index of the line in the upload process"
 
-    def setup_default_file_mapper(self, primary_key:List[str]=None, file_query_list:Collection[Tuple[str, dict]]=None) -> None:
+    def setup_default_file_mapper(self, *, primary_key:List[str]=None, file_query_list:Collection[Tuple[str, dict]]=None) -> None:
         """
         This function enables the user to define the primary key and initializes the default file mapper.
 
@@ -103,7 +98,10 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         :return:
         """
         df_mapper_mem = self.df_mapper
-        if primary_key is not None:
+        if primary_key is None:
+            if self.primary_key_user is not None:
+                self.primary_key = self.primary_key_user
+        else:
             self.primary_key = primary_key
         if (self.primary_key is None or len(self.primary_key) == 0) and self.column_enable_upload_index:
             self.primary_key = [datastore_default_upload_index_col_name]
@@ -318,7 +316,8 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=self.download_error_not_found)
         if resource_id is None and not self.download_error_not_found:
             return None
-        download_generator = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query)
+        download_generator = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query,
+                                                                progress_callback=self.progress_callback)
         for df_download in download_generator:
             df = self.df_mapper.df_download_alter(df_download, file_query=file_query, fields=self._get_fields_info())
             yield df
@@ -328,6 +327,8 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
                             **kwargs) -> Any:
         if start_index <= index and index < end_index:
             self.progress_callback.task_progress(index, total, info=file_query_item, level=self.process_level,
+                                                 file_index=index, file_count=total,
+                                                 total_lines_read=self.read_line_counter,
                                                  context=f"{ckan.identifier} single-thread download")
             self.download_file_query_item(ckan=ckan, out_dir=out_dir, file_query_item=file_query_item)
         else:

@@ -13,43 +13,43 @@ from ckanapi_harvesters.auxiliary.ckan_model import CkanField, CkanResourceInfo
 from ckanapi_harvesters.harvesters.file_formats.user_format import UserFileFormat
 
 
-def read_function_example_df(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
+def read_function_example_df(file_path_or_stream:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
                              allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) \
         -> Union[pd.DataFrame, List[dict]]:
     """
-    Read a file/IO buffer and return a unique DataFrame.
+    Read a file/IO stream and return a unique DataFrame.
     This case is the simplest implementation.
     """
-    return pd.read_csv(file_path_or_buffer)
+    return pd.read_csv(file_path_or_stream)
 
-def read_function_example_df_with_metadata(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
+def read_function_example_df_with_metadata(file_path_or_stream:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
                                            allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) \
         -> Tuple[Union[pd.DataFrame, List[dict]], CkanResourceInfo]:
     """
-    Read a file/IO buffer and return a unique DataFrame.
+    Read a file/IO stream and return a unique DataFrame.
     This case returns as well metadata which can be read from the file.
     """
-    return pd.read_csv(file_path_or_buffer), CkanResourceInfo()
+    return pd.read_csv(file_path_or_stream), CkanResourceInfo()
 
 # use of a context manager when returning a custom DataFrame iterator in order to properly close the file if the process is interrupted (use of a with statement)
 @contextmanager
-def read_function_example_by_chunks(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
+def read_function_example_by_chunks(file_path_or_stream:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
                                     allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) \
         -> Generator:
     """
-    Read a file/IO buffer and return a DataFrame generator.
+    Read a file/IO stream and return a DataFrame generator.
     This function implements a context manager that ensures the file is closed properly when it is released.
     The DataFrame generator must be defined in a sub-function, such as in this example.
 
     Implementation prototype
     --------
-    file_handle = open(file_path_or_buffer, 'r')
+    file_handle = open(file_path_or_stream, 'r')
     try:
         yield read_function_example_by_chunks_generator(file_handle)
     finally:
         file_handle.close()
     """
-    file_handle = open(file_path_or_buffer, 'r')
+    file_handle = open(file_path_or_stream, 'r')
     try:
         yield read_function_example_by_chunks_generator(file_handle)
     finally:

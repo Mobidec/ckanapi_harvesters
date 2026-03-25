@@ -3,7 +3,7 @@
 """
 
 """
-from typing import List, Dict, Tuple, Generator, Any, Union
+from typing import List, Dict, Union
 import argparse
 
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig

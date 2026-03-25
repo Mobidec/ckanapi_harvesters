@@ -143,16 +143,16 @@ from ckanapi_harvesters.harvesters.file_formats.user_format import UserFileForma
 
 ...
 
-def read_function_example_df(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
+def read_function_example_df(file_path_or_stream:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
                              allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) \
         -> Union[pd.DataFrame, List[dict]]:
-    return pd.DataFrame()
+    return pd.read_csv(file_path_or_stream)
 
-def write_function_example(df: Union[pd.DataFrame, List[dict]], file_path_or_buffer:Union[str, io.IOBase],
+def write_function_example(df: Union[pd.DataFrame, List[dict]], file_path_or_stream:Union[str, io.IOBase],
                            *, fields: Union[Dict[str, CkanField],None], append:bool=False,
                            params:UserFileFormat = None, **kwargs) -> None:
     mode = 'a' if append else 'w'
-    df.to_csv(file_path_or_buffer, mode=mode, index=False)
+    df.to_csv(file_path_or_stream, mode=mode, index=False)
 ```
 
 
@@ -166,10 +166,10 @@ from contextlib import contextmanager
 ...
 
 @contextmanager
-def read_function_example_by_chunks(file_path_or_buffer:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
+def read_function_example_by_chunks(file_path_or_stream:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
                                     allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) \
         -> Generator:
-    file_handle = open(file_path_or_buffer, 'r')
+    file_handle = open(file_path_or_stream, 'r')
     try:
         yield read_function_example_by_chunks_generator(file_handle)
     finally:

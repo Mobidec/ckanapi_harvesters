@@ -57,10 +57,10 @@ class JsonFileFormat(FileFormatABC):
         df.to_json(file_path, index=False, **write_kwargs)
 
     def write_in_memory(self, df: pd.DataFrame, fields: Union[Dict[str, CkanField],None]) -> bytes:
-        buffer = io.BytesIO()
-        write_kwargs = self._get_write_kwargs()
-        df.to_json(buffer, index=False, **write_kwargs)
-        return buffer.getvalue()
+        with io.BytesIO() as buffer:
+            write_kwargs = self._get_write_kwargs()
+            df.to_json(buffer, index=False, **write_kwargs)
+            return buffer.getvalue()
 
     def append_allowed(self) -> bool:
         return ("lines" in self.write_kwargs and self.write_kwargs["lines"]
@@ -71,11 +71,11 @@ class JsonFileFormat(FileFormatABC):
         write_kwargs = self._get_write_kwargs()
         df.to_json(file_path, index=False, mode='a', **write_kwargs)
 
-    def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
-        buffer = io.StringIO()
-        write_kwargs = self._get_write_kwargs()
-        df.to_json(buffer, index=False, **write_kwargs)
-        return buffer.getvalue().encode("utf8")
+    def append_in_memory(self, stream: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
+        with io.StringIO(stream.decode("utf8")) as string_stream:
+            write_kwargs = self._get_write_kwargs()
+            df.to_json(string_stream, index=False, **write_kwargs)
+            return string_stream.getvalue().encode("utf8")
 
     # misc ------------------
     def copy(self, dest=None):

@@ -6,7 +6,6 @@ Code to initiate a package builder from a Dataset harvester
 from typing import List
 
 from ckanapi_harvesters.builder.builder_package_1_basic import BuilderPackageBasic
-from ckanapi_harvesters.auxiliary.ckan_model import CkanState
 from ckanapi_harvesters.builder.builder_resource_datastore_multi_harvester import BuilderDataStoreHarvester
 from ckanapi_harvesters.harvesters.harvester_abc import DatasetHarvesterABC
 

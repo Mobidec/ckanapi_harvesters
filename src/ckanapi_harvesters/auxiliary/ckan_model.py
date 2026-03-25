@@ -4,15 +4,12 @@
 Data model to represent a CKAN database architecture
 """
 import datetime
-import re
 from abc import ABC, abstractmethod
 from enum import IntEnum, IntFlag
-from typing import List, Dict, Union, Tuple
+from typing import List, Dict, Union
 from warnings import warn
 import copy
 from collections import OrderedDict
-
-import numpy as np
 
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, _bool_from_string, bytes_to_megabytes
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanFieldInternalAttrs
@@ -259,7 +256,7 @@ class CkanField(CkanConfigurableObjectABC):
         if native_type is None:
             native_type = data_type
         self.name:str = name
-        self.data_type:Union[CkanFieldType,None] = CkanFieldType.from_str(data_type)
+        self.data_type:Union[CkanFieldType,None] = CkanFieldType.from_str(data_type) if data_type is not None else None
         self.type_override:Union[bool,None] = type_override
         self.label:Union[str,None] = label
         self.notes:Union[str,None] = notes
@@ -527,8 +524,8 @@ class CkanDataStoreInfo:
                 self.aliases = d["meta"]["aliases"]
             if "count" in d["meta"].keys():
                 self.row_count:int = d["meta"]["count"]
-            self.table_size_mb = bytes_to_megabytes(d["meta"]["size"])
-            self.index_size_mb = bytes_to_megabytes(d["meta"]["idx_size"])
+            self.table_size_mb = bytes_to_megabytes(d["meta"].get("size", None))
+            self.index_size_mb = bytes_to_megabytes(d["meta"].get("idx_size", None))
             # what does the field meta.db_size represent?
             if "fields" in d.keys():
                 self.fields_id_list:List[str] = [e["id"] for e in d["fields"]]

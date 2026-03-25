@@ -4,7 +4,7 @@
 Setting the proxy from simple command line arguments
 """
 import urllib.request
-from typing import Union, Sequence, Tuple
+from typing import Union, Tuple
 import os
 import argparse
 from warnings import warn
@@ -16,7 +16,7 @@ from ckanapi_harvesters.auxiliary.path import sanitize_path, path_rel_to_dir
 from ckanapi_harvesters.auxiliary.login import Login
 
 import requests
-from requests.auth import AuthBase, HTTPProxyAuth, HTTPBasicAuth
+from requests.auth import AuthBase, HTTPBasicAuth  #, HTTPProxyAuth
 
 PROXY_AUTH_ENVIRON = "PROXY_AUTH_FILE"
 

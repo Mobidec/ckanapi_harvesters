@@ -11,14 +11,9 @@ import urllib.parse
 
 import pandas as pd
 
-try:
-    import sqlalchemy
-    import psycopg2
-except ImportError:
-    sqlalchemy = SimpleNamespace(Engine=None, Connection=None)
-    psycopg2 = None
 
-
+from ckanapi_harvesters.auxiliary.lazy_imports import sqlalchemy, lazy_import_sqlalchemy
+from ckanapi_harvesters.auxiliary.lazy_imports import psycopg2, lazy_import_psycopg2
 from ckanapi_harvesters.harvesters.harvester_errors import (HarvesterRequirementError, HarvesterArgumentRequiredError)
 from ckanapi_harvesters.harvesters.harvester_abc import TableHarvesterABC, DatasetHarvesterABC, DatabaseHarvesterABC
 from ckanapi_harvesters.harvesters.harvester_model import FieldMetadata, TableMetadata, DatasetMetadata
@@ -31,7 +26,6 @@ from ckanapi_harvesters.auxiliary.ckan_errors import UrlError
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_2_geom import CkanDataCleanerUploadGeom
-from ckanapi_harvesters.auxiliary.list_records import ListRecords
 
 postgre_type_mapper = {}
 
@@ -43,6 +37,9 @@ class DatabaseHarvesterPostgre(DatabaseHarvesterABC):
     """
     def __init__(self, params:DatabaseParams=None):
         super().__init__(params)
+        global sqlalchemy, psycopg2
+        sqlalchemy = lazy_import_sqlalchemy()
+        psycopg2 = lazy_import_psycopg2()
         if sqlalchemy.Engine is None:
             raise HarvesterRequirementError("sqlalchemy", "postgre")
         if psycopg2 is None:
@@ -351,7 +348,8 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
             """
             # DataFrame with columns: ["column_name", "order", "is_not_null", "apparent_data_type", "full_data_type", "description", "is_indexed", "is_unique"]
             fields_df = pd.read_sql(query, self.alchemy_engine)
-            fields_df.set_index("column_name", inplace=True, drop=False, verify_integrity=True)
+            fields_df.set_index("column_name", inplace=True, drop=False)
+            assert(fields_df.index.is_unique)  # verify integrity
             # querying details on column types
             fields_df["definitive_data_type"] = fields_df["full_data_type"]
             fields_df["geo_type"] = ""

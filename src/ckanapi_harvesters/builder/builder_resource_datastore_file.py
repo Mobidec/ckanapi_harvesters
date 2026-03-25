@@ -5,37 +5,21 @@ Code to upload metadata to the CKAN server to create/update an existing package
 The metadata is defined by the user in an Excel worksheet
 This file implements functions to initiate a DataStore.
 """
-from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple, Union, Set, Any, Generator, Collection
+from typing import List, Tuple, Union, Collection
 import os
-import io
 from warnings import warn
-from collections import OrderedDict
-import copy
 
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
-from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
-from ckanapi_harvesters.builder.builder_field import BuilderField
-from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
-from ckanapi_harvesters.harvesters.file_formats.file_format_init import init_file_format_datastore
-from ckanapi_harvesters.builder.mapper_datastore import DataSchemeConversion
-from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC
-from ckanapi_harvesters.auxiliary.ckan_errors import DuplicateNameError
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path
-from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, ResourceFileNotExistMessage, IncompletePatchError
-from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo
+from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
 from ckanapi_harvesters.ckan_api import CkanApi
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, find_duplicates, datastore_id_col
-from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
-from ckanapi_harvesters.auxiliary.ckan_model import CkanField
-from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.builder.mapper_datastore_multi import RequestMapperABC
-from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC
 from ckanapi_harvesters.builder.builder_resource_datastore_multi_folder import BuilderDataStoreFolder
-from ckanapi_harvesters.builder.builder_resource_multi_abc import BuilderMultiABC, FileChunkDataFrame
+from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
 
 
 class BuilderDataStoreFile(BuilderDataStoreFolder):
@@ -124,9 +108,10 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
         if resource_id is None and not self.download_error_not_found:
             return None
         if self.local_file_format.append_allowed() and not return_data:
-            download_generator = ckan.datastore_dump_generator(resource_id, search_all=full_download)
+            download_generator = ckan.datastore_dump_page_generator(resource_id, search_all=full_download, progress_callback=self.progress_callback)
             first_df = None
             for df_download in download_generator:
+                self.read_line_counter += len(df_download)
                 df = self.df_mapper.df_download_alter(df_download, fields=self._get_fields_info())
                 if out_dir is not None:
                     if first_df is None:
@@ -135,7 +120,8 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
                     else:
                         self.local_file_format.append_file(df, self.downloaded_destination, fields=self._get_fields_info())
         else:
-            df_download = ckan.datastore_dump_generator(resource_id, search_all=full_download)
+            df_download = ckan.datastore_dump(resource_id, search_all=full_download)
+            self.read_line_counter += len(df_download)
             df = self.df_mapper.df_download_alter(df_download, fields=self._get_fields_info())
             if out_dir is not None:
                 os.makedirs(out_dir, exist_ok=True)

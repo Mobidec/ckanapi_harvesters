@@ -5,17 +5,13 @@ Code to upload metadata to the CKAN server to create/update an existing package
 The metadata is defined by the user in an Excel worksheet
 This file implements the basic resources. See builder_datastore for specific functions to initiate datastores.
 """
-from concurrent.futures import ThreadPoolExecutor
 import threading
-from threading import current_thread, Semaphore
-from typing import Any, Generator, Union, Callable, Set, List, Dict, Tuple
-from abc import ABC, abstractmethod
+from threading import Semaphore
+from typing import Any, Generator, Union, Set, List, Dict, Tuple
 import io
 import os
 import glob
 import fnmatch
-from warnings import warn
-import copy
 
 import pandas as pd
 import requests
@@ -26,7 +22,6 @@ from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCal
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path, glob_rm_glob, glob_name
-from ckanapi_harvesters.builder.builder_aux import positive_end_index
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
 from ckanapi_harvesters.builder.builder_resource_multi_abc import BuilderMultiABC, FileChunkDataFrame
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceABC, initial_resource_building_state
@@ -194,7 +189,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         resource_info = ckan.resource_create(package_id, resource_name, format=self.resource_attributes.format, description=self.resource_attributes.description,
                                     state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                     file_path=file_path, reupload=reupload, cancel_if_exists=True, update_if_exists=True,
-                                    create_default_view=True, auto_submit=False)
+                                    create_default_view=True, auto_submit=False, progress_callback=self.progress_callback)
         self.upload_request_final(ckan)
         self.known_resource_info = None
         self.known_id = None

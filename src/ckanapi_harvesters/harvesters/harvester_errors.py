@@ -5,7 +5,6 @@ Errors specific to harvesting data
 """
 
 from ckanapi_harvesters.auxiliary.ckan_errors import RequirementError
-from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_errors import CleanError, CleanerRequirementError  # alias
 
 
 class HarvestMethodRequiredError(Exception):

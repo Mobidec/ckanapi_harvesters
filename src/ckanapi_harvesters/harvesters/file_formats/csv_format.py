@@ -45,10 +45,10 @@ class CsvFileFormat(FileFormatABC):
         df.to_csv(file_path, index=False, **write_kwargs)
 
     def write_in_memory(self, df: pd.DataFrame, fields: Union[Dict[str, CkanField],None]) -> bytes:
-        buffer = io.StringIO()
-        write_kwargs = self._get_write_kwargs()
-        df.to_csv(buffer, index=False, **write_kwargs)
-        return buffer.getvalue().encode("utf8")
+        with io.StringIO() as stream:
+            write_kwargs = self._get_write_kwargs()
+            df.to_csv(stream, index=False, **write_kwargs)
+            return stream.getvalue().encode("utf8")
 
     def append_allowed(self) -> bool:
         return True
@@ -58,11 +58,11 @@ class CsvFileFormat(FileFormatABC):
         write_kwargs = self._get_write_kwargs()
         df.to_csv(file_path, index=False, mode='a', **write_kwargs)
 
-    def append_in_memory(self, buffer: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
-        buffer = io.StringIO(buffer.decode("utf8"))
-        write_kwargs = self._get_write_kwargs()
-        df.to_csv(buffer, index=False, mode='a', **write_kwargs)
-        return buffer.getvalue().encode("utf8")
+    def append_in_memory(self, stream: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
+        with io.StringIO(stream.decode("utf8")) as string_stream:
+            write_kwargs = self._get_write_kwargs()
+            df.to_csv(string_stream, index=False, mode='a', **write_kwargs)
+            return string_stream.getvalue().encode("utf8")
 
     # misc ------------------
     def copy(self, dest=None):
