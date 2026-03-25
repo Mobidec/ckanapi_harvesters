@@ -3,7 +3,7 @@
 """
 Data model to represent a CKAN database architecture
 """
-from typing import Iterable, Union, Tuple, Any
+from typing import Iterable, Union, Tuple, Any, List
 from enum import IntEnum
 import json
 import numbers
@@ -21,6 +21,7 @@ from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame, ListReco
 
 
 ckan_package_name_re = "^[0-9a-z-_]*$"
+# ckan_field_name_re = "^[a-zA-Z_][0-9a-zA-Z-_\s]*$"
 datastore_id_col = "_id"
 
 
@@ -383,3 +384,11 @@ class FileChunkDataFrame:
         self.file_position: int = file_position
         self.is_first_chunk: bool = chunk_index == 0  # boolean indicating if the chunk is the first chunk of the file or not
         self.read_line_counter: int = read_line_counter  # number of lines read since the beginning of reading of the resource (including the current DataFrame)
+
+## other subjects
+# def find_in_list_case_insensitive(string_search:str, list_strings: List[str]) -> Tuple[str, int]:
+#     list_strings_lower = [element.lower() for element in list_strings]
+#     match_index = list_strings_lower.index(string_search.lower())
+#     field_name_match = list_strings[match_index]
+#     return field_name_match, match_index
+

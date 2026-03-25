@@ -435,6 +435,7 @@ class CkanApiManage(CkanApiReadWrite):
         params["force"] = force
         response = self._api_action_request(f"datastore_delete", method=RequestType.Post, json=params)
         if response.success:
+            self.map._record_datastore_delete(resource_id)
             return response.result
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
             resource_info = self.resource_show(resource_id)  # will trigger another error if resource does not exist
@@ -484,7 +485,6 @@ class CkanApiManage(CkanApiReadWrite):
         if force is None: force = self.params.default_force
         try:
             result = self._api_datastore_delete(resource_id, params=params, force=force)
-            self.map._record_datastore_delete(resource_id)
             return result
         except CkanNotFoundError as e:
             if not error_not_found and e.object_type == "DataStore":
@@ -666,6 +666,7 @@ class CkanApiManage(CkanApiReadWrite):
         """
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         if params is None: params = {}
+        assert_or_raise(len(name) >= 2, NameFormatError("Resource name should be at least 2 characters long"))
         params["package_id"] = package_id
         params["name"] = name
         if format is not None:
@@ -865,6 +866,8 @@ class CkanApiManage(CkanApiReadWrite):
         if fields is not None:
             # list of dicts
             fields_list_dict = [field_info.to_ckan_dict() if isinstance(field_info, CkanField) else field_info for field_info in fields]
+            for field_dict in fields_list_dict:
+                CkanApiManage.verify_field_name_format(field_dict["id"])
             params["fields"] = fields_list_dict
         data_payload, json_headers = json_encode_params(params)
         response = self._api_action_request(f"datastore_create", method=RequestType.Post,
@@ -965,7 +968,36 @@ class CkanApiManage(CkanApiReadWrite):
             else:
                 error_messages.append(NameFormatError(f"Package name badly formatted. Only the following characters are allowed: a-z, 0-9, -, _: '{package_name}'"))
         if not(2 <= len(package_name) <= 100):
-            error_messages.append(NameFormatError(f"Package name must be between 2 and 100 characters: 'package_name'"))
+            error_messages.append(NameFormatError(f"Package name must be between 2 and 100 characters: '{package_name}'"))
+        if raise_error and len(error_messages) > 0:
+            if len(error_messages) > 1:
+                raise MultipleErrors(error_messages)
+            else:
+                raise error_messages[0]
+        else:
+            return len(error_messages) == 0
+
+    @staticmethod
+    def verify_field_name_format(field_name:str, *, raise_error: bool = True, display_warnings:bool = True) -> bool:
+        """
+        Verifies that the field name format is correct.
+        """
+        assert_or_raise(len(field_name) > 0, NameFormatError("Empty field name"))
+        error_messages = []
+        warning_messages = []
+        if "." in field_name:
+            warning_messages.append(NameFormatError(f"Field name should not contain the dot character (.) because it is used for hierarchical object references: '{field_name}'"))
+        # if not re.match(ckan_field_name_re, field_name):
+        #     error_messages.append(NameFormatError(f"Field name badly formatted. Only the following characters are allowed: a-z, A-Z, 0-9, spaces, -, _: '{field_name}'"))
+        # if " " in field_name:
+        #     warning_messages.append(NameFormatError(f"It is not recommended to use spaces in field names: '{field_name}'"))
+        # if not field_name.lower() == field_name:
+        #     warning_messages.append(NameFormatError(f"Using lower case field names is recommended to make them case-insensitive: '{field_name}'"))
+        if not(1 <= len(field_name) <= 63):
+            error_messages.append(NameFormatError(f"Field name must be between 1 and 63 characters: '{field_name}'"))
+        if display_warnings and len(warning_messages) > 0:
+            for msg in warning_messages:
+                warn(str(msg))
         if raise_error and len(error_messages) > 0:
             if len(error_messages) > 1:
                 raise MultipleErrors(error_messages)

@@ -4,6 +4,7 @@
 Progress callback function definition
 """
 from typing import Any, Union, Callable
+from threading import Semaphore
 
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanCallbackLevel, CkanProgressBarType
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_simple import CkanProgressCallbackSimple
@@ -38,6 +39,7 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
             raise RequirementError('tqdm', "CkanProgressCallbackTqdm")
         # state variables
         self.last_progress_displayed:dict[CkanCallbackLevel,int] = {level: 0 for level in CkanCallbackLevel}
+        self.tqdm_semaphore = Semaphore()
 
     @property
     def progress_bar_type(self) -> CkanProgressBarType:
@@ -92,6 +94,7 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
         file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
         canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
         **kwargs) -> Union[str,None]:
+        self.tqdm_semaphore.acquire()
         # if level is not None:
         #     # last_position = self.last_progress_position[level]
         #     last_position = self.progress_bars[level].last_print_n
@@ -111,6 +114,7 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
                 if update_needed:
                     self.progress_bars[level].update(delta)
                     self.last_progress_displayed[level] += delta
+        self.tqdm_semaphore.release()
         return msg
 
     def __del__(self) -> None:

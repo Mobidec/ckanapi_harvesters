@@ -256,7 +256,7 @@ class CkanField(CkanConfigurableObjectABC):
         if native_type is None:
             native_type = data_type
         self.name:str = name
-        self.data_type:Union[CkanFieldType,None] = CkanFieldType.from_str(data_type)
+        self.data_type:Union[CkanFieldType,None] = CkanFieldType.from_str(data_type) if data_type is not None else None
         self.type_override:Union[bool,None] = type_override
         self.label:Union[str,None] = label
         self.notes:Union[str,None] = notes

@@ -30,7 +30,7 @@ from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataSt
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, find_duplicates, datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
-from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name, datastore_default_source_file_col_name
+from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name, datastore_default_source_file_col_name, module_fields
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_init import init_data_cleaner
 
@@ -111,7 +111,6 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
 
     def _update_metadata(self, ckan: CkanApi, *, base_dir:str=None) -> None:
         super()._update_metadata(ckan=ckan, base_dir=base_dir)
-        self.primary_key = self.primary_key_user
 
     @staticmethod
     def _setup_cli_parser(parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
@@ -342,6 +341,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         for row_loc, row in fields_df.iterrows():
             field_builder = BuilderField()
             field_builder._load_from_df_row(row=row)
+            if field_builder.name in self.field_builders_user.keys():
+                raise DuplicateNameError("field_builder", [field_builder.name])
             self.field_builders_user[field_builder.name] = field_builder
 
     def _to_ckan_resource_info(self, package_id:str, check_id:bool=True) -> CkanResourceInfo:
@@ -460,10 +461,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         return required_fields
 
     def _check_undocumented_fields(self, current_fields: Set[str]) -> None:
-        if self.field_builders is not None:
+        if self.field_builders_user is not None:
             # list fields which are not documented
-            fields_doc = set(self.field_builders.keys())
-            missing_doc = current_fields - fields_doc
+            fields_doc = set(self.field_builders_user.keys())
+            missing_doc = current_fields - fields_doc - module_fields
             extra_doc = fields_doc - current_fields
             if len(extra_doc) > 0:
                 msg = f"{len(extra_doc)} extra fields were documented but absent of sample data for table {self.name}: {', '.join(extra_doc)}"
@@ -484,19 +485,31 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         3. Metadata found automatically from the data source (e.g. in file header or database)
         4. Metadata found automatically by the data cleaner, especially for field typing
         """
+        # if current_df_fields is not None:
+        #     current_df_fields_lower = {field_name.lower() for field_name in current_df_fields}
+        # else:
+        #     current_df_fields_lower = None
         self.field_builders = OrderedDict()
+        allowed_fields = current_df_fields
         # 1. Information specified by user in Excel, for preserving field specified order
+        impose_user_fields = False
         if self.field_builders_user is not None:
             for field_name, field_builder in self.field_builders_user.items():
                 self.field_builders[field_name] = field_builder.copy()
+            if impose_user_fields:
+                if allowed_fields is not None:
+                    allowed_fields = allowed_fields.union(set(self.field_builders_user.keys()))
+                else:
+                    allowed_fields = set(self.field_builders_user.keys())
         # 2. Current CKAN information: update missing information
         if (not override_ckan) and self.known_resource_info is not None and self.known_resource_info.datastore_info is not None and self.known_resource_info.datastore_info.fields_dict is not None:
             known_fields = self.known_resource_info.datastore_info.fields_dict
             for field_name, field_info in known_fields.items():
-                if field_name in self.field_builders.keys():
-                    self.field_builders[field_name].update_missing(BuilderField._from_ckan_field(field_info))
-                else:
-                    self.field_builders[field_name] = BuilderField._from_ckan_field(field_info)
+                if current_df_fields is not None and field_name in current_df_fields:
+                    if field_name in self.field_builders.keys():
+                        self.field_builders[field_name].update_missing(BuilderField._from_ckan_field(field_info))
+                    else:
+                        self.field_builders[field_name] = BuilderField._from_ckan_field(field_info)
         # 3. Metadata generated from data source: update missing information
         if self.field_builders_data_source is not None:
             for field_name, field_builder in self.field_builders_data_source.items():
@@ -514,7 +527,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                     self.field_builders[field_builder.name] = field_builder.copy()
         if self.field_builders is not None:
             if current_df_fields is not None:
-                builder_fields = [field_builder._to_ckan_field() for field_builder in self.field_builders.values() if field_builder.name in current_df_fields]
+                builder_fields = [field_builder._to_ckan_field() for field_builder in self.field_builders.values() if field_builder.name in allowed_fields]
             else:
                 # use case: get all known fields (before data_cleaner)
                 builder_fields = [field_builder._to_ckan_field() for field_builder in self.field_builders.values()]

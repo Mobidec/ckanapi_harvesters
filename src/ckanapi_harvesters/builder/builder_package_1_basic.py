@@ -52,9 +52,10 @@ builder_default_package_state:CkanState = CkanState.Draft
 initial_package_building_state:Union[CkanState,None] = CkanState.Draft
 
 def load_help_page_df(*, engine:str=None) -> pd.DataFrame:
-    with pd.ExcelFile(example_package_xls, engine=engine) as help_file:
-        help_df = pd.read_excel(help_file, sheet_name="help", header=None)
-        help_file.close()
+    with open(example_package_xls, "rb") as stream:  # read-only mode
+        with pd.ExcelFile(stream, engine=engine) as help_file:
+            help_df = pd.read_excel(help_file, sheet_name="help", header=None)
+            help_file.close()
     return help_df
 
 forbidden_resource_names = {"ckan", "info", "package", "resources", "validation", "help"}
@@ -670,7 +671,8 @@ class BuilderPackageBasic:
             return json.dumps(builder_dict, ensure_ascii=False, indent=4)
 
     @staticmethod
-    def from_ckan(ckan: CkanApiMap, package_info: Union[CkanPackageInfo, str], base_dir:str=None) -> "BuilderPackageBasic":
+    def from_ckan(ckan: CkanApiMap, package_info: Union[CkanPackageInfo, str],
+                  *, base_dir:str=None, error_duplicates:bool=True) -> "BuilderPackageBasic":
         """
         Function to initialize a BuilderPackageBasic from information requested by the CKAN API
 
@@ -687,6 +689,12 @@ class BuilderPackageBasic:
         mdl.license_name = package_info.license_id if package_info.license_id else None
         mdl.license_name = mdl.get_license_name(ckan)
         for resource_info in package_info.package_resources.values():
+            if resource_info.name in mdl.resource_builders.keys():
+                msg = DuplicateNameError("resource_builder", [resource_info.name])
+                if error_duplicates:
+                    raise msg
+                else:
+                    warn(str(msg))
             mdl.resource_builders[resource_info.name] = init_resource_from_ckan(ckan, resource_info)
         mdl.update_package_name_in_resources()
         mdl.init_resources_options_and_metadata(ckan, base_dir=base_dir)
@@ -785,77 +793,74 @@ class BuilderPackageBasic:
             if resource_builder is not None:
                 self._init_resource_from_df_aux_fun(resource_builder)
                 if resource_builder.name in self.resource_builders.keys():
-                    raise DuplicateNameError("resource_builder", resource_builder.name)
+                    raise DuplicateNameError("resource_builder", [resource_builder.name])
                 if resource_builder.name.lower() in forbidden_resource_names:
-                    raise ForbiddenNameError("resource_builder", resource_builder.name)
+                    raise ForbiddenNameError("resource_builder", [resource_builder.name])
                 self.resource_builders[resource_builder.name] = resource_builder
         # self._update_package_name_resources()  # call after full init in caller function
 
     @staticmethod
-    def from_excel(path_or_buffer, *, proxies:dict=None, engine:str=None, **kwargs) -> "BuilderPackageBasic":
+    def from_excel(path_or_stream, *, proxies:dict=None, engine:str=None, **kwargs) -> "BuilderPackageBasic":
         """
         Load package definition from an Excel workbook.
 
-        :param path_or_buffer: path to the Excel workbook
+        :param path_or_stream: path to the Excel workbook
         :param engine: Engine used by pandas.read_excel(). Supported engines: xlrd, openpyxl, odf, pyxlsb, calamine.
         openpyxl makes part of this package's optional requirements
         :return:
         """
         warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')  # openpyxl produces warnings concerning data validation
         mdl = BuilderPackageBasic()
-        mdl.builder_source_file = path_or_buffer
-        # if isinstance(path_or_buffer, str):
-        #     buffer = open(path_or_buffer, "rb")
-        # else:
-        #     buffer = path_or_buffer
-        with pd.ExcelFile(path_or_buffer, engine=engine, **kwargs) as xls:
-            sheet_names = set(xls.sheet_names)
-            sheet_names_lower_index = {sheet_name.lower().strip(): sheet_name for sheet_name in sheet_names}
-            package_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["package"], header=None)
-            package_df.set_index(0, inplace=True)
-            assert(package_df.index.is_unique)  # verify integrity
-            package_df = package_df.T
-            if "info" in sheet_names_lower_index.keys():
-                info_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["info"], header=None)
-                info_df.set_index(0, inplace=True)
-                assert(info_df.index.is_unique)  # verify integrity
-                info_df = info_df.T
-            else:
-                info_df = None
-            base_dir = mdl.get_base_dir(None)
-            mdl._load_from_df(info_df, package_df, base_dir=base_dir)
-            if "ckan" in sheet_names_lower_index.keys():
-                ckan_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["ckan"], header=None)
-                ckan_df.set_index(0, inplace=True)
-                assert(ckan_df.index.is_unique)  # verify integrity
-                ckan_df = ckan_df.T
-                mdl.ckan_builder._load_from_df(ckan_df, base_dir=base_dir, proxies=proxies)
-            resources_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["resources"])
-            mdl._load_package_resources_list_df(resources_df, base_dir=base_dir)
-            resource_sheets = sheet_names - {sheet_names_lower_index[name] for name in forbidden_resource_names if name in sheet_names_lower_index.keys()}
-            used_resource_sheets = set()
-            for resource_builder in mdl.resource_builders.values():
-                resource_sheet = None
-                equiv_name = excel_name_of_builder(resource_builder)
-                if resource_builder.columns_sheet_name is not None:
-                    resource_sheet = resource_builder.columns_sheet_name.strip()
-                    assert_or_raise(resource_sheet in resource_sheets, MissingDataStoreColumnsSheet(resource_builder.name, resource_sheet))
-                elif resource_builder.name in resource_sheets:
-                    resource_sheet = resource_builder.name
-                elif equiv_name in resource_sheets:
-                    resource_sheet = equiv_name
-                if resource_sheet is not None:
-                    fields_df = pd.read_excel(xls, sheet_name=resource_sheet)
-                    assert(isinstance(resource_builder, BuilderDataStoreABC) or isinstance(resource_builder, BuilderMultiDataStore))
-                    resource_builder._load_fields_df(fields_df)
-                    used_resource_sheets.add(resource_sheet)
-                    # resource_builder.columns_sheet_name = resource_sheet
-            mdl.update_package_name_in_resources()
-            unused_resource_sheets = resource_sheets - used_resource_sheets
-            if len(unused_resource_sheets) > 0:
-                msg = f"Sheets present but not used: {', '.join(unused_resource_sheets)}"
-                warn(msg)
-            xls.close()
+        mdl.builder_source_file = path_or_stream
+        with open(path_or_stream, "rb") as stream:  # enforce read-only mode
+            with pd.ExcelFile(stream, engine=engine, **kwargs) as xls:
+                sheet_names = set(xls.sheet_names)
+                sheet_names_lower_index = {sheet_name.lower().strip(): sheet_name for sheet_name in sheet_names}
+                package_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["package"], header=None)
+                package_df.set_index(0, inplace=True)
+                assert(package_df.index.is_unique)  # verify integrity
+                package_df = package_df.T
+                if "info" in sheet_names_lower_index.keys():
+                    info_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["info"], header=None)
+                    info_df.set_index(0, inplace=True)
+                    assert(info_df.index.is_unique)  # verify integrity
+                    info_df = info_df.T
+                else:
+                    info_df = None
+                base_dir = mdl.get_base_dir(None)
+                mdl._load_from_df(info_df, package_df, base_dir=base_dir)
+                if "ckan" in sheet_names_lower_index.keys():
+                    ckan_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["ckan"], header=None)
+                    ckan_df.set_index(0, inplace=True)
+                    assert(ckan_df.index.is_unique)  # verify integrity
+                    ckan_df = ckan_df.T
+                    mdl.ckan_builder._load_from_df(ckan_df, base_dir=base_dir, proxies=proxies)
+                resources_df = pd.read_excel(xls, sheet_name=sheet_names_lower_index["resources"])
+                mdl._load_package_resources_list_df(resources_df, base_dir=base_dir)
+                resource_sheets = sheet_names - {sheet_names_lower_index[name] for name in forbidden_resource_names if name in sheet_names_lower_index.keys()}
+                used_resource_sheets = set()
+                for resource_builder in mdl.resource_builders.values():
+                    resource_sheet = None
+                    equiv_name = excel_name_of_builder(resource_builder)
+                    if resource_builder.columns_sheet_name is not None:
+                        resource_sheet = resource_builder.columns_sheet_name.strip()
+                        assert_or_raise(resource_sheet in resource_sheets, MissingDataStoreColumnsSheet(resource_builder.name, resource_sheet))
+                    elif resource_builder.name in resource_sheets:
+                        resource_sheet = resource_builder.name
+                    elif equiv_name in resource_sheets:
+                        resource_sheet = equiv_name
+                    if resource_sheet is not None:
+                        fields_df = pd.read_excel(xls, sheet_name=resource_sheet)
+                        assert(isinstance(resource_builder, BuilderDataStoreABC) or isinstance(resource_builder, BuilderMultiDataStore))
+                        resource_builder._load_fields_df(fields_df)
+                        used_resource_sheets.add(resource_sheet)
+                        # resource_builder.columns_sheet_name = resource_sheet
+                mdl.update_package_name_in_resources()
+                unused_resource_sheets = resource_sheets - used_resource_sheets
+                if len(unused_resource_sheets) > 0:
+                    msg = f"Sheets present but not used: {', '.join(unused_resource_sheets)}"
+                    warn(msg)
+                xls.close()
         return mdl
 
     @staticmethod

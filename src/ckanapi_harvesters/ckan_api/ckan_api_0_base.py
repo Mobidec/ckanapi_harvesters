@@ -13,6 +13,7 @@ import os
 import io
 import traceback
 import math
+import datetime
 
 import requests
 from requests.auth import AuthBase
@@ -491,7 +492,9 @@ class CkanApiBase(CkanApiABC):
                 if len(print_str) > max_len_debug_print:
                     print("[...]")
                 print(" ")
-                print("Request time:", response.elapsed.total_seconds(), "seconds")
+                print("Request elapsed:", response.elapsed.total_seconds(), "seconds")
+                emission_timestamp = datetime.datetime.now() - response.elapsed
+                print(f"Request emission timestamp: {emission_timestamp}")
                 print("Response body:")
                 if response.text is not None:
                     print_str = response.text
@@ -895,7 +898,7 @@ class CkanApiBase(CkanApiABC):
         if self.params.verbose_multi_requests:
             print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit} results from {api_fun.__name__}...")
         if progress_callback is not None:
-            progress_callback.start_task(None, level=CkanCallbackLevel.Requests)  # total is unknown here
+            progress_callback.start_task(None, level=CkanCallbackLevel.Requests)  # total len is unknown here because no API call was performed
         result_add: Union[pd.DataFrame, CkanActionResponse, Collection] = api_fun(params=params, limit=limit, offset=offset, **kwargs)
         if self.params.store_last_response_debug_info:
             self.debug.multi_requests_last_successful_offset = offset
