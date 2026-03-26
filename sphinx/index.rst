@@ -17,9 +17,6 @@ Welcome to ckanapi_harvesters's documentation!
 
     src/ckanapi_harvesters/
 
-    src/modules
-
-
 
 Indices and tables
 ==================
