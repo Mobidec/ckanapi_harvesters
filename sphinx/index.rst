@@ -15,7 +15,7 @@ Welcome to ckanapi_harvesters's documentation!
 
     notebooks/builder_example_notebook
 
-    src/ckanapi_harvesters/
+    src/modules/
 
 
 Indices and tables
