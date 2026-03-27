@@ -65,6 +65,7 @@ more = [
 ]
 dev = [
     "pytest >= 9.0.2",  # strict version 8.0.1 in the package template
+    "pytest-cov >= 7.1.0",
     "build >= 1.4.0",
     "twine >= 6.2.0",
     "ruff >= 0.15.7",
