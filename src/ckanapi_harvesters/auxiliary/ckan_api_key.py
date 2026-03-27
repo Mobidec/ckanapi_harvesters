@@ -61,12 +61,16 @@ class ApiKey:
         self._remote_url_constraint = clean_base_url(url)
         self.apply_constraints()
 
-    def apply_constraints(self, *, raise_error:bool=True) -> bool:
+    def apply_constraints(self, *, auto_clear:bool=True, raise_error:bool=False) -> bool:
         if self._remote_url_constraint is not None:
             if self._remote_url is not None:
                 if not url_matches_host(host_url=self._remote_url_constraint, url=self._remote_url):
+                    msg = HostContraintError(host_url=self._remote_url_constraint, url=self._remote_url)
                     if raise_error:
-                        raise HostContraintError(host_url=self._remote_url_constraint, url=self._remote_url)
+                        raise msg
+                    elif auto_clear:
+                        self.clear()
+                        warn(str(msg) + "\nClearing API key")
                     else:
                         return False
         return True

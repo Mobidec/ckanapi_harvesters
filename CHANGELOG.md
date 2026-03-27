@@ -15,6 +15,8 @@ When publishing a new release, copy the relevant section on the [Github release 
 ### Fixed
 
 - Parent/child link between package and resource builders is now explicit, which enables direct operations on resource builders.
+- When the URL in the CKAN API key file does not match CKAN URL, the API key is cleared with a warning message. 
+Raising an error was not compatible with auto-loading the API key file.
 
 
 ## [0.0.17] - 2026-03-25
