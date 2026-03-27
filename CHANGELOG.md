@@ -10,7 +10,7 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-03-31
 
 
-## [Unreleased] - 2026-03-27
+## [0.0.18] - 2026-03-27
 
 ### Fixed
 
