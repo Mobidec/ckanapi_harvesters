@@ -34,10 +34,10 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
         self.upsert_method: UpsertChoice = UpsertChoice.Upsert
         self.file_name = file_name
 
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderDataStoreFile(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         dest.file_name = self.file_name
         return dest
 

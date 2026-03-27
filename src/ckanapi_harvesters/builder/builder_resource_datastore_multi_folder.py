@@ -39,10 +39,10 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         self.local_file_size_sum:Union[int,None] = None
         self.downloaded_file_query_list:Collection[Tuple[str,dict]] = file_query_list
 
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderDataStoreFolder(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         dest.dir_name = self.dir_name
         dest.local_file_list_base_dir = self.local_file_list_base_dir
         dest.local_file_list = copy.deepcopy(self.local_file_list)

@@ -47,7 +47,7 @@ def run(ckan:CkanApi = None):
     mdl.info_request_full(ckan)
     map_queried = ckan.map.copy()
     ckan.purge(purge_map=True)
-    mdl.update_ckan_map(ckan)
+    mdl.update_ckan_map(ckan)  # use known resource ids to fill ckan.map (at your own risks)
     map_from_mdl = ckan.map.copy()
 
     # Test saving the map to a dictionary

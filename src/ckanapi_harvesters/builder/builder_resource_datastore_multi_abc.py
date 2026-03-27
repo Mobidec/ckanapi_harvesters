@@ -51,8 +51,8 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         self.file_semaphore = Semaphore()
         self.process_level:CkanCallbackLevel = CkanCallbackLevel.ResourceChunks  # resource builder - can be changed to 3 for a file of a multi-file resource
 
-    def copy(self, *, dest=None):
-        super().copy(dest=dest)
+    def copy(self, *, dest=None, parent=None):
+        super().copy(dest=dest, parent=parent)
         dest.reupload_if_needed = self.reupload_if_needed
         # BuilderMultiABC:
         dest.progress_callback = self.progress_callback.copy()

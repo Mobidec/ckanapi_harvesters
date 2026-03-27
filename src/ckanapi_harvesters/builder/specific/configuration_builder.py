@@ -44,7 +44,7 @@ class ConfigurationBuilder(SpecificBuilderABC):
             policy_builder.patch_request(ckan, package_id, payload=payload, reupload=True)
         else:
             # delete data format policy
-            self.resource_builders[ckan_configuration.policy_resource].delete_request(ckan, package_id)
+            self.resource_builders[ckan_configuration.policy_resource].delete_request(ckan)
         if update_ckan:
             ckan.policy = policy
 

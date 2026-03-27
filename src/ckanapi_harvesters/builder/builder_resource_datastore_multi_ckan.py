@@ -33,10 +33,10 @@ class BuilderDataStoreCkan(BuilderDataStoreFolder):
         self.resource_ids: List[str] = [resource_id.strip() for resource_id in ckan_tags_sep.split(file_name)]
         raise NotImplementedError()  # not tested
 
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderDataStoreCkan(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         dest.resource_ids = self.resource_ids
         return dest
 

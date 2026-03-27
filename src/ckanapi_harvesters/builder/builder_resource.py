@@ -55,7 +55,7 @@ class BuilderResourceABC(ABC):
         # Map information, if present
         self.parent_package: "BuilderPackage" = parent  # BuilderPackage
         self.download_url: Union[str,None] = download_url
-        self.known_id: Union[str,None] = resource_id
+        self.known_id: Union[str,None] = resource_id  # known id is simply indicative. ckan.map is the reference. User can override CKAN API by calling BuilderPackage.update_ckan_map at his own risks.
         self.known_resource_info: Union[CkanResourceInfo,None] = None
         # Functions inputs/outputs
         self.sample_data_source: str = ""
@@ -71,9 +71,16 @@ class BuilderResourceABC(ABC):
 
     @property
     def package_name(self):
+        """
+        Returns the package name of the parent package.
+        You cannot assign the package name through this property.
+        Setting this property only performs a check. This will be removed in future releases.
+        To change package name, change the package_name attribute of the parent_package.
+        """
         return self.parent_package.package_name
     @package_name.setter
     def package_name(self, value):
+        # remove in future releases
         assert_or_raise(value == self.parent_package.package_name, RuntimeError())
 
     def clear_secrets_and_disconnect(self) -> None:
@@ -93,16 +100,18 @@ class BuilderResourceABC(ABC):
     # -------------
 
     @abstractmethod
-    def copy(self, *, dest=None):
+    def copy(self, *, dest:"BuilderResourceABC"=None, parent:"BuilderPackage"=None):
+        if parent is None:
+            parent = self.parent_package
         dest.name = self.name
-        dest.parent_package = self.parent_package  # already done in constructor (required argument) - do not copy (keep reference)
+        dest.parent_package = parent  # may replace parent assigned in constructor from current instance
+        # dest.package_name = self.package_name  # double-check is not necessary, especially if parent changed
         dest.columns_sheet_name = self.columns_sheet_name
         dest.resource_attributes = self.resource_attributes.copy() if self.resource_attributes is not None else None
         dest.resource_attributes_user = self.resource_attributes_user.copy()
         dest.resource_attributes_data_source = self.resource_attributes_data_source.copy() if self.resource_attributes_data_source is not None else None
         dest.enable_download = self.enable_download
         dest.options_string = self.options_string
-        dest.package_name = self.package_name
         dest.known_id = self.known_id
         dest.download_url = self.download_url
         dest.comment = self.comment
@@ -183,9 +192,8 @@ class BuilderResourceABC(ABC):
         package_name = self.package_name
         if package_name == "":
             raise EmptyPackageNameException()
-        if self.known_id is None or not cancel_if_present:
-            ckan.map_resources(package_name, only_missing=True)
-            self.known_id = ckan.map.get_resource_id(self.name, package_name=package_name, error_not_mapped=error_not_found)
+        resource_id = ckan.get_resource_id_or_request(self.name, package_name=package_name, error_not_mapped=error_not_found)
+        self.known_id = resource_id  # update
         return self.known_id
 
     def get_or_query_package_id(self, ckan: CkanApi) -> str:
@@ -376,13 +384,12 @@ class BuilderResourceABC(ABC):
         self.known_id = resource_id
         return res_info
 
-    def delete_request(self, ckan:CkanApi, package_id:str, *, error_not_found:bool=False):
+    def delete_request(self, ckan:CkanApi, *, error_not_found:bool=False):
         """
         Delete the resource from the CKAN server.
 
         :return:
         """
-        self.package_name = package_id
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=error_not_found)
         if resource_id is not None:
             ckan.resource_delete(resource_id)
@@ -397,8 +404,8 @@ class BuilderFileABC(BuilderResourceABC, ABC):
         super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
         self.file_name: str = file_name
 
-    def copy(self, *, dest=None):
-        super().copy(dest=dest)
+    def copy(self, *, dest=None, parent=None):
+        super().copy(dest=dest, parent=parent)
         dest.file_name = self.file_name
         return dest
 
@@ -507,10 +514,10 @@ class BuilderResourceUnmanaged(BuilderFileABC):  #, BuilderResourceUnmanagedABC)
         self.file_name: str = name
         self.default_payload: Union[bytes, io.BufferedIOBase, None] = None
 
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderResourceUnmanaged(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         dest.file_name = self.file_name
         dest.default_payload = copy.deepcopy(self.default_payload)
         return dest
@@ -566,10 +573,10 @@ class BuilderFileBinary(BuilderFileABC):
     """
     Concrete implementation for a binary file.
     """
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderFileBinary(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         return dest
 
     @staticmethod
@@ -617,8 +624,8 @@ class BuilderUrlABC(BuilderFileABC, ABC):
         self.url = url
         self.file_name: str = name
 
-    def copy(self, *, dest=None):
-        super().copy(dest=dest)
+    def copy(self, *, dest=None, parent=None):
+        super().copy(dest=dest, parent=parent)
         dest.url = self.url
         dest.file_name = self.file_name
         return dest
@@ -661,10 +668,10 @@ class BuilderUrl(BuilderUrlABC):
     def resource_mode_str() -> str:
         return "URL"
 
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderUrl(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         return dest
 
     @staticmethod

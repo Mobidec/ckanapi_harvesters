@@ -56,10 +56,10 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
     def resource_mode_str() -> str:
         return "MultiFile"
 
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderMultiFile(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         dest.dir_name = self.dir_name
         # BuilderMultiABC:
         dest.progress_callback = self.progress_callback.copy()

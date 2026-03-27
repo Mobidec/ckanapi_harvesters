@@ -126,10 +126,10 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
                     # field_builder.uniquekey = field_name
                     # self.field_builders_data_source[field_name] = field_builder
 
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderDataStoreHarvester(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         dest.file_url_attr = self.file_url_attr
         dest.harvester = self.harvester
         return dest

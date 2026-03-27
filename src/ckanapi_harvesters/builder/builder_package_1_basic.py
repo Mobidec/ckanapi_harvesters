@@ -149,8 +149,8 @@ class BuilderPackageBasic:
         dest.comment = self.comment
         dest.built_from_ckan = self.built_from_ckan
         for resource_name, resource_builder in self.resource_builders.items():
-            dest.resource_builders[resource_name] = resource_builder.copy()
-            dest.resource_builders[resource_name].parent_package = dest
+            dest.resource_builders[resource_name] = resource_builder.copy(parent=dest)  # change parent reference to the new instance of BuilderPackage
+            assert_or_raise(dest.resource_builders[resource_name].parent_package == dest, RuntimeError())
         dest.ckan_builder = self.ckan_builder.copy()
         if self.external_python_code is not None:
             dest.external_python_code = self.external_python_code.copy()
@@ -269,11 +269,12 @@ class BuilderPackageBasic:
     def update_package_name_in_resources(self):
         """
         Update package_name attribute in resource_builders
-        Call before any operation on resources
+        Call before any operation on resources.
+        This function is marked as deprecated. It double-checks the reciprocal link between the package and its resources.
         """
         package_name = self.package_name
         for resource_builder in self.resource_builders.values():
-            resource_builder.package_name = package_name
+            resource_builder.package_name = package_name  # performs double check - will be removed in future versions
 
     def init_resources_options_and_metadata(self, ckan:CkanApi, *, base_dir:str=None) -> None:
         """
@@ -281,7 +282,7 @@ class BuilderPackageBasic:
         Call before any operation on resources
         """
         for resource_builder in self.resource_builders.values():
-            resource_builder.package_name = self.package_name
+            resource_builder.package_name = self.package_name  # performs double check - will be removed in future versions
             resource_builder.init_options_from_ckan(ckan, base_dir=base_dir)
             self._init_resource_from_df_aux_fun(resource_builder)
 
@@ -753,16 +754,22 @@ class BuilderPackageBasic:
                 package_info.resources_id_index_counts[resource_info.name] += 1
         return package_info
 
-    def update_ckan_map(self, ckan: CkanApiMap) -> CkanPackageInfo:
+    def update_ckan_map(self, ckan: CkanApiMap, *, warn_msg:bool=True) -> CkanPackageInfo:
         """
         This function updates the CKAN map from the information contained in this builder.
         For this to work, the package and resource ids must be known.
         This is not the case if the package was not initialized.
         Use if the builder was initialized from ckan or use with precaution.
 
+        .. warning :: This function bypasses the ids which should normally be obtained through the API.
+            Use at your own risk.
+
         :param ckan:
         :return:
         """
+        if warn_msg:
+            msg = "update_ckan_map overrides the ids which should normally be obtained through the API. Use at your own risk."
+            warn(msg)
         package_info = self.to_ckan_package_info(check_id=True)
         ckan.map._update_package_info(package_info)
         return package_info.copy()

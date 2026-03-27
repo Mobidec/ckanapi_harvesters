@@ -87,8 +87,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.read_line_counter:int = 0
         self.upload_start_line:int = 0
 
-    def copy(self, *, dest=None):
-        super().copy(dest=dest)
+    def copy(self, *, dest=None, parent=None):
+        super().copy(dest=dest, parent=parent)
         dest.field_builders = copy.deepcopy(self.field_builders)
         dest.field_builders_user = copy.deepcopy(self.field_builders_user)
         dest.field_builders_data_source = copy.deepcopy(self.field_builders_data_source)
@@ -686,10 +686,10 @@ class BuilderResourceIgnored(BuilderDataStoreABC):
                          download_url=download_url, options_string=options_string, base_dir=base_dir)
         self.file_url: Union[str, None] = file_url
 
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderResourceIgnored(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         dest.file_url = self.file_url
         return dest
 

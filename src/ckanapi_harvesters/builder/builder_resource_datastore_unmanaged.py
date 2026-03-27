@@ -34,10 +34,10 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
         self.file_name = name
         self.default_df_upload: Union[pd.DataFrame,None] = None
 
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderDataStoreUnmanaged(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         dest.reupload_on_update = self.reupload_on_update
         dest.reupload_if_needed = self.reupload_if_needed
         dest.initiate_by_user = self.initiate_by_user

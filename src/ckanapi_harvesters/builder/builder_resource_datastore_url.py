@@ -37,10 +37,10 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
         self.url:str = url
         self.file_name = name
 
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderDataStoreUrl(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         dest.reupload_on_update = self.reupload_on_update
         dest.reupload_if_needed = self.reupload_if_needed
         dest.url = self.url

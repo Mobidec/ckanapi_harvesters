@@ -46,10 +46,10 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
         self.local_file_format: FileFormatABC = init_file_format_datastore(self.resource_attributes_user.format, self.options_string, self.aux_read_fun_name, self.aux_write_fun_name)
         self.read_line_counter: int = 0
 
-    def copy(self, *, dest=None):
+    def copy(self, *, dest=None, parent=None):
         if dest is None:
             dest = BuilderMultiDataStore(parent=self.parent_package)
-        super().copy(dest=dest)
+        super().copy(dest=dest, parent=parent)
         dest.field_builders = copy.deepcopy(self.field_builders)
         dest.field_builders_user = copy.deepcopy(self.field_builders_user)
         dest.field_builders_data_source = copy.deepcopy(self.field_builders_data_source)
