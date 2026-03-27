@@ -10,6 +10,13 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-03-31
 
 
+## [0.0.19] - 2026-03-27
+
+### Added
+
+- Database harvesters can display a description message.
+
+
 ## [0.0.18] - 2026-03-27
 
 ### Fixed

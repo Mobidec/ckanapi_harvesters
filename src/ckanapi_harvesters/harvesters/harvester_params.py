@@ -74,7 +74,7 @@ class DatabaseParams:
         dest.verbose_harvester = self.verbose_harvester
         dest.ckan_postgis = self.ckan_postgis
         return dest
-
+    
     @staticmethod
     def setup_cli_harvester_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
         if parser is None:

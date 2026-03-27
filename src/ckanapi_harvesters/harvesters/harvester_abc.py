@@ -68,6 +68,17 @@ class DatabaseHarvesterABC(HarvesterConnectABC, ABC):
             params = DatabaseParams()
         self.params: DatabaseParams = params
 
+    def __str__(self) -> str:
+        return self.get_description()
+
+    @abstractmethod
+    def get_login_url_without_auth(self) -> str:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_description(self) -> str:
+        raise NotImplementedError()
+
     def clear_secrets(self):
         if self.params.login is not None:
             self.params.login.clear()

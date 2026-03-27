@@ -56,6 +56,25 @@ class DatabaseHarvesterMongoServer(DatabaseHarvesterABC):
             dest = DatabaseHarvesterMongoServer()
         return super().copy(dest=dest)
 
+    def get_description(self) -> str:
+        return f"MongoDB harvester to <{self.get_login_url_without_auth()}>"
+
+    def get_login_url_without_auth(self) -> str:
+        auth_url = self.params.auth_url
+        if auth_url is None:
+            if self.params.url is not None:
+                auth_url = self.params.url
+            elif self.params.host is not None:
+                auth_url = f"mongodb://{self.params.host}"
+                if self.params.port is not None:
+                    auth_url += f":{self.params.port}"
+            else:
+                raise UrlError("No Mongo URL provided")
+            if self.params.auth_url_suffix is not None:
+                auth_url = url_join(auth_url, self.params.auth_url_suffix)
+            self.params.auth_url = auth_url
+        return auth_url
+
     def connect(self, *, cancel_if_connected:bool=True) -> Any:
         if cancel_if_connected and self.mongo_client is not None:
             return self.mongo_client
@@ -66,19 +85,7 @@ class DatabaseHarvesterMongoServer(DatabaseHarvesterABC):
                 self.mongo_session = None
                 self.mongo_client = None
             ssl, ssl_certfile = ssl_arguments_decompose(self.params.verify_ca)
-            auth_url = self.params.auth_url
-            if auth_url is None:
-                if self.params.url is not None:
-                    auth_url = self.params.url
-                elif self.params.host is not None:
-                    auth_url = f"mongodb://{self.params.host}"
-                    if self.params.port is not None:
-                        auth_url += f":{self.params.port}"
-                else:
-                    raise UrlError("No Mongo URL provided")
-                if self.params.auth_url_suffix is not None:
-                    auth_url = url_join(auth_url, self.params.auth_url_suffix)
-                self.params.auth_url = auth_url
+            auth_url = self.get_login_url_without_auth()
             self.mongo_client = pymongo.MongoClient(auth_url, username=self.params.login.username, password=self.params.login.password,
                                                     ssl=ssl, tlscafile=ssl_certfile,
                                                     timeoutMS=self.params.timeout*1000.0 if self.params.timeout is not None else None)
@@ -144,6 +151,9 @@ class DatasetHarvesterMongoDatabase(DatabaseHarvesterMongoServer, DatasetHarvest
             self.params.dataset = self.params.database
         if self.params.dataset is None:
             raise HarvesterArgumentRequiredError("dataset", "mongodb", "This argument defines the mongo database used")
+
+    def get_description(self) -> str:
+        return super().get_description() + f" / Database: {self.params.dataset}"
 
     @staticmethod
     def init_from_options_string(options_string:str, base_dir:str=None) -> "DatasetHarvesterMongoDatabase":
@@ -237,6 +247,9 @@ class TableHarvesterMongoCollection(DatasetHarvesterMongoDatabase, TableHarveste
             self.params.table = self.params.file_url_attr
         if self.params.table is None:
             raise HarvesterArgumentRequiredError("table", "mongodb", "This argument defines the mongo collection used")
+
+    def get_description(self) -> str:
+        return super().get_description() + f" / Collection: {self.params.table}"
 
     @staticmethod
     def init_from_options_string(options_string:str, *, base_dir:str=None, file_url_attr:str=None) -> "TableHarvesterMongoCollection":
