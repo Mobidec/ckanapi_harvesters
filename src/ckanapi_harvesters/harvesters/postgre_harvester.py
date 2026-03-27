@@ -60,6 +60,27 @@ class DatabaseHarvesterPostgre(DatabaseHarvesterABC):
             dest = DatabaseHarvesterPostgre()
         return super().copy(dest=dest)
 
+    def get_description(self) -> str:
+        return f"PostgreSQL harvester to <{self.get_login_url_without_auth()}>"
+
+    def get_login_url_without_auth(self) -> str:
+        auth_url = self.params.auth_url
+        if auth_url is None:
+            if self.params.url is not None:
+                auth_url = self.params.url
+            elif self.params.host is not None:
+                auth_url = f"postgresql+psycopg2://{self.params.host}"
+                if self.params.port is not None:
+                    auth_url += f":{self.params.port}"
+            else:
+                raise UrlError("No Postgre URL provided")
+            if self.params.auth_url_suffix is not None:
+                auth_url = url_join(auth_url, self.params.auth_url_suffix)
+            elif self.params.database is not None:
+                auth_url = url_join(auth_url, self.params.database)
+            self.params.auth_url = auth_url
+        return auth_url
+
     def connect(self, *, cancel_if_connected:bool=True) -> Any:
         if cancel_if_connected and self.alchemy_engine is not None:
             return self.alchemy_engine
@@ -70,21 +91,7 @@ class DatabaseHarvesterPostgre(DatabaseHarvesterABC):
                 self.alchemy_connection = None
                 self.alchemy_engine = None
             ssl, ssl_certfile = ssl_arguments_decompose(self.params.verify_ca)
-            auth_url = self.params.auth_url
-            if auth_url is None:
-                if self.params.url is not None:
-                    auth_url = self.params.url
-                elif self.params.host is not None:
-                    auth_url = f"postgresql+psycopg2://{self.params.host}"
-                    if self.params.port is not None:
-                        auth_url += f":{self.params.port}"
-                else:
-                    raise UrlError("No Postgre URL provided")
-                if self.params.auth_url_suffix is not None:
-                    auth_url = url_join(auth_url, self.params.auth_url_suffix)
-                elif self.params.database is not None:
-                    auth_url = url_join(auth_url, self.params.database)
-                self.params.auth_url = auth_url
+            auth_url = self.get_login_url_without_auth()
             auth_url_with_login = url_insert_login(auth_url, self.params.login)
             self.alchemy_engine = sqlalchemy.create_engine(auth_url_with_login)
                                                            # ssl=ssl, tlscafile=ssl_certfile,
@@ -150,6 +157,9 @@ class DatasetHarvesterPostgre(DatabaseHarvesterPostgre, DatasetHarvesterABC):
         self.dataset_metadata: Union[DatasetMetadata, None] = None  # DatasetHarvesterABC
         if self.params.dataset is None:
             raise HarvesterArgumentRequiredError("dataset", "postgre", "This argument defines the Postgre schema to be used")
+
+    def get_description(self) -> str:
+        return super().get_description() + f" / Schema: {self.params.dataset}"
 
     @staticmethod
     def init_from_options_string(options_string:str, base_dir:str=None) -> "DatasetHarvesterPostgre":
@@ -259,6 +269,9 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
             self.params.table = self.params.file_url_attr
         if self.params.table is None:
             raise HarvesterArgumentRequiredError("table", "postgre", "This argument defines the Postgre table used")
+
+    def get_description(self) -> str:
+        return super().get_description() + f" / Table: {self.params.table}"
 
     @staticmethod
     def init_from_options_string(options_string:str, *, base_dir:str=None, file_url_attr:str=None) -> "TableHarvesterPostgre":

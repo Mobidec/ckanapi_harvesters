@@ -223,7 +223,8 @@ class CkanDataCleanerABC(ABC):
         if fields is not None:
             if isinstance(fields, dict):
                 fields_dict = fields
-            else:
+                fields = [field_info.to_ckan_dict() for field_info in fields.values()]
+            else:  # List[dict]
                 fields_dict = OrderedDict([(field_dict["id"], CkanField.from_ckan_dict(field_dict))  for field_dict in fields])
         else:
             fields_dict = OrderedDict()
