@@ -25,9 +25,9 @@ from ckanapi_harvesters.builder.mapper_datastore_multi import RequestFileMapperA
 
 
 class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
-    def __init__(self, *, file_query_list: List[Tuple[str,dict]]=None, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent, file_query_list: List[Tuple[str,dict]]=None, name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None, dir_name:str=None, options_string:str=None, base_dir:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id,
+        super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id,
                          download_url=download_url, options_string=options_string, base_dir=base_dir)
         self.dir_name = dir_name
         # Functions inputs/outputs
@@ -41,7 +41,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
 
     def copy(self, *, dest=None):
         if dest is None:
-            dest = BuilderDataStoreFolder()
+            dest = BuilderDataStoreFolder(parent=self.parent_package)
         super().copy(dest=dest)
         dest.dir_name = self.dir_name
         dest.local_file_list_base_dir = self.local_file_list_base_dir
@@ -296,6 +296,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
 
 
 if __name__ == '__main__':
-    sample_instance = BuilderDataStoreFolder()
+    from ckanapi_harvesters.builder.builder_package import BuilderPackage
+    sample_instance = BuilderDataStoreFolder(parent=BuilderPackage(package_name="test"))
     print("DataStore resource builder CLI-format options:")
     sample_instance.print_help_cli()

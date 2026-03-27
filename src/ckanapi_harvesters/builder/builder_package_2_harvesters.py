@@ -23,7 +23,7 @@ class BuilderPackageWithHarvesters(BuilderPackageBasic):
         tables: List[str] = dataset_harvester.list_tables(return_metadata=False)
         for table_name in tables:
             table_harvester = dataset_harvester.get_table_harvester(table_name)
-            resource_builder = BuilderDataStoreHarvester()
+            resource_builder = BuilderDataStoreHarvester(parent=builder)
             resource_builder.name = table_name
             resource_builder.harvester = table_harvester
             if resource_builder.resource_attributes_user.description is None:

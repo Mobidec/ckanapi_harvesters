@@ -185,7 +185,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         if is_valid_url(policy_file):
             if not allow_policy_from_url:
                 raise UrlPolicyLockedError(policy_file)
-            # if (not download_external_resource_urls) and (not ckan.is_url_internal(policy_file)):  # ckan: unknown
+            # if (not download_external_resource_urls) and (not ckan.is_url_internal(policy_file)):  # ckan: unknown - do not add as an argument to this function
             #     raise ExternalUrlLockedError(policy_file)
             response = requests.get(policy_file, headers=headers, proxies=proxies, auth=auth, verify=verify)
             if response.status_code != 200 and error_not_found:
@@ -283,11 +283,12 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
             raise DataPolicyError(context, ErrorLevel.Error, error_count.error_count_message())
         return success
 
-    def package_update_scores(self, ckan, package_info: CkanPackageInfo, package_buffer:List[DataPolicyError],
-                              raise_error:bool=True):
+    def package_update_scores(self, ckan: "CkanApi", package_info: CkanPackageInfo, package_buffer:List[DataPolicyError],
+                              raise_error:bool=True) -> bool:
         """
         Update the package scores on the CKAN server in package custom fields.
-        For this function to work, you
+
+        :return: True if a package update is required. If ckan argument was given, the package update is applied.
         """
         error_count = ErrorCount(package_buffer)
         # update package metadata
@@ -319,7 +320,10 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
                 else:
                     msg = "Could not update policy scores: " + str(e)
                     warn(msg)
+        return package_update_needed
 
+
+from ckanapi_harvesters.ckan_api.ckan_api import CkanApi
 
 
 

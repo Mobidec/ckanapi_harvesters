@@ -26,13 +26,13 @@ from ckanapi_harvesters.builder.builder_resource_datastore_multi_folder import B
 
 
 class BuilderDataStoreHarvester(BuilderDataStoreFolder):
-    def __init__(self, *, file_query_list: List[Tuple[str,dict]]=None, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent, file_query_list: List[Tuple[str,dict]]=None, name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None, dir_name:str=None, file_url_attr:str=None, options_string:str=None, base_dir:str=None):
         self.enable_multi_threaded_upload = False
         # specific attributes
         self.file_url_attr:Union[str,None] = file_url_attr
         self._harvester: Union[TableHarvesterABC,None] = None
-        super().__init__(file_query_list=file_query_list, dir_name=dir_name,
+        super().__init__(parent=parent, file_query_list=file_query_list, dir_name=dir_name,
                          name=name, format=format, description=description, resource_id=resource_id,
                          download_url=download_url, options_string=options_string, base_dir=base_dir)
 
@@ -128,7 +128,7 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
 
     def copy(self, *, dest=None):
         if dest is None:
-            dest = BuilderDataStoreHarvester()
+            dest = BuilderDataStoreHarvester(parent=self.parent_package)
         super().copy(dest=dest)
         dest.file_url_attr = self.file_url_attr
         dest.harvester = self.harvester

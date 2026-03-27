@@ -27,9 +27,9 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
     """
     Class representing a DataStore (resource metadata and fields metadata) defined by a url.
     """
-    def __init__(self, *, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent, name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None, url:str=None, options_string:str=None, base_dir:str=None):
-        super(BuilderDataStoreFile, self).__init__(name=name, format=format, description=description, resource_id=resource_id,
+        super(BuilderDataStoreFile, self).__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id,
                                                    download_url=download_url, options_string=options_string, base_dir=base_dir)
         # super(BuilderUrlABC, self).__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, url=url)
         self.reupload_on_update = False
@@ -39,7 +39,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
 
     def copy(self, *, dest=None):
         if dest is None:
-            dest = BuilderDataStoreUrl()
+            dest = BuilderDataStoreUrl(parent=self.parent_package)
         super().copy(dest=dest)
         dest.reupload_on_update = self.reupload_on_update
         dest.reupload_if_needed = self.reupload_if_needed

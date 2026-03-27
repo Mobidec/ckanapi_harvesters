@@ -33,9 +33,9 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
     """
     Class to manage a set of files to upload as separate resources
     """
-    def __init__(self, *, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent, name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None, dir_name:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+        super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
         self.dir_name: str = dir_name
         self.local_file_list_base_dir: str = ""
         self.local_file_list: Union[List[str], None] = None
@@ -58,7 +58,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
 
     def copy(self, *, dest=None):
         if dest is None:
-            dest = BuilderMultiFile()
+            dest = BuilderMultiFile(parent=self.parent_package)
         super().copy(dest=dest)
         dest.dir_name = self.dir_name
         # BuilderMultiABC:

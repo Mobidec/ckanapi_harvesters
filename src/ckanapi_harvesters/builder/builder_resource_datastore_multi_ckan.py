@@ -25,9 +25,9 @@ class BuilderDataStoreCkan(BuilderDataStoreFolder):
     """
     Merge of existing CKAN DataStores (on the same server) into a single DataStore
     """
-    def __init__(self, *, name: str = None, format: str = None, description: str = None,
+    def __init__(self, *, parent, name: str = None, format: str = None, description: str = None,
                  resource_id: str = None, download_url: str = None, file_name: str = None, options_string:str=None, base_dir:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id,
+        super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id,
                          download_url=download_url, dir_name="", options_string=options_string, base_dir=base_dir)
         self.upsert_method: UpsertChoice = UpsertChoice.Upsert
         self.resource_ids: List[str] = [resource_id.strip() for resource_id in ckan_tags_sep.split(file_name)]
@@ -35,7 +35,7 @@ class BuilderDataStoreCkan(BuilderDataStoreFolder):
 
     def copy(self, *, dest=None):
         if dest is None:
-            dest = BuilderDataStoreCkan()
+            dest = BuilderDataStoreCkan(parent=self.parent_package)
         super().copy(dest=dest)
         dest.resource_ids = self.resource_ids
         return dest

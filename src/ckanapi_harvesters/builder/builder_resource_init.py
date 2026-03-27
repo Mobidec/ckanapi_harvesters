@@ -31,7 +31,7 @@ from ckanapi_harvesters.builder.builder_field import BuilderField
 import_as_folder_row_count_threshold: Union[int,None] = None
 
 
-def init_resource_from_df(row: pd.Series, base_dir:str=None) -> Union[BuilderResourceABC,None]:
+def init_resource_from_df(row: pd.Series, parent, base_dir:str=None) -> Union[BuilderResourceABC,None]:
     """
     Function mapping keywords to a resource builder type.
 
@@ -41,29 +41,29 @@ def init_resource_from_df(row: pd.Series, base_dir:str=None) -> Union[BuilderRes
     mode = _string_from_element(row["mode"], empty_value="")
     mode = mode.lower().strip()
     if mode == "file":
-        resource_builder = BuilderFileBinary()
+        resource_builder = BuilderFileBinary(parent=parent)
     elif mode == "url":
-        resource_builder = BuilderUrl()
+        resource_builder = BuilderUrl(parent=parent)
     elif mode == "datastore from file":
-        resource_builder = BuilderDataStoreFile()
+        resource_builder = BuilderDataStoreFile(parent=parent)
     elif mode == "datastore from folder":
-        resource_builder = BuilderDataStoreFolder()
+        resource_builder = BuilderDataStoreFolder(parent=parent)
     elif mode == "datastore from url":
-        resource_builder = BuilderDataStoreUrl()
+        resource_builder = BuilderDataStoreUrl(parent=parent)
     elif mode == "datastore from harvester":
-        resource_builder = BuilderDataStoreHarvester()
+        resource_builder = BuilderDataStoreHarvester(parent=parent)
     elif mode == "unmanaged":
-        resource_builder = BuilderResourceUnmanaged()
+        resource_builder = BuilderResourceUnmanaged(parent=parent)
     elif mode == "unmanaged datastore":
-        resource_builder = BuilderDataStoreUnmanaged()
+        resource_builder = BuilderDataStoreUnmanaged(parent=parent)
     elif mode == "multifile":
-        resource_builder = BuilderMultiFile()
+        resource_builder = BuilderMultiFile(parent=parent)
     elif mode == "ckan datastore merge":
-        resource_builder = BuilderDataStoreCkan()
+        resource_builder = BuilderDataStoreCkan(parent=parent)
     elif mode == "multidatastore":
-        resource_builder = BuilderMultiDataStore()
+        resource_builder = BuilderMultiDataStore(parent=parent)
     elif mode == "ignored":
-        resource_builder = BuilderResourceIgnored()
+        resource_builder = BuilderResourceIgnored(parent=parent)
     elif mode == "":
         resource_name = _string_from_element(row["name"], empty_value="", strip=True)
         if resource_name == "":
@@ -78,7 +78,7 @@ def init_resource_from_df(row: pd.Series, base_dir:str=None) -> Union[BuilderRes
     return resource_builder
 
 
-def init_resource_from_ckan(ckan: CkanApiMap, resource_info: CkanResourceInfo) -> BuilderResourceABC:
+def init_resource_from_ckan(ckan: CkanApiMap, resource_info: CkanResourceInfo, parent) -> BuilderResourceABC:
     """
     Function initiating a resource builder based on information provided by the CKAN API.
 
@@ -106,14 +106,14 @@ def init_resource_from_ckan(ckan: CkanApiMap, resource_info: CkanResourceInfo) -
         if len(resource_info.download_url) > 0 and not ckan.is_url_internal(resource_info.download_url):
             d["file/url"] = resource_info.download_url
             row = pd.Series(d)
-            resource = BuilderDataStoreUrl()
+            resource = BuilderDataStoreUrl(parent=parent)
             resource._load_from_df_row(row=row)
         elif resource_info.format.lower() == "csv":
             row = pd.Series(d)
-            resource = BuilderDataStoreUnmanaged()
+            resource = BuilderDataStoreUnmanaged(parent=parent)
             resource._load_from_df_row(row=row)
             if import_as_folder_row_count_threshold is not None and resource_info.datastore_info.row_count > import_as_folder_row_count_threshold:
-                resource = BuilderDataStoreFolder.from_file_datastore(resource)
+                resource = resource.to_builder_datastore_folder()
         else:
             raise UnexpectedError(f"Format of data store {resource_info.name} ({resource_info.format}) is not recognized")
         # load fields information
@@ -125,13 +125,13 @@ def init_resource_from_ckan(ckan: CkanApiMap, resource_info: CkanResourceInfo) -
         # external resource
         d["file/url"] = resource_info.download_url
         row = pd.Series(d)
-        resource = BuilderUrl()
+        resource = BuilderUrl(parent=parent)
         resource._load_from_df_row(row=row)
         assert_or_raise(not resource_info.datastore_active and not isinstance(resource_info.datastore_info, CkanResourceInfo), UnexpectedError())
     else:
         # file
         row = pd.Series(d)
-        resource = BuilderResourceUnmanaged()
+        resource = BuilderResourceUnmanaged(parent=parent)
         resource._load_from_df_row(row=row)
     resource.package_name = resource_info.package_id
     return resource

@@ -27,11 +27,11 @@ class ConfigurationBuilder(SpecificBuilderABC):
         self.package_attributes.private = False
         self.set_resources_base_dir(example_package_resources_dir)
         self.resource_builders[ckan_configuration.policy_resource] = \
-            BuilderResourceUnmanaged(name=ckan_configuration.policy_resource, format="JSON",
+            BuilderResourceUnmanaged(parent=self, name=ckan_configuration.policy_resource, format="JSON",
                                      description="CKAN Data format policy for use with Python scripts")
         self.resource_builders[ckan_configuration.datastore_sample_resource] = \
-            BuilderDataStoreFile(name=ckan_configuration.datastore_sample_resource, format="CSV",
-                                 description="Sample DataStore for API tests",
+            BuilderDataStoreFile(parent=self, name=ckan_configuration.datastore_sample_resource, format="CSV",
+                                 description="Sample DataStore",
                                  file_name="users_local.csv")
 
     def patch_policy(self, ckan:CkanApi, policy: CkanPackageDataFormatPolicy,

@@ -148,8 +148,9 @@ class BuilderPackageBasic:
         dest.resource_builders = OrderedDict()
         dest.comment = self.comment
         dest.built_from_ckan = self.built_from_ckan
-        for key, value in self.resource_builders.items():
-            dest.resource_builders[key] = value.copy()
+        for resource_name, resource_builder in self.resource_builders.items():
+            dest.resource_builders[resource_name] = resource_builder.copy()
+            dest.resource_builders[resource_name].parent_package = dest
         dest.ckan_builder = self.ckan_builder.copy()
         if self.external_python_code is not None:
             dest.external_python_code = self.external_python_code.copy()
@@ -695,7 +696,7 @@ class BuilderPackageBasic:
                     raise msg
                 else:
                     warn(str(msg))
-            mdl.resource_builders[resource_info.name] = init_resource_from_ckan(ckan, resource_info)
+            mdl.resource_builders[resource_info.name] = init_resource_from_ckan(ckan, resource_info, parent=mdl)
         mdl.update_package_name_in_resources()
         mdl.init_resources_options_and_metadata(ckan, base_dir=base_dir)
         mdl.builder_source_file = "ckan"
@@ -789,7 +790,7 @@ class BuilderPackageBasic:
         resources_df.columns = resources_df.columns.map(str.strip)
         self.resource_builders = OrderedDict()
         for row_loc, row in resources_df.iterrows():
-            resource_builder = init_resource_from_df(row, base_dir=base_dir)
+            resource_builder = init_resource_from_df(row, base_dir=base_dir, parent=self)
             if resource_builder is not None:
                 self._init_resource_from_df_aux_fun(resource_builder)
                 if resource_builder.name in self.resource_builders.keys():

@@ -26,9 +26,9 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
     """
     Implementation supporting the reading of a file by chunks
     """
-    def __init__(self, *, name: str = None, format: str = None, description: str = None,
+    def __init__(self, *, parent, name: str = None, format: str = None, description: str = None,
                  resource_id: str = None, download_url: str = None, file_name: str = None, options_string:str=None, base_dir:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id,
+        super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id,
                          download_url=download_url, dir_name="", options_string=options_string, base_dir=base_dir)
         self.file_size:int = 0
         self.upsert_method: UpsertChoice = UpsertChoice.Upsert
@@ -36,7 +36,7 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
 
     def copy(self, *, dest=None):
         if dest is None:
-            dest = BuilderDataStoreFile()
+            dest = BuilderDataStoreFile(parent=self.parent_package)
         super().copy(dest=dest)
         dest.file_name = self.file_name
         return dest
@@ -137,7 +137,7 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
     def to_builder_datastore_folder(self,
                                     *, dir_name:str=None, primary_key:List[str]=None,
                                     file_query_list:Collection[Tuple[str,dict]]=None) -> BuilderDataStoreFolder:
-        resource_folder = BuilderDataStoreFolder()
+        resource_folder = BuilderDataStoreFolder(parent=self.parent_package)
         resource_folder._load_from_df_row(self._to_row())
         resource_folder.options_string = self.options_string
         resource_folder.data_cleaner_upload = self.data_cleaner_upload.copy()

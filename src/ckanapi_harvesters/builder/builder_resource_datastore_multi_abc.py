@@ -34,9 +34,9 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     This abstract class is intended to be overloaded in order to be used to generate data from the workspace, without using CSV files
     """
 
-    def __init__(self, *, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent, name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None, options_string:str=None, base_dir:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id,
+        super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id,
                          download_url=download_url, options_string=options_string, base_dir=base_dir)
         # Functions inputs/outputs
         self.df_mapper: RequestFileMapperABC

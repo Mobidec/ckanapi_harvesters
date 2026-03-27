@@ -17,7 +17,7 @@ import argparse
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_files_arg
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_files_arg, assert_or_raise
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path
@@ -34,7 +34,7 @@ initial_resource_building_state:Union[CkanState,None] = None  # CkanState.Draft
 
 
 class BuilderResourceABC(ABC):
-    def __init__(self, *, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent:"BuilderPackage", name:str=None, format:str=None, description:str=None,
                  state:CkanState=None, enable_download:bool=True,
                  resource_id:str=None, download_url:str=None, options_string:str=None):
         if options_string is None:
@@ -53,7 +53,7 @@ class BuilderResourceABC(ABC):
         self.options_string: str = options_string
         self.comment: Union[str,None] = None
         # Map information, if present
-        self.package_name: str = ""  # parent package name (update before any operation)
+        self.parent_package: "BuilderPackage" = parent  # BuilderPackage
         self.download_url: Union[str,None] = download_url
         self.known_id: Union[str,None] = resource_id
         self.known_resource_info: Union[CkanResourceInfo,None] = None
@@ -68,6 +68,13 @@ class BuilderResourceABC(ABC):
 
     def __copy__(self):
         return self.copy()
+
+    @property
+    def package_name(self):
+        return self.parent_package.package_name
+    @package_name.setter
+    def package_name(self, value):
+        assert_or_raise(value == self.parent_package.package_name, RuntimeError())
 
     def clear_secrets_and_disconnect(self) -> None:
         return
@@ -88,6 +95,7 @@ class BuilderResourceABC(ABC):
     @abstractmethod
     def copy(self, *, dest=None):
         dest.name = self.name
+        dest.parent_package = self.parent_package  # already done in constructor (required argument) - do not copy (keep reference)
         dest.columns_sheet_name = self.columns_sheet_name
         dest.resource_attributes = self.resource_attributes.copy() if self.resource_attributes is not None else None
         dest.resource_attributes_user = self.resource_attributes_user.copy()
@@ -384,9 +392,9 @@ class BuilderFileABC(BuilderResourceABC, ABC):
     """
     Abstract class defining the behavior for a resource represented by a file (not a DataStore)
     """
-    def __init__(self, *, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent:"BuilderPackage", name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None, file_name:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+        super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
         self.file_name: str = file_name
 
     def copy(self, *, dest=None):
@@ -493,15 +501,15 @@ class BuilderResourceUnmanaged(BuilderFileABC):  #, BuilderResourceUnmanagedABC)
     """
     Class to manage a resource metadata without specifying its contents during the upload process.
     """
-    def __init__(self, *, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent:"BuilderPackage", name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+        super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
         self.file_name: str = name
         self.default_payload: Union[bytes, io.BufferedIOBase, None] = None
 
     def copy(self, *, dest=None):
         if dest is None:
-            dest = BuilderResourceUnmanaged()
+            dest = BuilderResourceUnmanaged(parent=self.parent_package)
         super().copy(dest=dest)
         dest.file_name = self.file_name
         dest.default_payload = copy.deepcopy(self.default_payload)
@@ -560,7 +568,7 @@ class BuilderFileBinary(BuilderFileABC):
     """
     def copy(self, *, dest=None):
         if dest is None:
-            dest = BuilderFileBinary()
+            dest = BuilderFileBinary(parent=self.parent_package)
         super().copy(dest=dest)
         return dest
 
@@ -603,9 +611,9 @@ class BuilderUrlABC(BuilderFileABC, ABC):
     """
     Abstract behavior for a resource defined by an external URL.
     """
-    def __init__(self, *, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent:"BuilderPackage", name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None, url:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+        super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
         self.url = url
         self.file_name: str = name
 
@@ -655,7 +663,7 @@ class BuilderUrl(BuilderUrlABC):
 
     def copy(self, *, dest=None):
         if dest is None:
-            dest = BuilderUrl()
+            dest = BuilderUrl(parent=self.parent_package)
         super().copy(dest=dest)
         return dest
 
@@ -688,4 +696,7 @@ class BuilderUrl(BuilderUrlABC):
                                     progress_callback=self.progress_callback)
         self.upload_request_final(ckan)
         return resource_info
+
+
+from ckanapi_harvesters.builder.builder_package import BuilderPackage
 

@@ -30,9 +30,9 @@ from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiF
 
 
 class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
-    def __init__(self, *, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent, name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
+        super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id, download_url=download_url)
         self.field_builders: Union[Dict[str, BuilderField],None] = None
         self.field_builders_user: Union[Dict[str, BuilderField],None] = None
         self.field_builders_data_source: Union[Dict[str, BuilderField],None] = None
@@ -48,7 +48,7 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
 
     def copy(self, *, dest=None):
         if dest is None:
-            dest = BuilderMultiDataStore()
+            dest = BuilderMultiDataStore(parent=self.parent_package)
         super().copy(dest=dest)
         dest.field_builders = copy.deepcopy(self.field_builders)
         dest.field_builders_user = copy.deepcopy(self.field_builders_user)
@@ -121,7 +121,7 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
 
     def _data_store_builder_of_file(self, file_path:str) -> Tuple[BuilderDataStoreFile, str]:
         file_dir, file_name = os.path.split(file_path)
-        ds_builder = BuilderDataStoreFile(name=file_name, description=self.resource_attributes_user.description, download_url=self.download_url,
+        ds_builder = BuilderDataStoreFile(parent=self.parent_package, name=file_name, description=self.resource_attributes_user.description, download_url=self.download_url,
                                           format=self.resource_attributes_user.format, file_name=file_name)
         ds_builder.field_builders = self.field_builders
         ds_builder.primary_key = self.primary_key
@@ -202,7 +202,7 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
             return ds_builder.patch_request(ckan=ckan, package_id=package_id, reupload=reupload,
                                             resources_base_dir=file_dir)
         else:
-            ds_builder.upsert_request_df(ckan, file_chunk.df)
+            ds_builder.upsert_request_df(ckan, file_chunk.df, file_name=file_path, total_lines_read=self.read_line_counter)
             return ckan.map.get_resource_info(resource_name=ds_builder.name, package_name=package_id)
 
 

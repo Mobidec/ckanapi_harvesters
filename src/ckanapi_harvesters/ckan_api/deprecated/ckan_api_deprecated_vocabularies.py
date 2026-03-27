@@ -8,22 +8,25 @@ import copy
 from warnings import warn
 
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
+from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary.ckan_errors import MandatoryAttributeError
 from ckanapi_harvesters.auxiliary.ckan_vocabulary_deprecated import CkanTagVocabularyInfo, CkanVocabularyMap
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.policies.data_format_policy_tag_groups import TagListPolicy
+from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 
+from ckanapi_harvesters.ckan_api.ckan_api import CkanApiParams
 from ckanapi_harvesters.ckan_api.deprecated.ckan_api_deprecated import CkanApiDeprecated
 
 
 class CkanApiVocabulariesDeprecated(CkanApiDeprecated):
     def __init__(self, url:str=None, *, proxies:Union[str,dict,ProxyConfig]=None,
-                 ckan_headers:dict=None, http_headers:dict=None,
-                 apikey:str=None, apikey_file:str=None,
-                 owner_org:str=None,
-                 policy:CkanPackageDataFormatPolicy=None, policy_file:str=None,
+                 apikey:Union[str,CkanApiKey]=None, apikey_file:str=None,
+                 owner_org:str=None, params:CkanApiParams=None,
+                 map:CkanMap=None, policy: CkanPackageDataFormatPolicy = None, policy_file:str=None,
+                 data_cleaner_upload:CkanDataCleanerABC=None,
                  identifier=None):
         """
         CKAN Database API interface to CKAN server with helper functions using pandas DataFrames.
@@ -41,8 +44,8 @@ class CkanApiVocabulariesDeprecated(CkanApiDeprecated):
         msg = DeprecationWarning("Vocabularies are used to define custom fields which accept specific values and require to implement an IDatasetForm extension. This is not covered in this package.")
         warn(msg)
         super().__init__(url=url, proxies=proxies, apikey=apikey, apikey_file=apikey_file,
-                         ckan_headers=ckan_headers, http_headers=http_headers,
-                         owner_org=owner_org, policy=policy, policy_file=policy_file, identifier=identifier)
+                         owner_org=owner_org, policy=policy, policy_file=policy_file, identifier=identifier,
+                         params=params, map=map, data_cleaner_upload=data_cleaner_upload)
         self.map_vocabulary: CkanVocabularyMap = CkanVocabularyMap()
 
     def copy(self, new_identifier: str = None, *, dest=None):

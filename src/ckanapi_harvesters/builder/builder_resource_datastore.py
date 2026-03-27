@@ -58,9 +58,9 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
     :param data_cleaner_upload: Data sanitizer used to automate certain tasks and replacing invalid values (default is None)
     """
 
-    def __init__(self, *, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent, name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None, options_string:str=None, base_dir:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
+        super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id, download_url=download_url, options_string=options_string)
         self.field_builders: Union[Dict[str, BuilderField],None] = None
         self.field_builders_user: Union[Dict[str, BuilderField],None] = None
         self.field_builders_data_source: Union[Dict[str, BuilderField],None] = None
@@ -680,15 +680,15 @@ class BuilderResourceIgnored(BuilderDataStoreABC):
     """
     Class to maintain a line in the resource builders list but has no action and can hold field metadata.
     """
-    def __init__(self, *, name:str=None, format:str=None, description:str=None,
+    def __init__(self, *, parent, name:str=None, format:str=None, description:str=None,
                  resource_id:str=None, download_url:str=None, file_url:str=None, options_string:str=None, base_dir:str=None):
-        super().__init__(name=name, format=format, description=description, resource_id=resource_id,
+        super().__init__(parent=parent, name=name, format=format, description=description, resource_id=resource_id,
                          download_url=download_url, options_string=options_string, base_dir=base_dir)
         self.file_url: Union[str, None] = file_url
 
     def copy(self, *, dest=None):
         if dest is None:
-            dest = BuilderResourceIgnored()
+            dest = BuilderResourceIgnored(parent=self.parent_package)
         super().copy(dest=dest)
         dest.file_url = self.file_url
         return dest
