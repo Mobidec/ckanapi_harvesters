@@ -31,6 +31,7 @@ paramiko[sshtunnel] >= 4.0.0
 tqdm[more] >= 4.67.3  # Console/Jupyter progress bars
 # dev
 pytest[dev] >= 9.0.2  # strict version 8.0.1 in the package template
+pytest-cov[dev] >= 7.1.0
 build[dev] >= 1.4.0
 twine[dev] >= 6.2.0
 ruff[dev] >= 0.15.7
