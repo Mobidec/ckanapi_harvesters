@@ -37,6 +37,8 @@ from . import example
 # usage shortcuts
 from .builder_package import BuilderPackage
 from .mapper_datastore_multi import RequestFileMapperIndexKeys
+from .builder_resource import BuilderResourceABC
+from .builder_resource_datastore import BuilderDataStoreABC
 from .builder_resource_datastore_multi_abc import BuilderDataStoreMultiABC
 from .builder_resource_datastore_multi_folder import BuilderDataStoreFolder
 

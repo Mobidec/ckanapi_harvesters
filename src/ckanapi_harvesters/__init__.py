@@ -47,7 +47,7 @@ from .policies import CkanPackageDataFormatPolicy
 from .reports import CkanAdminReport
 from .ckan_api import CkanApi, CkanApiParams, CKAN_API_VERSION
 from .builder import BUILDER_FILE_FORMAT_VERSION
-from .builder import BuilderPackage, BuilderDataStoreMultiABC, BuilderDataStoreFolder, RequestFileMapperIndexKeys
+from .builder import BuilderPackage, BuilderResourceABC, BuilderDataStoreABC, BuilderDataStoreMultiABC, BuilderDataStoreFolder, RequestFileMapperIndexKeys
 
 
 if time_package_loading:
