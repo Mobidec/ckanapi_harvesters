@@ -40,14 +40,24 @@ Here’s the translated section for “Style” and “Development Process” fo
 
 ---
 
+## Installing development tools requirements
+
+Activate your virtual environment (replace `venv` accordingly):
+```bash
+.\venv\Scripts\activate
+```
+Install the necessary files:
+```bash
+pip install pre-commit build twine ruff pytest pytest-cov sphinx sphinx_design myst_nb furo sphinx_autopackagesummary sphinxcontrib-napoleon sphinx-rtd-theme numpydoc
+```
+
 ## Style
 
 To ensure code style consistency, the project uses [Ruff](https://github.com/astral-sh/ruff). The maximum line length has been increased to 140 characters to encourage explicit method names. A pre-commit hook is also set up to check that code is properly formatted before each commit. You can install and use it locally to ensure your code is correctly formatted:
 
 ```bash
 pip install ruff
-ruff check --fix
-ruff format
+ruff format --check .
 ```
 
 ### Pre-commit
@@ -109,7 +119,7 @@ The file `pyproject.toml` is the cornerstone of your Python package configuratio
 
 ```toml
 [project]
-name = "ckanapi_harvesters"
+name = "quickstart"
 version = "0.0.0"
 authors = [
   { name = "AUTHOR", email = "author@example.com" }
@@ -283,14 +293,14 @@ auto docstring for package
 
    This is my package.
 
-   .. autopackagesummary:: ckanapi_harvesters
-      :toctree: ckanapi_harvesters
+   .. autopackagesummary:: quickstart
+      :toctree: quickstart
       :template: autosummary/package.rst
 
 .. toctree::
    :glob:
 
-   ckanapi_harvesters/*
+   quickstart/*
  ```
 
 #### Compilation
@@ -298,8 +308,24 @@ auto docstring for package
 To compile the documentation, run the following commands:
 
 ```shell
-pip install sphinx sphinx-rtd-theme
-sphinx-build -b html ./sphinx ./public
+pip install sphinx sphinx_design myst_nb furo sphinx_autopackagesummary sphinxcontrib-napoleon sphinx-rtd-theme numpydoc
+sphinx-apidoc -f -o sphinx/src/ src/
+sphinx-build -b html sphinx/ sphinx/_build/
+```
+
+### Testing the package wihtout building
+
+These commands run tests without having to build the package.
+
+```bash
+# Windows (Powershell)
+$env:PYTHONPATH="src"; pytest
+
+# Windows (Command line)
+set PYTHONPATH=src && pytest
+
+# Linux/macOS
+PYTHONPATH=src pytest
 ```
 
 ### Installing and Testing the Package
@@ -309,9 +335,10 @@ Before merging into `develop`, ensure that your package is working correctly by 
 ```bash
 pip install build
 python -m build
-pip install dist/ckanapi_harvesters-0.0.0-py3-none-any.whl
+twine check dist/quickstart-0.0.0-py3-none-any.whl
+pip install dist/quickstart-0.0.0-py3-none-any.whl
 pytest
 ```
 
-Replace `ckanapi_harvesters` with the name of your repository. Once installed, the package becomes part of your dependencies, and you can use it in your code with `import ckanapi_harvesters` or `from ckanapi_harvesters import module`.
+Replace `quickstart` with the name of your repository. Once installed, the package becomes part of your dependencies, and you can use it in your code with `import quickstart` or `from quickstart import module`.
 

@@ -834,7 +834,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC):
         self.private:Union[bool, None] = private
         self.state:Union[CkanState, None] = state
         self.version:Union[str, None] = version
-        self.custom_fields:OrderedDict[str,str] = OrderedDict()  # key, value pairs
+        self.custom_fields:Union[OrderedDict[str,str],None] = None  # key, value pairs
         self.details:dict = {}
         self.package_resources:OrderedDict[str,CkanResourceInfo] = OrderedDict()  # resource id -> info
         self.resources_id_index:Dict[str,str] = {}  # resource name -> id
