@@ -11,7 +11,7 @@ import argparse
 
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanState
@@ -302,7 +302,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         else:
             assert(isinstance(records, pd.DataFrame))
         if progress_callback is not None:
-            progress_callback.start_task(len(records), level=CkanCallbackLevel.Requests)
+            progress_callback.start_task(len(records), level=CkanCallbackLevel.Requests, units=CkanProgressUnits.Records)
         if data_cleaner is None:
             data_cleaner = self.data_cleaner_upload
         if data_cleaner is not None:

@@ -17,7 +17,7 @@ from collections import OrderedDict
 import pandas as pd
 import numpy as np
 
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanProgressCallbackABC, CkanCallbackLevel
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.ckan_api import CkanApi, CkanApiMap
@@ -1052,7 +1052,7 @@ class BuilderPackageBasic:
         self.update_package_name_in_resources()
         self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         if progress_callback is not None:
-            progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
+            progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources, units=CkanProgressUnits.Items)
         for resource_index, resource_builder in enumerate(self.resource_builders.values()):
             if progress_callback is not None:
                 resource_builder.progress_callback = progress_callback
@@ -1168,7 +1168,7 @@ class BuilderPackageBasic:
         self.upload_file_checks(resource_names, resources_base_dir=resources_base_dir, ckan=ckan, verbose=True, raise_error=True)
         mono_resource_used_files = self._get_mono_resource_used_files(resources_base_dir, ckan)
         if progress_callback is not None:
-            progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
+            progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources, units=CkanProgressUnits.Items)
         for resource_index, resource_builder in enumerate(self.resource_builders.values()):
             if isinstance(resource_builder, BuilderDataStoreMultiABC):
                 if progress_callback is not None:

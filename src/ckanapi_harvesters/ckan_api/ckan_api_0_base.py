@@ -20,7 +20,7 @@ from requests.auth import AuthBase
 from requests.exceptions import ProxyError, ReadTimeout
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.external_code_import import unlock_external_code_execution
 from ckanapi_harvesters.auxiliary.ckan_configuration import download_external_resource_urls, \
@@ -899,7 +899,7 @@ class CkanApiBase(CkanApiABC):
         if self.params.verbose_multi_requests:
             print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit} results from {api_fun.__name__}...")
         if progress_callback is not None:
-            progress_callback.start_task(None, level=CkanCallbackLevel.Requests)  # total len is unknown here because no API call was performed
+            progress_callback.start_task(None, level=CkanCallbackLevel.Requests, units=CkanProgressUnits.Records)  # total len is unknown here because no API call was performed
         result_add: Union[pd.DataFrame, CkanActionResponse, Collection] = api_fun(params=params, limit=limit, offset=offset, **kwargs)
         if self.params.store_last_response_debug_info:
             self.debug.multi_requests_last_successful_offset = offset

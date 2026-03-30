@@ -10,6 +10,7 @@ from warnings import warn
 
 import pandas as pd
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressUnits
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
 from ckanapi_harvesters.auxiliary.list_records import ListRecords
@@ -211,6 +212,9 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
         if self.local_file_list is None:
             raise RuntimeError("You must call list_local_files first")
         return len(self.local_file_list)
+
+    def get_local_file_size_units(self):
+        return CkanProgressUnits.Pages  # requests to source database
 
     # def patch_request(self, ckan: CkanApi, package_id: str, *,
     #                   df_upload: pd.DataFrame=None, reupload: bool = None, resources_base_dir:str=None) -> CkanResourceInfo:

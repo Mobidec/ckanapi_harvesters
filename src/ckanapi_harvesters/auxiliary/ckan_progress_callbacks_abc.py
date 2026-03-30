@@ -26,6 +26,28 @@ class CkanProgressBarType(IntEnum):
     TqdmJupyter = 3
 
 
+class CkanProgressUnits(IntEnum):
+    Undef = 0
+    Bytes = 1
+    Records = 2
+    Pages = 3
+    Items = 4
+
+    def short_name(self) -> str:
+        if self == CkanProgressUnits.Undef:
+            return "U"
+        elif self == CkanProgressUnits.Bytes:
+            return "B"
+        elif self == CkanProgressUnits.Records:
+            return "L"
+        elif self == CkanProgressUnits.Pages:
+            return "P"
+        elif self == CkanProgressUnits.Items:
+            return "It"
+        else:
+            return {self.name}
+
+
 class CkanProgressCallbackABC(ABC):
     default_progress_bar_type = CkanProgressBarType.NoBar
 
@@ -75,7 +97,8 @@ class CkanProgressCallbackABC(ABC):
         return self.copy()
 
     def start_task(self, total:int, *, file_count:int=None, position:int=0, file_index:int=0, level:CkanCallbackLevel=None,
-                 info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=0, **kwargs) -> None:
+                   info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=0,
+                   units:CkanProgressUnits=None, **kwargs) -> None:
         if level is not None:
             self.start_time[level] = time.time()
             self.last_progress_position[level] = 0

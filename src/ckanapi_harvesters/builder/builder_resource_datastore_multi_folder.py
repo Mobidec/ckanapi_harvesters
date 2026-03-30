@@ -12,6 +12,7 @@ import copy
 
 import pandas as pd
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressUnits
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
 from ckanapi_harvesters.builder.builder_resource_multi_abc import FileChunkDataFrame
@@ -156,6 +157,9 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
 
     def get_local_file_total_size(self) -> int:
         return self.local_file_size_sum
+
+    def get_local_file_size_units(self):
+        return CkanProgressUnits.Bytes
 
     def init_local_files_list(self, resources_base_dir:str, ckan:CkanApi, cancel_if_present:bool=True, **kwargs) -> List[str]:
         return self.list_local_files(resources_base_dir=resources_base_dir, ckan=ckan, cancel_if_present=cancel_if_present)

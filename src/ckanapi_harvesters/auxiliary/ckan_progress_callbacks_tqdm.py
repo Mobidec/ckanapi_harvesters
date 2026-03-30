@@ -6,7 +6,7 @@ Progress callback function definition
 from typing import Any, Union, Callable
 from threading import Semaphore
 
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanCallbackLevel, CkanProgressBarType
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanCallbackLevel, CkanProgressBarType, CkanProgressUnits
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_simple import CkanProgressCallbackSimple
 from ckanapi_harvesters.auxiliary.ckan_errors import RequirementError
 
@@ -54,9 +54,11 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
         return super().copy(dest=dest)
 
     def start_task(self, total:int, *, file_count:int=None, position:int=0, file_index:int=0, level:CkanCallbackLevel=None,
-                 info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=0, **kwargs) -> None:
+                   info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=0,
+                   units:CkanProgressUnits=None, **kwargs) -> None:
         super().start_task(total=total, file_count=file_count, level=level, position=position, file_index=file_index,
-                           info=info, context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read, **kwargs)
+                           info=info, context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read,
+                           units=units, **kwargs)
         if (level is not None and total is not None
                 and not self._progress_bar_type == CkanProgressBarType.NoBar
                 and self.progress_bar_enables[level]):
@@ -65,12 +67,13 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
                 desc = level.name
                 if context:
                     desc = desc + " (" + context + ")"
+                unit_short_name = units.short_name() if units is not None else "U"
                 if self._progress_bar_type == CkanProgressBarType.TqdmAuto:
-                    self.progress_bars[level] = tqdm_auto(total=total, unit="U", unit_scale=True, desc=desc)  #, position=int(level))
+                    self.progress_bars[level] = tqdm_auto(total=total, unit=unit_short_name, unit_scale=True, desc=desc)  #, position=int(level))
                 elif self._progress_bar_type == CkanProgressBarType.TqdmConsole:
-                    self.progress_bars[level] = tqdm(total=total, unit="U", unit_scale=True, desc=desc)  #, position=int(level))
+                    self.progress_bars[level] = tqdm(total=total, unit=unit_short_name, unit_scale=True, desc=desc)  #, position=int(level))
                 elif self._progress_bar_type == CkanProgressBarType.TqdmJupyter:
-                    self.progress_bars[level] = tqdm_notebook(total=total, unit="U", unit_scale=True, desc=desc)  #, position=int(level))
+                    self.progress_bars[level] = tqdm_notebook(total=total, unit=unit_short_name, unit_scale=True, desc=desc)  #, position=int(level))
                 else:
                     raise NotImplementedError(self._progress_bar_type.name)
                 if position > 0:

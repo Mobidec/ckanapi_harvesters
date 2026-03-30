@@ -16,6 +16,7 @@ import fnmatch
 import pandas as pd
 import requests
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressUnits
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel
@@ -140,6 +141,9 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
 
     def get_local_file_total_size(self) -> int:
         return self.local_file_size_sum
+
+    def get_local_file_size_units(self):
+        return CkanProgressUnits.Bytes
 
     def get_local_file_offset(self, file_chunk: FileChunkDataFrame) -> int:
         return sum(self.local_file_size[:file_chunk.file_index]) + file_chunk.file_position
