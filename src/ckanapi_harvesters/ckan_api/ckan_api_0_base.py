@@ -468,6 +468,7 @@ class CkanApiBase(CkanApiABC):
                 print("Exception error message:")
                 print(str(error))
             if response is None:
+                print(f"Timestamp: {datetime.datetime.now()}")
                 if params is not None:
                     print(" ")
                     print("Request params:")
