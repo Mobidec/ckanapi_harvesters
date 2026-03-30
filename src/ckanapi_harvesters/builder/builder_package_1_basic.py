@@ -448,6 +448,7 @@ class BuilderPackageBasic:
         if "attribute" in package_df.columns:
             package_df.pop("attribute")  # reserved name for table header
         remaining_columns = list(package_df.columns)
+        self.package_attributes.custom_fields = OrderedDict()
         for column in remaining_columns:
             original_column = original_columns[renamed_columns.index(column)]
             self.package_attributes.custom_fields[original_column] = _string_from_element(package_df[column])
@@ -484,8 +485,9 @@ class BuilderPackageBasic:
         package_dict["Author Email"] = self.package_attributes.author_email if self.package_attributes.author_email is not None else ""
         package_dict["Maintainer"] = self.package_attributes.maintainer if self.package_attributes.maintainer is not None else ""
         package_dict["Maintainer Email"] = self.package_attributes.maintainer_email if self.package_attributes.maintainer_email is not None else ""
-        for key, value in self.package_attributes.custom_fields.items():
-            package_dict[key] = value if value is not None else ""
+        if self.package_attributes.custom_fields is not None:
+            for key, value in self.package_attributes.custom_fields.items():
+                package_dict[key] = value if value is not None else ""
         return info_dict, package_dict
 
     def _get_builder_df_help_dict(self) -> Tuple[dict, dict]:
@@ -512,7 +514,8 @@ class BuilderPackageBasic:
         }
         if self.package_attributes.id:
             package_help_dict["Known Id"] = "ID of the resource in the CKAN database, last requested"
-        package_help_dict.update({key: "Custom key-value pair (refer to data format policy)" for key in self.package_attributes.custom_fields.keys()})
+        if self.package_attributes.custom_fields is not None:
+            package_help_dict.update({key: "Custom key-value pair (refer to data format policy)" for key in self.package_attributes.custom_fields.keys()})
         return info_help_dict, package_help_dict
 
     def _load_from_dict(self, info_dict: dict, package_dict: dict, base_dir:str=None) -> None:
@@ -1005,7 +1008,7 @@ class BuilderPackageBasic:
         package_info = ckan.package_create(self.package_name, private=self.package_attributes.private,
             state=initial_package_building_state if initial_package_building_state is not None else self.package_attributes.state,
             title=self.package_attributes.title, notes=self.package_attributes.description, owner_org=owner_org,
-            tags=self.package_attributes.tags, custom_fields=self.package_attributes.custom_fields,
+            tags=self.package_attributes.tags, custom_fields_update=self.package_attributes.custom_fields,
             url=self.package_attributes.url, version=self.package_attributes.version,
             author=self.package_attributes.author, author_email=self.package_attributes.author_email,
             maintainer=self.package_attributes.maintainer, maintainer_email=self.package_attributes.maintainer_email,

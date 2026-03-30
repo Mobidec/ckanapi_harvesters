@@ -10,6 +10,13 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-03-31
 
 
+## [0.0.20 Unreleased] - 2026-03-27
+
+### Fixed
+
+- Package builder removed custom field metadata which were already present on CKAN side.
+
+
 ## [0.0.19] - 2026-03-27
 
 ### Added

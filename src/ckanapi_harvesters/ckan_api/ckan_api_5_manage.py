@@ -1008,7 +1008,7 @@ class CkanApiManage(CkanApiReadWrite):
 
     def _api_package_patch(self, package_id: str, package_name:str=None, private:bool=None, *, title:str=None, notes:str=None, owner_org:str=None,
                            state:Union[CkanState,str]=None, license_id:str=None, tags:List[str]=None, tags_list_dict:List[Dict[str, str]]=None,
-                           url:str=None, version:str=None, custom_fields:dict=None,
+                           url:str=None, version:str=None, custom_fields_update:dict=None, custom_fields:dict=None,
                            author:str=None, author_email:str=None, maintainer:str=None, maintainer_email:str=None,
                            params:dict=None) -> CkanPackageInfo:
         """
@@ -1031,6 +1031,7 @@ class CkanApiManage(CkanApiReadWrite):
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         if params is None: params = {}
         params["id"] = package_id
+        package_info = self.get_package_info_or_request(package_id)
         if private is not None:
             params["private"] = private
         if owner_org is None and use_ckan_owner_org_as_default:
@@ -1055,6 +1056,13 @@ class CkanApiManage(CkanApiReadWrite):
                 tags_list_dict.append({"name": tag})
         if tags_list_dict is not None:
             params["tags"] = tags_list_dict
+        if custom_fields is None:
+            if package_info.custom_fields is not None:
+                custom_fields = package_info.custom_fields.copy()
+            else:
+                custom_fields = OrderedDict()
+        if custom_fields_update is not None:
+            custom_fields.update(custom_fields_update)
         if custom_fields is not None:
             params["extras"] = [{"key": key, "value": value if value is not None else ""} for key, value in custom_fields.items()]
         if author is not None:
@@ -1083,14 +1091,14 @@ class CkanApiManage(CkanApiReadWrite):
 
     def package_patch(self, package_id: str, package_name:str=None, private:bool=None, *, title:str=None, notes:str=None, owner_org:str=None,
                            state:Union[CkanState,str]=None, license_id:str=None, tags:List[str]=None, tags_list_dict:List[Dict[str, str]]=None,
-                           url:str=None, version:str=None, custom_fields:dict=None,
+                           url:str=None, version:str=None, custom_fields_update:dict=None, custom_fields:dict=None,
                            author:str=None, author_email:str=None, maintainer:str=None, maintainer_email:str=None,
                            params:dict=None) -> CkanPackageInfo:
         # function alias
         return self._api_package_patch(package_id=package_id, package_name=package_name, private=private,
                                        title=title, notes=notes, owner_org=owner_org, state=state,
                                        license_id=license_id, tags=tags, tags_list_dict=tags_list_dict, url=url, version=version,
-                                       custom_fields=custom_fields, author=author, author_email=author_email,
+                                       custom_fields_update=custom_fields_update, custom_fields=custom_fields, author=author, author_email=author_email,
                                        maintainer=maintainer, maintainer_email=maintainer_email,
                                        params=params)
 
@@ -1176,7 +1184,7 @@ class CkanApiManage(CkanApiReadWrite):
 
     def package_create(self, package_name:str, private:bool=True, *, title:str=None, notes:str=None, owner_org:str=None,
                        state: Union[CkanState, str] = None, license_id: str = None, tags: List[str] = None, tags_list_dict:List[Dict[str, str]]=None,
-                       url: str = None, version: str = None, custom_fields: dict = None,
+                       url: str = None, version: str = None, custom_fields_update: dict = None, custom_fields: dict = None,
                        author: str = None, author_email: str = None,
                        maintainer: str = None, maintainer_email: str = None,
                        params:dict=None, cancel_if_exists:bool=True, update_if_exists=True,
@@ -1219,13 +1227,17 @@ class CkanApiManage(CkanApiReadWrite):
                 pkg_info = self.package_patch(pkg_info.id, package_name, private=private, title=title, notes=notes,
                                               owner_org=owner_org, state=state, license_id=license_id, tags=tags,
                                               tags_list_dict=tags_list_dict,
-                                              url=url, version=version, custom_fields=custom_fields,
+                                              url=url, version=version, custom_fields_update=custom_fields_update, custom_fields=custom_fields,
                                               author=author, author_email=author_email,
                                               maintainer=maintainer, maintainer_email=maintainer_email,
                                               params=params)
             pkg_info.newly_created = False
             return pkg_info
         else:
+            if custom_fields is None:
+                custom_fields = OrderedDict()
+            if custom_fields_update is not None:
+                custom_fields.update(custom_fields_update)
             pkg_info = self._api_package_create(package_name, private, title=title, notes=notes,
                                                 owner_org=owner_org, state=state, license_id=license_id, tags=tags,
                                                 tags_list_dict=tags_list_dict,

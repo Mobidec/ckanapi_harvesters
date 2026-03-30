@@ -127,6 +127,8 @@ class CustomFieldsPolicy(DataPolicyElementABC):
 
     def enforce(self, values: Dict[str, str], *, context:str=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
         success = True
+        if values is None:
+            return success
         if self.keys_case_sensitive:
             keys = set(values.keys())
         else:
