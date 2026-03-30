@@ -348,7 +348,7 @@ class CkanField(CkanConfigurableObjectABC):
 
     @staticmethod
     def from_ckan_dict(d:dict) -> "CkanField":
-        obj = CkanField(d["id"], d["type"])
+        obj = CkanField(d["id"], d.get("type", None))
         obj.details = d
         if "info" in d.keys():
             field_info = d["info"]

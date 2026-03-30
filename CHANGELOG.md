@@ -10,7 +10,15 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-03-31
 
 
-## [0.0.20 Unreleased] - 2026-03-27
+## [Future 0.0.21 Unreleased] - 2026-03-31
+
+### Added
+
+- _Assist_ __Data Cleaner__ which detects field types which were not specified, improved invalid value detection. 
+This feature is for debug use as it is time-consuming.
+
+
+## [0.0.20] - 2026-03-27
 
 ### Fixed
 
