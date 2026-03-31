@@ -41,6 +41,8 @@ class CkanApiDeprecated(CkanApiManage):
         :param params:
         :return:
         """
+        msg = "resource_move does not work"
+        warn(msg, DeprecationWarning)
         if params is None:
             params = {}
         resource_info = self.get_resource_info_or_request(resource_id, package_name=package_name)
@@ -57,8 +59,8 @@ class CkanApiDeprecated(CkanApiManage):
         :param params: typically, the request can be limited to an organization with the owner_org parameter
         :return:
         """
-        msg = DeprecationWarning("Prefer using package_search rather than package_list because this API does not list private packages")
-        warn(msg)
+        msg = "Prefer using package_search rather than package_list because this API does not list private packages"
+        warn(msg, DeprecationWarning)
         if params is None: params = {}
         if limit is None: limit = self.params.default_limit_list
         if limit is not None:
@@ -83,8 +85,8 @@ class CkanApiDeprecated(CkanApiManage):
         :param params:
         :return:
         """
-        msg = DeprecationWarning("Prefer using package_search rather than package_list because this API does not list private packages")
-        warn(msg)
+        msg = "Prefer using package_search rather than package_list because this API does not list private packages"
+        warn(msg, DeprecationWarning)
         if params is None: params = {}
         responses = self._request_all_results_list(self._api_package_list, params=params, owner_org=owner_org, limit=limit, offset=offset)
         return sum(responses, [])
@@ -113,8 +115,8 @@ class CkanApiDeprecated(CkanApiManage):
         :param params: additional parameters to pass to resource_search
         :return:
         """
-        msg = DeprecationWarning("Prefer using package_search rather than resource_search because resource_search cannot filter per package")
-        warn(msg)
+        msg = "Prefer using package_search rather than resource_search because resource_search cannot filter per package"
+        warn(msg, DeprecationWarning)
         if datastore_info is None:
             datastore_info = self.map._mapping_query_datastore_info
         if resource_view_list is None:
@@ -168,8 +170,8 @@ class CkanApiDeprecated(CkanApiManage):
         :param params: additional parameters to pass to resource_search
         :return:
         """
-        msg = DeprecationWarning("Prefer using package_search rather than resource_search because resource_search cannot filter per package")
-        warn(msg)
+        msg = "Prefer using package_search rather than resource_search because resource_search cannot filter per package"
+        warn(msg, DeprecationWarning)
         if params is None: params = {}
         responses = self._request_all_results_list(self._api_resource_search, params=params, limit=limit, offset=offset,
                                                    query=query, order_by=order_by,
@@ -196,8 +198,8 @@ class CkanApiDeprecated(CkanApiManage):
         :param params: other parameters to pass to package_search
         :return:
         """
-        msg = DeprecationWarning("Prefer using package_search rather than group_package_show knowing the name of the package because this API does not list private packages")
-        warn(msg)
+        msg = "Prefer using package_search rather than group_package_show knowing the name of the package because this API does not list private packages"
+        warn(msg, DeprecationWarning)
         if params is None: params = {}
         params["id"] = group_name
         if limit is None: limit = self.params.default_limit_list
@@ -244,8 +246,8 @@ class CkanApiDeprecated(CkanApiManage):
         :param params: other parameters to pass to API
         :return:
         """
-        msg = DeprecationWarning("Prefer using package_search rather than group_package_show knowing the name of the package because this API does not list private packages")
-        warn(msg)
+        msg = "Prefer using package_search rather than group_package_show knowing the name of the package because this API does not list private packages"
+        warn(msg, DeprecationWarning)
         if params is None: params = {}
         responses = self._request_all_results_list(self._api_group_package_show, params=params, limit=limit, offset=offset,
                                                    group_name=group_name, owner_org=owner_org,
@@ -264,8 +266,8 @@ class CkanApiDeprecated(CkanApiManage):
         :param params:
         :return:
         """
-        msg = DeprecationWarning("Prefer using resource_view_create rather than resource_create_default_resource_views")
-        warn(msg)
+        msg = "Prefer using resource_view_create rather than resource_create_default_resource_views"
+        warn(msg, DeprecationWarning)
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         if params is None: params = {}
         resource_info = self.resource_show(resource_id)

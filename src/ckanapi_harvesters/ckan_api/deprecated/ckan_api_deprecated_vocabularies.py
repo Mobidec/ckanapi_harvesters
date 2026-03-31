@@ -41,8 +41,8 @@ class CkanApiVocabulariesDeprecated(CkanApiDeprecated):
         :param policy_file: path to a JSON file containing the data format policy to use with policy_check function
         :param owner_org: name of the organization to limit package_search (optional)
         """
-        msg = DeprecationWarning("Vocabularies are used to define custom fields which accept specific values and require to implement an IDatasetForm extension. This is not covered in this package.")
-        warn(msg)
+        msg = "Vocabularies are used to define custom fields which accept specific values and require to implement an IDatasetForm extension. This is not covered in this package."
+        warn(msg, DeprecationWarning)
         super().__init__(url=url, proxies=proxies, apikey=apikey, apikey_file=apikey_file,
                          owner_org=owner_org, policy=policy, policy_file=policy_file, identifier=identifier,
                          params=params, map=map, data_cleaner_upload=data_cleaner_upload)
@@ -88,8 +88,8 @@ class CkanApiVocabulariesDeprecated(CkanApiDeprecated):
 
         :return: a list of vocabulary info objects
         """
-        msg = DeprecationWarning("Vocabulary functions did not work when tested")
-        warn(msg)
+        msg = "Vocabulary functions did not work when tested"
+        warn(msg, DeprecationWarning)
         response = self._api_action_request(f"vocabulary_list", method=RequestType.Post, json=params)
         if response.success:
             vocabulary_list = [CkanTagVocabularyInfo(vocabulary_dict) for vocabulary_dict in response.result]
@@ -110,8 +110,8 @@ class CkanApiVocabulariesDeprecated(CkanApiDeprecated):
 
         :return: a
         """
-        msg = DeprecationWarning("Vocabulary functions did not work when tested")
-        warn(msg)
+        msg = "Vocabulary functions did not work when tested"
+        warn(msg, DeprecationWarning)
         if params is None: params = {}
         params["name"] = vocabulary_name
         params["tags"] = tags_list_dict
@@ -129,8 +129,8 @@ class CkanApiVocabulariesDeprecated(CkanApiDeprecated):
 
         :return: a
         """
-        msg = DeprecationWarning("Vocabulary functions did not work when tested")
-        warn(msg)
+        msg = "Vocabulary functions did not work when tested"
+        warn(msg, DeprecationWarning)
         if params is None: params = {}
         params["id"] = vocabulary_id
         params["tags"] = tags_list_dict
@@ -155,8 +155,8 @@ class CkanApiVocabulariesDeprecated(CkanApiDeprecated):
 
         :return: True if success
         """
-        msg = DeprecationWarning("Vocabulary functions did not work when tested")
-        warn(msg)
+        msg = "Vocabulary functions did not work when tested"
+        warn(msg, DeprecationWarning)
         if params is None: params = {}
         params["id"] = vocabulary_id
         response = self._api_action_request(f"vocabulary_delete", method=RequestType.Post, json=params)
