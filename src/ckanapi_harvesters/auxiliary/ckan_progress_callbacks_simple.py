@@ -92,10 +92,10 @@ class CkanProgressCallbackSimple(CkanProgressCallbackABC):
     def __copy__(self):
         return self.copy()
 
-    def task_progress(self, position:int, total:int, *, info:Any=None, context:str=None,
-        file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
-        canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
-        **kwargs) -> Union[str,None]:
+    def update_task(self, position:int, total:int, *, info:Any=None, context:str=None,
+                    file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
+                    canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+                    **kwargs) -> Union[str,None]:
         """
         Progress callback function. Use to implement a progress indication for the user.
 
@@ -133,6 +133,12 @@ class CkanProgressCallbackSimple(CkanProgressCallbackABC):
                 # if task_start_time is None or position == 0 or end_message:
                 #     task_start_time = time.time()
                 #     self.start_time[level] = task_start_time
+                # extra context
+                if self.extra_context[level]:
+                    if context:
+                        context = self.extra_context[level] + " - " + context
+                    else:
+                        context = self.extra_context[level]
             else:
                 task_start_time = None
             # call user-defined function

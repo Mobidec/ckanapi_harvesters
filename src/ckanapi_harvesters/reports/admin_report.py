@@ -10,6 +10,8 @@ import datetime
 import os
 from warnings import warn
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_errors import CkanAuthorizationError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import to_jsons_indent_lists_single_line
@@ -25,9 +27,9 @@ def size_str_mb(size_mb:float) -> str:
 
 
 class CkanAdminReport:
-    def __init__(self, package_list:List[str]=None, cancel_if_present:bool=True,
+    def __init__(self, package_list:List[str]=None, *, cancel_if_present:bool=True,
                  package_custom_fields:List[str]=None, ckan:CkanApi=None, full_report:bool=False,
-                 auto_exec:bool=True):
+                 auto_exec:bool=True, progress_callback:CkanProgressCallbackABC=None):
         if package_custom_fields is None:
             package_custom_fields = []  # option to include specific custom fields in the report e.g. a end of license date
         if isinstance(package_list, str):
@@ -46,7 +48,7 @@ class CkanAdminReport:
         self.allow_downgraded_queries:bool = False
         self.report: Union[dict,None] = None  # report output
         if auto_exec and ckan is not None:
-            self.execute(ckan)
+            self.execute(ckan, progress_callback=progress_callback)
 
     def _date_format_str(self, date:datetime.datetime) -> str:
         if self.date_format is not None:
@@ -54,7 +56,7 @@ class CkanAdminReport:
         else:
             return date.isoformat()
 
-    def _perform_requests(self, ckan: CkanApi) -> None:
+    def _perform_requests(self, ckan: CkanApi, *, progress_callback:CkanProgressCallbackABC=None) -> None:
         if not self.cancel_if_present:
             ckan.purge(purge_map=True)
         start = time.time()
@@ -74,7 +76,10 @@ class CkanAdminReport:
         elif not self._connected_user.sysadmin:
             msg = f"It is recommended to run the report with a user with sysadmin rights. Current user: {self._connected_user.name}"
             warn(msg)
-        ckan.map_resources(self.package_list, datastore_info=True, only_missing=self.cancel_if_present)
+        if progress_callback is not None:
+            progress_callback.add_context("Step 1: Map resources", level=CkanCallbackLevel.Packages)
+        ckan.map_resources(self.package_list, datastore_info=True, only_missing=self.cancel_if_present,
+                           progress_callback=progress_callback)
         try:
             ckan.organization_list_all(cancel_if_present=False, include_users=True)
         except CkanAuthorizationError as e:
@@ -84,15 +89,21 @@ class CkanAdminReport:
             warn(msg)
             ckan.organization_list_all(cancel_if_present=False, include_users=False)
         ckan.license_list(cancel_if_present=self.cancel_if_present)
-        ckan.map_file_resource_sizes(cancel_if_present=self.cancel_if_present)
+        if progress_callback is not None:
+            progress_callback.add_context("Step 2: Request file sizes", level=CkanCallbackLevel.Resources)
+        ckan.map_file_resource_sizes(cancel_if_present=self.cancel_if_present, progress_callback=progress_callback)
+        if progress_callback is not None:
+            progress_callback.add_context("Step 3: Request user access", level=CkanCallbackLevel.Packages)
         try:
-            ckan.map_user_rights(cancel_if_present=self.cancel_if_present)
+            ckan.map_user_rights(cancel_if_present=self.cancel_if_present, progress_callback=progress_callback)
         except CkanAuthorizationError as e:
             if not self.allow_downgraded_queries:
                 raise e from e
             msg = "map_user_rights with include_users=True raised an authorization error. Organization users will not show in report: " + str(e)
             warn(msg)
             ckan.group_list_all(include_users=False)
+        if progress_callback is not None:
+            progress_callback.remove_context()
         self._elapsed_time_requests = time.time() - start
         self._request_count = ckan.debug.ckan_request_counter - request_count_init
         if ckan.params.verbose_extra:
@@ -106,11 +117,13 @@ class CkanAdminReport:
                 for user_id in organization_info.user_members.keys():
                     ckan.map.users[user_id].organizations.append(organization_info.name)
 
-    def _create_report(self, ckan: CkanApi) -> None:
+    def _create_report(self, ckan: CkanApi, *, progress_callback:CkanProgressCallbackABC=None) -> None:
         start = time.time()
         request_count_init = ckan.debug.ckan_request_counter
         policy_messages: Dict[str, List[DataPolicyError]] = {}
-        ckan.policy_check(buffer=policy_messages)
+        if progress_callback is not None:
+            progress_callback.add_context("Step 4: Policy check", level=CkanCallbackLevel.Packages)
+        ckan.policy_check(buffer=policy_messages, progress_callback=progress_callback)
 
         report_header = OrderedDict([
             ("title", "Admin report on packages and resources"),
@@ -132,7 +145,11 @@ class CkanAdminReport:
         total_datastore_lines = 0
         global_last_modified_resources = None
         global_last_modified_metadata = None
-        for package_id, package_info in ckan.map.packages.items():
+        num_packages = len(ckan.map.packages)
+        if progress_callback is not None:
+            progress_callback.add_context("Step 5: Create report per package", level=CkanCallbackLevel.Packages)
+            progress_callback.start_task(num_packages, level=CkanCallbackLevel.Packages, units=CkanProgressUnits.Items)
+        for i_package, (package_id, package_info) in enumerate(ckan.map.packages.items()):
             package_name = package_info.name
             package_data_format_messages = policy_messages.get(package_name, [])
             data_format_policy_scores = ErrorCount(package_data_format_messages)
@@ -243,6 +260,8 @@ class CkanAdminReport:
                 if global_last_modified_metadata else package_info.metadata_modified
             packages_report[package_name] = package_report
             self._package_update_report(ckan, package_info, package_report)
+            if progress_callback is not None:
+                progress_callback.update_task(i_package, num_packages, level=CkanCallbackLevel.Packages)
         packages_report = OrderedDict(sorted(packages_report.items()))
         report_totals = OrderedDict([
             ("total_filestore_size_mb", round_size(total_filestore_size_mb)),
@@ -296,6 +315,9 @@ class CkanAdminReport:
         self.report = report
         if ckan.params.verbose_extra:
             print(f"Done generating report ({elapsed_time_report_and_updates} seconds, {ckan.debug.ckan_request_counter - request_count_init} requests).")
+        if progress_callback is not None:
+            progress_callback.end_task(num_packages, level=CkanCallbackLevel.Packages)
+            progress_callback.remove_context()
 
     def _package_update_report(self, ckan:CkanApi, package_info: CkanPackageInfo, package_report) -> None:
         policy = ckan.policy
@@ -349,14 +371,20 @@ class CkanAdminReport:
         if package_update_needed and ckan is not None:
             ckan.package_patch(package_info.id, custom_fields=package_info.custom_fields)
 
-    def execute(self, ckan: CkanApi) -> dict:
-        self._perform_requests(ckan)
+    def execute(self, ckan: CkanApi, *, progress_callback:CkanProgressCallbackABC=None) -> dict:
+        if progress_callback is not None and not isinstance(progress_callback, CkanProgressCallbackABC):
+            progress_callback = CkanProgressCallback(progress_callback)
+        elif progress_callback is None:
+            progress_callback = CkanProgressCallback()
+            progress_callback.verbosity[CkanCallbackLevel.Resources] = False
+            progress_callback.progress_bar_enables[CkanCallbackLevel.Resources] = True
+        self._perform_requests(ckan, progress_callback=progress_callback)
         self._consolidate(ckan)
-        self._create_report(ckan)
+        self._create_report(ckan, progress_callback=progress_callback)
         return self.report
 
-    def refresh_report(self, ckan: CkanApi) -> dict:
-        self._create_report(ckan)
+    def refresh_report(self, ckan: CkanApi, *, progress_callback:CkanProgressCallbackABC=None) -> dict:
+        self._create_report(ckan, progress_callback=progress_callback)
         return self.report
 
     def to_jsons(self) -> str:

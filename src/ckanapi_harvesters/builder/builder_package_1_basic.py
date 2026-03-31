@@ -1067,7 +1067,7 @@ class BuilderPackageBasic:
         for resource_index, resource_builder in enumerate(self.resource_builders.values()):
             if progress_callback is not None:
                 resource_builder.progress_callback = progress_callback
-                progress_callback.task_progress(resource_index+1, len(self.resource_builders), level=CkanCallbackLevel.Resources)
+                progress_callback.update_task(resource_index + 1, len(self.resource_builders), level=CkanCallbackLevel.Resources)
             if create_default_view is not None:
                 resource_builder.create_default_view = create_default_view
             if sample_df_dict is not None and resource_builder.name in sample_df_dict.keys():
@@ -1190,7 +1190,7 @@ class BuilderPackageBasic:
             if isinstance(resource_builder, BuilderDataStoreMultiABC):
                 if progress_callback is not None:
                     resource_builder.progress_callback = progress_callback
-                    progress_callback.task_progress(resource_index, len(self.resource_builders), level=CkanCallbackLevel.Resources)
+                    progress_callback.update_task(resource_index, len(self.resource_builders), level=CkanCallbackLevel.Resources)
                 resource_builder.upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir, threads=threads,
                                                      allow_chunks=allow_chunks,
                                                      only_missing=only_missing, from_line_count=from_line_count,

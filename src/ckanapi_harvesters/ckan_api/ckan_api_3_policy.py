@@ -11,7 +11,7 @@ from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary import ckan_configuration
 from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
-
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.ckan_api.ckan_api_2_readonly import CkanApiReadOnlyParams
 from ckanapi_harvesters.ckan_api.ckan_api_2_readonly import CkanApiReadOnly
@@ -25,7 +25,7 @@ class CkanApiPolicyParams(CkanApiReadOnlyParams):
         super().__init__(proxies=proxies, ckan_headers=ckan_headers, http_headers=http_headers)
         self.policy_check_pre: bool = False
         self.policy_check_post: bool = True
-        self.verbose_policy: bool = True
+        self.verbose_policy: bool = False
 
     def copy(self, new_identifier:str=None, *, dest=None):
         if dest is None:
@@ -171,7 +171,7 @@ class CkanApiPolicy(CkanApiReadOnly):
 
     def policy_check(self, package_list:Union[str,List[str]]=None, policy: CkanPackageDataFormatPolicy=None,
                      *, buffer:Dict[str, List[DataPolicyError]]=None, raise_error:bool=False,
-                     verbose:bool=None, auto_update:bool=True) -> bool:
+                     verbose:bool=None, auto_update:bool=True, progress_callback:CkanProgressCallbackABC=None) -> bool:
         """
         Enforce policy on mapped packages
 
@@ -192,7 +192,12 @@ class CkanApiPolicy(CkanApiReadOnly):
             return True
         if verbose:
             print(f"Testing policy {policy.label}")
-        for package_name in package_list:
+        num_packages = len(package_list)
+        if progress_callback is not None:
+            progress_callback.start_task(num_packages, level=CkanCallbackLevel.Packages, units=CkanProgressUnits.Items)
+        for i_package, package_name in enumerate(package_list):
+            if progress_callback is not None:
+                progress_callback.update_task(i_package, num_packages, level=CkanCallbackLevel.Packages)
             package_info = self.get_package_info_or_request(package_name)
             package_buffer: List[DataPolicyError] = []
             success &= policy.policy_check_package(package_info, display_message=verbose,
@@ -201,6 +206,8 @@ class CkanApiPolicy(CkanApiReadOnly):
                 policy.package_update_scores(self, package_info, package_buffer, raise_error=raise_error)
             if buffer is not None:
                 buffer[package_info.name] = package_buffer
+        if progress_callback is not None:
+            progress_callback.end_task(num_packages, level=CkanCallbackLevel.Packages)
         if verbose:
             print(f"Data format policy {policy.label} success: {success}")
         return success
@@ -217,13 +224,13 @@ class CkanApiPolicy(CkanApiReadOnly):
     def map_resources(self, package_list:Union[str, List[str]]=None, *, params:dict=None,
                       datastore_info:bool=None, resource_view_list:bool=None, organization_info:bool=None, license_list:bool=None,
                       only_missing:bool=True, error_not_found:bool=True,
-                      owner_org:str=None, load_policy:bool=None) -> CkanMap:
+                      owner_org:str=None, load_policy:bool=None, progress_callback:CkanProgressCallbackABC=None) -> CkanMap:
         # overload including a call to load the default data format policy
         self.set_default_map_mode(load_policy=load_policy)
         map = super().map_resources(package_list=package_list, params=params, datastore_info=datastore_info,
                               resource_view_list=resource_view_list, organization_info=organization_info,
                               license_list=license_list, only_missing=only_missing, error_not_found=error_not_found,
-                              owner_org=owner_org)
+                              owner_org=owner_org, progress_callback=progress_callback)
         load_policy = self.default_policy_load_on_map
         if load_policy:
             self.load_default_policy(cancel_if_present=True, load_error=False)

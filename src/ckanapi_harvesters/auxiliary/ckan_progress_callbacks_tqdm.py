@@ -30,6 +30,7 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
                  *, progress_bar_type:CkanProgressBarType=None):
         super().__init__(callback_fun, progress_bar_type=progress_bar_type)
         progress_bar_type = self.progress_bar_type  # update
+        self.progress_bar_enables[CkanCallbackLevel.Packages] = True  # activate this one
         self.progress_bar_enables[CkanCallbackLevel.ResourceChunks] = True  # activate this one
         # self.progress_bar_enables[CkanCallbackLevel.Requests] = True  # activate this one
         if False:
@@ -62,12 +63,18 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
         super().start_task(total=total, file_count=file_count, level=level, position=position, file_index=file_index,
                            info=info, context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read,
                            units=units, **kwargs)
-        if (level is not None and total is not None
+        if (level is not None and total is not None and total > 1
                 and not self._progress_bar_type == CkanProgressBarType.NoBar
                 and self.progress_bar_enables[level]):
             if self.progress_bars[level] is None:
                 self.last_progress_displayed[level] = 0
                 desc = level.name
+                # extra context
+                if self.extra_context[level]:
+                    if context:
+                        context = self.extra_context[level] + " - " + context
+                    else:
+                        context = self.extra_context[level]
                 if context:
                     desc = desc + " (" + context + ")"
                 unit_short_name = units.short_name() if units is not None else "U"
@@ -98,17 +105,17 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
                 self.progress_bars[level].close()
                 self.progress_bars[level] = None
 
-    def task_progress(self, position:int, total:int, *, info:Any=None, context:str=None,
-        file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
-        canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
-        **kwargs) -> Union[str,None]:
+    def update_task(self, position:int, total:int, *, info:Any=None, context:str=None,
+                    file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
+                    canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+                    **kwargs) -> Union[str,None]:
         self.tqdm_semaphore.acquire()
         # if level is not None:
         #     # last_position = self.last_progress_position[level]
         #     last_position = self.progress_bars[level].last_print_n
-        msg = super().task_progress(position=position, total=total, file_index=file_index, file_count=file_count, level=level,
-                                    context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read,
-                                    canceled_request=canceled_request, end_message=end_message, info=info, **kwargs)
+        msg = super().update_task(position=position, total=total, file_index=file_index, file_count=file_count, level=level,
+                                  context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read,
+                                  canceled_request=canceled_request, end_message=end_message, info=info, **kwargs)
         if level is not None and position is not None:
             if self.progress_bars[level] is not None:
                 if total < 0: total = 1  # avoid division by zero
@@ -128,7 +135,7 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
         self.tqdm_semaphore.release()
         return msg
 
-    def __del__(self) -> None:
+    def release_resources(self) -> None:
         for progress_bar in self.progress_bars.values():
             if progress_bar is not None:
                 progress_bar.close()

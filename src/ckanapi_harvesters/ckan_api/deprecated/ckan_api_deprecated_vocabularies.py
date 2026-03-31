@@ -7,6 +7,7 @@ from typing import List, Dict, Union
 import copy
 from warnings import warn
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
@@ -68,13 +69,13 @@ class CkanApiVocabulariesDeprecated(CkanApiDeprecated):
     def map_resources(self, package_list:Union[str, List[str]]=None, *, params:dict=None,
                       datastore_info:bool=None, resource_view_list:bool=None, organization_info:bool=None, license_list:bool=None,
                       only_missing:bool=True, error_not_found:bool=True,
-                      owner_org:str=None, load_policy:bool=None, vocabulary_list:bool=None) -> CkanMap:
+                      owner_org:str=None, load_policy:bool=None, vocabulary_list:bool=None, progress_callback:CkanProgressCallbackABC=None) -> CkanMap:
         # overload including a call to load the default data format policy
         self.set_default_map_mode(vocabulary_list=vocabulary_list)
         map = super().map_resources(package_list=package_list, params=params, datastore_info=datastore_info,
                               resource_view_list=resource_view_list, organization_info=organization_info,
                               license_list=license_list, only_missing=only_missing, error_not_found=error_not_found,
-                              owner_org=owner_org, load_policy=load_policy)
+                              owner_org=owner_org, load_policy=load_policy, progress_callback=progress_callback)
         vocabulary_list = self.map_vocabulary._mapping_query_vocabulary_list
         if vocabulary_list:
             self.vocabulary_list(cancel_if_present=True)

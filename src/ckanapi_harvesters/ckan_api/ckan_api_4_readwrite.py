@@ -356,7 +356,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                                                 last_insertion=(last_insertion and apply_last_condition) or always_last_condition)
             n_cum += len(df_add)
             if progress_callback is not None:  # and not last_insertion
-                progress_callback.task_progress(n_cum, len(records), level=CkanCallbackLevel.Requests)
+                progress_callback.update_task(n_cum, len(records), level=CkanCallbackLevel.Requests)
             assert_or_raise(len(df_add) == n_add, IntegrityError("Second check on response len failed in datastore_upsert"))  # consistency check, in double of _api_datastore_upsert
             if self.params.store_last_response_debug_info:
                 self.debug.multi_requests_last_successful_offset = offset

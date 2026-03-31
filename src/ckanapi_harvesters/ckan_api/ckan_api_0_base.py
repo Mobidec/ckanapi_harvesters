@@ -950,8 +950,8 @@ class CkanApiBase(CkanApiABC):
                     (self.params.max_requests_count == 0 or requests_count < self.params.max_requests_count) and
                     (requests_limit is None or requests_count < requests_limit))
             if progress_callback is not None and flag:
-                progress_callback.task_progress(n_received, total_len, file_index=requests_count, file_count=total_requests_estimation,
-                                                level=CkanCallbackLevel.Requests)
+                progress_callback.update_task(n_received, total_len, file_index=requests_count, file_count=total_requests_estimation,
+                                              level=CkanCallbackLevel.Requests)
             yield result_add
         if timeout:
             raise TimeoutError()

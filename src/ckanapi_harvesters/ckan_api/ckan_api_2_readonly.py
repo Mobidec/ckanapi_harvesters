@@ -25,7 +25,7 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse, CkanNotFoundError, CkanSqlCapabilityError
 from ckanapi_harvesters.auxiliary.ckan_errors import (IntegrityError, CkanServerError, CkanArgumentError, SearchAllNoCountsError,
                                                       DataStoreNotFoundError, RequestError)
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import ckan_request_proxy_default_auth_if_ckan
@@ -1073,8 +1073,13 @@ class CkanApiReadOnly(CkanApiMap):
         self._rx_records_df_clean(df)
         return resource_info, df
 
-    def map_file_resource_sizes(self, cancel_if_present:bool=True) -> None:
-        for resource_id, resource_info in self.map.resources.items():
+    def map_file_resource_sizes(self, *, cancel_if_present:bool=True, progress_callback:CkanProgressCallbackABC=None) -> None:
+        num_resources = len(self.map.resources)
+        if progress_callback is not None:
+            progress_callback.start_task(num_resources, level=CkanCallbackLevel.Resources, units=CkanProgressUnits.Items)
+        for i_resource, (resource_id, resource_info) in enumerate(self.map.resources.items()):
+            if progress_callback is not None:
+                progress_callback.update_task(i_resource, num_resources, level=CkanCallbackLevel.Resources)
             if resource_info.download_url:
                 if not (cancel_if_present and resource_info.download_size_mb is not None):
                     try:
@@ -1089,6 +1094,8 @@ class CkanApiReadOnly(CkanApiMap):
                         resource_info.download_size_mb = bytes_to_megabytes(content_length)
                     else:
                         resource_info.download_size_mb = None
+        if progress_callback is not None:
+            progress_callback.end_task(num_resources, level=CkanCallbackLevel.Resources)
 
 
     ## Mapping of resource aliases from table
@@ -1104,13 +1111,13 @@ class CkanApiReadOnly(CkanApiMap):
     def map_resources(self, package_list:Union[str, List[str]]=None, *, params:dict=None,
                       datastore_info:bool=None, resource_view_list:bool=None, organization_info:bool=None, license_list:bool=None,
                       only_missing:bool=True, error_not_found:bool=True,
-                      owner_org:str=None) -> CkanMap:
+                      owner_org:str=None, progress_callback:CkanProgressCallbackABC=None) -> CkanMap:
         # overload including a call to list all aliases
         if len(self.map.resource_alias_index) == 0 and self.params.map_all_aliases:
             self.list_datastore_aliases()
         map = super().map_resources(package_list=package_list, params=params, datastore_info=datastore_info,
                               resource_view_list=resource_view_list, organization_info=organization_info,
                               license_list=license_list, only_missing=only_missing, error_not_found=error_not_found,
-                              owner_org=owner_org)
+                              owner_org=owner_org, progress_callback=progress_callback)
         return map
 

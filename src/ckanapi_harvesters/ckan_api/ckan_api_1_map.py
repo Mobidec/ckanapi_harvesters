@@ -13,6 +13,7 @@ import argparse
 from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanLicenseInfo, CkanDataStoreInfo, CkanResourceInfo,
                                                      CkanOrganizationInfo, CkanViewInfo, CkanField, CkanUserInfo,
                                                      CkanGroupInfo, CkanCollaboration, CkanCapacity)
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC, CkanProgressUnits, CkanCallbackLevel
 from ckanapi_harvesters.auxiliary.urls import urlsep, url_join
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
@@ -190,7 +191,7 @@ class CkanApiMap(CkanApiBase):
     def map_resources(self, package_list:Union[str, List[str]]=None, *, params:dict=None,
                       datastore_info:bool=None, resource_view_list:bool=None, organization_info:bool=None, license_list:bool=None,
                       only_missing:bool=True, error_not_found:bool=True,
-                      owner_org:str=None) -> CkanMap:
+                      owner_org:str=None, progress_callback:CkanProgressCallbackABC=None) -> CkanMap:
         """
         Map the resources of a given package to obtain resource IDs associated with the package name
         and its resources.
@@ -228,8 +229,13 @@ class CkanApiMap(CkanApiBase):
                 self.get_organization_info_or_request(owner_org)
 
         package_list = self.complete_package_list(package_list=package_list, owner_org=owner_org, params=params)
+        num_packages = len(package_list)
+        if progress_callback is not None:
+            progress_callback.start_task(num_packages, level=CkanCallbackLevel.Packages, units=CkanProgressUnits.Items)
 
-        for name in package_list:
+        for i_package, name in enumerate(package_list):
+            if progress_callback is not None:
+                progress_callback.update_task(i_package, num_packages, level=CkanCallbackLevel.Packages)
             pkg_info = self.map.get_package_info(name, error_not_mapped=False)
             if ((not only_missing) or pkg_info is None
                     or (datastore_info and not pkg_info.requested_datastore_info)):
@@ -261,6 +267,8 @@ class CkanApiMap(CkanApiBase):
                 self.map.packages_id_index[package_name] = package_id
                 self.map.packages[package_id] = pkg_info
                 self.map.resources.update({resource_info.id: resource_info for resource_info in pkg_info.package_resources.values()})
+        if progress_callback is not None:
+            progress_callback.end_task(num_packages, level=CkanCallbackLevel.Packages)
         if license_list:
             self._api_license_list(params=params)
         current = time.time()
@@ -1069,7 +1077,7 @@ class CkanApiMap(CkanApiBase):
         else:
             return self._api_group_list_all(params=params, all_fields=all_fields, include_users=include_users, limit=limit, offset=offset)
 
-    def map_user_rights(self, cancel_if_present:bool=True):
+    def map_user_rights(self, *, cancel_if_present:bool=True, progress_callback: CkanProgressCallbackABC=None) -> CkanMap:
         """
         Map user and group access rights to the packages currently mapped by CKAN
         :return:
@@ -1077,7 +1085,12 @@ class CkanApiMap(CkanApiBase):
         current_user = self.query_current_user()
         self.group_list_all(cancel_if_present=cancel_if_present)
         self.user_list(cancel_if_present=cancel_if_present)
-        for package_id, package_info in self.map.packages.items():
+        num_packages = len(self.map.packages)
+        if progress_callback is not None:
+            progress_callback.start_task(num_packages, level=CkanCallbackLevel.Packages, units=CkanProgressUnits.Items)
+        for i_package, (package_id, package_info) in enumerate(self.map.packages.items()):
+            if progress_callback is not None:
+                progress_callback.update_task(i_package, num_packages, level=CkanCallbackLevel.Packages)
             if current_user is not None:
                 self.package_collaborator_list(package_id, cancel_if_present=cancel_if_present)
             # merge collaborators with groups of the package
@@ -1088,4 +1101,6 @@ class CkanApiMap(CkanApiBase):
                     for user_id, user_capacity in group_info.user_members.items():
                         if user_id not in package_info.user_access.keys():
                             package_info.user_access[user_id] = CkanCollaboration(user_capacity, None, group_id=group.id)
+        if progress_callback is not None:
+            progress_callback.end_task(num_packages, level=CkanCallbackLevel.Packages)
         return self.map
