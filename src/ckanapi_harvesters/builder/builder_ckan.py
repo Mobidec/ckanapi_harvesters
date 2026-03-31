@@ -79,7 +79,7 @@ class BuilderCkan:
     def policy_file(self) -> str:
         return self._policy_file
     def set_policy_file(self, policy_file:str, *, ckan:CkanApi=None, base_dir:str=None, proxies:dict=None,
-                        error_not_found:bool=True) -> None:
+                        error_not_found:bool=True, load_error:bool=True) -> None:
         if proxies is None:
             proxies = self._proxy_config.proxies
         self._policy_file = policy_file
@@ -88,8 +88,9 @@ class BuilderCkan:
             if ckan is None:
                 ckan = self.init_ckan(base_dir=base_dir)  # initiate a temporary ckan object to enable the load of the default policy
                 # self._policy = CkanPackageDataFormatPolicy.from_json(policy_file, base_dir=base_dir, proxies=proxies, error_not_found=error_not_found)
-            self._policy = ckan.load_policy(policy_file, base_dir=base_dir, proxies=proxies, error_not_found=error_not_found)
-            self._policy_file = self._policy.source_file
+            self._policy = ckan.load_policy(policy_file, base_dir=base_dir, proxies=proxies, error_not_found=error_not_found, load_error=load_error)
+            if self._policy is not None:
+                self._policy_file = self._policy.source_file
         else:
             self._policy = None
     @property
@@ -218,7 +219,7 @@ class BuilderCkan:
         self.ckan_ca = ckan.params.ckan_ca
         self.extern_ca = ckan.params.extern_ca
         if ckan.policy is not None and ckan.policy_source is not None:
-            self.set_policy_file(ckan.policy_source)
+            self.set_policy_file(ckan.policy_source, load_error=False)
 
     def init_ckan(self, base_dir:str, ckan:CkanApi=None, default_proxies:dict=None,
                   proxies:Union[str,dict,ProxyConfig]=None) -> CkanApi:

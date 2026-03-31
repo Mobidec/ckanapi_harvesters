@@ -186,7 +186,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
     @staticmethod
     def from_json(policy_file:str, *, base_dir:str=None,
                   headers:dict=None, proxies:dict=None, auth:Union[AuthBase, Tuple[str,str]]=None, verify:Union[bool,str,None]=None,
-                  error_not_found:bool=True) -> Union["CkanPackageDataFormatPolicy",None]:
+                  error_not_found:bool=True, load_error:bool=True) -> Union["CkanPackageDataFormatPolicy",None]:
         policy_dict = None
         if is_valid_url(policy_file):
             if not allow_policy_from_url:
@@ -196,14 +196,38 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
             response = requests.get(policy_file, headers=headers, proxies=proxies, auth=auth, verify=verify)
             if response.status_code != 200 and error_not_found:
                 raise FileNotFoundError(policy_file)
-            policy_dict = json.loads(response.content.decode())
+            try:
+                policy_dict = json.loads(response.content.decode())
+            except Exception as e:
+                if load_error:
+                    raise e from e
+                else:
+                    msg = f"Could not load policy (JSON error): {str(e)}"
+                    warn(msg)
+                    return None
         else:
             policy_file = path_rel_to_dir(policy_file, base_dir)
             if not os.path.isfile(policy_file) and not error_not_found:
                 return None
-            with open(policy_file, "r") as f:
-                policy_dict = json.load(f)
-        obj = CkanPackageDataFormatPolicy.from_dict(policy_dict)
+            try:
+                with open(policy_file, "r") as f:
+                    policy_dict = json.load(f)
+            except Exception as e:
+                if load_error:
+                    raise e from e
+                else:
+                    msg = f"Could not load policy (JSON error): {str(e)}"
+                    warn(msg)
+                    return None
+        try:
+            obj = CkanPackageDataFormatPolicy.from_dict(policy_dict)
+        except Exception as e:
+            if load_error:
+                raise e from e
+            else:
+                msg = f"Could not load policy (JSON error): {str(e)}"
+                warn(msg)
+                return None
         obj.source_file = policy_file
         return obj
 

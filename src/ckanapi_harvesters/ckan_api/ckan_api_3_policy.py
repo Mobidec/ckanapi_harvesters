@@ -150,7 +150,7 @@ class CkanApiPolicy(CkanApiReadOnly):
         return self.policy
 
     def load_policy(self, policy_file: str, base_dir: str = None, proxies:dict=None, headers:dict=None,
-                    error_not_found: bool = True) -> CkanPackageDataFormatPolicy:
+                    error_not_found: bool = True, load_error:bool=True) -> CkanPackageDataFormatPolicy:
         """
         Load the CKAN data format policy from file (JSON format).
 
@@ -163,9 +163,9 @@ class CkanApiPolicy(CkanApiReadOnly):
         if policy_file is None:
             policy_file = ckan_default_policy_keyword  # set to "default"
         if policy_file is not None and policy_file.lower() == ckan_default_policy_keyword:  # if equals "default"
-            return self.load_default_policy(error_not_found=error_not_found, force=True, cancel_if_present=False)
+            return self.load_default_policy(error_not_found=error_not_found, force=True, cancel_if_present=False, load_error=load_error)
         self.policy = CkanPackageDataFormatPolicy.from_json(policy_file, base_dir=base_dir, proxies=proxies, headers=headers,
-                                                            error_not_found=error_not_found)
+                                                            error_not_found=error_not_found, load_error=load_error)
         self.policy_source = policy_file
         return self.policy
 

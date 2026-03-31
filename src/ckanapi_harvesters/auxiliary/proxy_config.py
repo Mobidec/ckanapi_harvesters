@@ -190,7 +190,7 @@ class ProxyConfig:
             return ProxyConfig(proxies, default_proxies=default_proxies, proxy_headers=proxy_headers)
 
     def replace_default_proxy(self, default_proxies:dict) -> None:
-        if self._proxy_string is not None and self._proxy_string.lower() == "default":
+        if self._proxy_string is not None and isinstance(self._proxy_string, str) and self._proxy_string.lower() == "default":
             self._proxies = default_proxies
 
     def reset(self) -> None:
