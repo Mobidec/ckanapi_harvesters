@@ -12,6 +12,14 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ## [Future 0.0.21 Unreleased] - 2026-03-31
 
+### Changed
+
+- `package_search_all` is no longer limited to `ckan.owner_org` when argument `owner_org` is `None`.
+
+### Fixed
+
+- `package_search_all` now includes draft datasets by default (option `include_drafts`).
+
 ### Added
 
 - _Assist_ __Data Cleaner__ which detects field types which were not specified, improved invalid value detection. 

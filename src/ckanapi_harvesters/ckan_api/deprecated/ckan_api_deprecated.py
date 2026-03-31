@@ -11,7 +11,7 @@ from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanResourc
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
 from ckanapi_harvesters.auxiliary.ckan_action import CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import ReadOnlyError
-from ckanapi_harvesters.ckan_api.ckan_api_1_map import use_ckan_owner_org_as_default
+from ckanapi_harvesters.ckan_api.ckan_api_0_base import use_ckan_owner_org_for_requests
 
 from ckanapi_harvesters.ckan_api.ckan_api_5_manage import CkanApiManage
 
@@ -29,7 +29,27 @@ class CkanApiDeprecated(CkanApiManage):
         super().copy(new_identifier=new_identifier, dest=dest)
         return dest
 
-    ## Not recommended mapping functions ------------------v
+    ## Not recommended manage functions ------------------
+    def resource_move(self, resource_id: str, package_name: str, dest_package_name:str, params:dict=None):
+        """
+        Move resource from one dataset to another using resource_patch API.
+        Does not work.
+
+        :param resource_id:
+        :param package_name:
+        :param dest_package_name:
+        :param params:
+        :return:
+        """
+        if params is None:
+            params = {}
+        resource_info = self.get_resource_info_or_request(resource_id, package_name=package_name)
+        self.check_package_name_arg(package_name=package_name, package_id=resource_info.package_id)
+        dest_package_info = self.get_package_info_or_request(dest_package_name)
+        params.update({"package_id": dest_package_info.id})
+        self.resource_patch(resource_id, params=params)
+
+    ## Not recommended mapping functions ------------------
     def _api_package_list(self, *, params:dict=None, owner_org:str=None, limit:int=None, offset:int=None) -> List[str]:
         """
         __Not recommended__
@@ -45,7 +65,7 @@ class CkanApiDeprecated(CkanApiManage):
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
-        if owner_org is None and use_ckan_owner_org_as_default:
+        if owner_org is None and use_ckan_owner_org_for_requests:
             owner_org = self.owner_org
         if owner_org is not None:
             params["owner_org"] = owner_org
@@ -185,7 +205,7 @@ class CkanApiDeprecated(CkanApiManage):
             params["limit"] = limit
         if offset is not None:
             params["offset"] = offset
-        if owner_org is None and use_ckan_owner_org_as_default:
+        if owner_org is None and use_ckan_owner_org_for_requests:
             owner_org = self.owner_org
         if owner_org is not None:
             owner_org_info = self.get_organization_info_or_request(owner_org)

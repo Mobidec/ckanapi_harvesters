@@ -17,6 +17,7 @@ from . import ckan_action
 from . import ckan_errors
 from . import ckan_configuration
 from . import ckan_api_key
+from . import ckan_field_types
 from . import ckan_model
 from . import ckan_map
 from . import ckan_vocabulary_deprecated

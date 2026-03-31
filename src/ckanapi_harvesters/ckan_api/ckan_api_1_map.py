@@ -19,8 +19,9 @@ from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionError, CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
+from ckanapi_harvesters.auxiliary.ckan_errors import IntegrityError
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic
-from ckanapi_harvesters.ckan_api.ckan_api_0_base import CkanApiBase, use_ckan_owner_org_as_default
+from ckanapi_harvesters.ckan_api.ckan_api_0_base import CkanApiBase, use_ckan_owner_org_for_requests
 
 
 ## Main class ------------------
@@ -172,13 +173,15 @@ class CkanApiMap(CkanApiBase):
         self.map._mapping_query_organization_info = organization_info
 
     def complete_package_list(self, package_list:Union[str, List[str]]=None,
-                              *, owner_org:str=None, params:dict=None) -> List[str]:
+                              *, owner_org:str=None, include_private:bool=True, include_drafts:bool=True,
+                              params:dict=None) -> List[str]:
         """
         This function can list all packages of a CKAN server, for an organization or keeps the list as is.
         It is an auxiliary function to initialize a package_list argument
         """
         if package_list is None:
-            package_info_list = self.package_search_all(owner_org=owner_org, params=params)
+            package_info_list = self.package_search_all(owner_org=owner_org, params=params,
+                                                        include_private=include_private, include_drafts=include_drafts)
             package_list = [e.id for e in package_info_list]
         if isinstance(package_list, str):
             package_list = [package_list]
@@ -466,7 +469,7 @@ class CkanApiMap(CkanApiBase):
 
     ## API calls needed to make the map and auxiliary API functions  ------------------
     def _api_package_search(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
-                            include_private:bool=True, include_drafts:bool=False, sort:str=None,
+                            include_private:bool=True, include_drafts:bool=True, sort:str=None,
                             facet:bool=None, limit:int=None, offset:int=None) -> List[CkanPackageInfo]:
         """
         API call to package_search.
@@ -490,7 +493,7 @@ class CkanApiMap(CkanApiBase):
             params["rows"] = limit
         if offset is not None:
             params["start"] = offset
-        if owner_org is None and use_ckan_owner_org_as_default:
+        if owner_org is None and use_ckan_owner_org_for_requests:
             owner_org = self.owner_org
         if owner_org is not None:
             owner_org_info = self.get_organization_info_or_request(owner_org)
@@ -520,7 +523,7 @@ class CkanApiMap(CkanApiBase):
             raise response.default_error(self)
 
     def _api_package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
-                                include_private:bool=True, include_drafts:bool=False, sort:str=None,
+                                include_private:bool=True, include_drafts:bool=True, sort:str=None,
                                 facet:bool=None, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
         """
         API call to package_search until an empty list is received.
@@ -547,13 +550,29 @@ class CkanApiMap(CkanApiBase):
         return sum(responses, [])
 
     def package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
-                                include_private:bool=True, include_drafts:bool=False, sort:str=None,
+                                include_private:bool=True, include_drafts:bool=True, sort:str=None,
                                 facet:bool=None, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
         # function alias
         return self._api_package_search_all(params=params, owner_org=owner_org, filter=filter, q=q,
                                             include_private=include_private, include_drafts=include_drafts, sort=sort,
                                             facet=facet, limit=limit, offset=offset, search_all=search_all)
 
+    def check_package_name_arg(self, *, package_name: str, package_id: str, raise_error:bool=True) -> bool:
+        """
+        Check package name argument against ID which was found by API
+
+        :param package_name: package name, ID or title
+        :param package_id: package ID known by the API
+        :param raise_error: Option to raise an error
+        :return:
+        """
+        package_info = self.get_package_info_or_request(package_id)
+        assert(package_info.id==package_id)
+        allowed_values = {package_info.id, package_info.name, package_info.title}
+        check = package_name in allowed_values
+        if raise_error and not check:
+            raise IntegrityError(f"Package name argument '{package_name}' does not match any of the following values: {', '.join(allowed_values)}")
+        return check
 
     def _api_package_show(self, package_id, *, params:dict=None) -> CkanPackageInfo:
         """

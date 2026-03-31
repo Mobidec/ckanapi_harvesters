@@ -38,7 +38,8 @@ from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic, Ckan
 
 CKAN_API_VERSION = 3
 
-use_ckan_owner_org_as_default:bool = True  # the owner_org field of CkanApi is destined to default the owner organization (or else it should be None)
+use_ckan_owner_org_as_default_package_owner:bool = True  # the owner_org field of CkanApi is destined to default the owner organization (or else it should be None)
+use_ckan_owner_org_for_requests:bool = False  # False: do not take ckan.owner_org when owner_org argument is None (do not restrict requests to owner_org)
 ckan_request_proxy_default_auth_if_ckan:bool = True  # fill authentification headers for requests with CkanApi requests proxy method if same domain is used by default
 
 ## Abstract class

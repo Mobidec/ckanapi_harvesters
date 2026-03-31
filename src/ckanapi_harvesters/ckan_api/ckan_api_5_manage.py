@@ -29,7 +29,7 @@ from ckanapi_harvesters.auxiliary.ckan_errors import (ReadOnlyError, AdminFeatur
                                                       IntegrityError, NameFormatError, MultipleErrors)
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
-from ckanapi_harvesters.ckan_api.ckan_api_1_map import use_ckan_owner_org_as_default
+from ckanapi_harvesters.ckan_api.ckan_api_0_base import use_ckan_owner_org_as_default_package_owner
 
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
@@ -527,7 +527,7 @@ class CkanApiManage(CkanApiReadWrite):
 
     ## Datastore creation ------------------
     @staticmethod
-    def default_resource_view(resource_format:str) -> Tuple[str,str]:
+    def default_resource_view(resource_format:str, is_datastore:bool=True) -> Tuple[str,str]:
         """
         Definition of the default resource view based on the resource format.
 
@@ -537,7 +537,7 @@ class CkanApiManage(CkanApiReadWrite):
         if resource_format is None:
             resource_format = "unknown"
         resource_format = resource_format.lower()
-        if resource_format == "csv":
+        if resource_format in {"csv", "shp", "xls"} or (is_datastore and resource_format == "json"):
             title = "Table"
             view_type = "recline_view"  # Data Explorer
         elif resource_format in {"json", "txt", "py"}:
@@ -588,8 +588,9 @@ class CkanApiManage(CkanApiReadWrite):
         return view_info_list
 
     def resource_view_create(self, resource_id:str, title:Union[str,List[str]]=None, *,
-                              view_type:Union[str,List[str]]=None, params:dict=None,
-                              error_no_default_view_type:bool=False, cancel_if_exists:bool=True) -> List[CkanViewInfo]:
+                             view_type:Union[str,List[str]]=None, params:dict=None,
+                             error_no_default_view_type:bool=False, cancel_if_exists:bool=True,
+                             is_datastore:bool=True) -> List[CkanViewInfo]:
         """
         Encapsulation of the API resource_view_create. If no resource view is provided to create (None),
         the function looks up the default view defined in default_resource_view.
@@ -607,7 +608,7 @@ class CkanApiManage(CkanApiReadWrite):
         if title is None and view_type is None:
             resource_info = self.get_resource_info_or_request_of_id(resource_id)
             resource_format = resource_info.format
-            title, view_type = self.default_resource_view(resource_format)
+            title, view_type = self.default_resource_view(resource_format, is_datastore=is_datastore)
             if title is None:
                 title = []
                 view_type = []
@@ -792,7 +793,7 @@ class CkanApiManage(CkanApiReadWrite):
                                                              df=df, file_path=file_path, files=files,
                                                              payload=payload, payload_name=payload_name))
                     if create_default_view:
-                        view_info_list = self.resource_view_create(resource_info.id)
+                        view_info_list = self.resource_view_create(resource_info.id, is_datastore=resource_info.datastore_info is not None)
                         resource_info.update_view(view_info_list)
                     if has_file_data:
                         resource_info.newly_updated = True
@@ -813,7 +814,7 @@ class CkanApiManage(CkanApiReadWrite):
         resource_info.newly_created = True
         resource_info.newly_updated = False
         if create_default_view:
-            view_info_list = self.resource_view_create(resource_info.id)
+            view_info_list = self.resource_view_create(resource_info.id, is_datastore=datastore_create)
             resource_info.update_view(view_info_list)
         if auto_submit and has_file_data:
             self.datastore_submit(resource_info.id)
@@ -1034,7 +1035,7 @@ class CkanApiManage(CkanApiReadWrite):
         package_info = self.get_package_info_or_request(package_id)
         if private is not None:
             params["private"] = private
-        if owner_org is None and use_ckan_owner_org_as_default:
+        if owner_org is None and use_ckan_owner_org_as_default_package_owner:
             owner_org = self.owner_org
         if owner_org is not None:
             params["owner_org"] = owner_org
@@ -1137,7 +1138,7 @@ class CkanApiManage(CkanApiReadWrite):
         self.verify_package_name_format(name)
         params["name"] = name
         params["private"] = private
-        if owner_org is None and use_ckan_owner_org_as_default:
+        if owner_org is None and use_ckan_owner_org_as_default_package_owner:
             owner_org = self.owner_org
         if owner_org is not None:
             params["owner_org"] = owner_org

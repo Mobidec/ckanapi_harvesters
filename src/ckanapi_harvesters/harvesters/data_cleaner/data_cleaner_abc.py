@@ -12,14 +12,6 @@ import pandas as pd
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
 
-non_finite_authorized_types = {"numeric", "float4", "float8", "float2"}
-real_number_types = non_finite_authorized_types
-dtype_mapper = {
-    "float64": "numeric",
-    "int64": "numeric",
-    "datetime64[ns]": "timestamp",
-}
-
 
 class CkanDataCleanerABC(ABC):
     """
