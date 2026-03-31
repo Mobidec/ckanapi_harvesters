@@ -206,7 +206,8 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
                             threads:int=1, external_stop_event=None,
                             allow_chunks:bool=True,
                             only_missing:bool=False, from_line_count:bool=False,
-                            start_index:int=0, end_index:int=None, **kwargs) -> None:
+                            start_index:int=0, end_index:int=None,
+                            inhibit_datastore_patch_indexes:bool=False, **kwargs) -> None:
         self.df_mapper.upsert_only_missing_rows = only_missing
         if from_line_count:
             self.upload_start_line = self.get_datastore_len(ckan)
@@ -222,7 +223,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
                                     threads=threads, external_stop_event=external_stop_event,
                                     allow_chunks=allow_chunks,
                                     start_index=start_index, end_index=end_index,
-                                    method=method, **kwargs)
+                                    method=method, inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes, **kwargs)
         # if threads < 0:
         #     # cancel large uploads in this case
         #     return None

@@ -3,6 +3,7 @@
 """
 Harvester initialization from the options_string arguments
 """
+from typing import Tuple, List
 from warnings import warn
 
 from ckanapi_harvesters.harvesters.harvester_abc import TableHarvesterABC, DatasetHarvesterABC
@@ -12,12 +13,12 @@ from ckanapi_harvesters.harvesters.postgre_harvester import TableHarvesterPostgr
 from ckanapi_harvesters.harvesters.pymongo_harvester import TableHarvesterMongoCollection, DatasetHarvesterMongoDatabase
 
 
-def init_table_harvester_from_options_string(options_string:str, *, file_url_attr:str, base_dir:str=None) -> TableHarvesterABC:
+def init_table_harvester_from_options_string(options_string:str, *, file_url_attr:str, base_dir:str=None) -> Tuple[TableHarvesterABC, List[str]]:
     harvest_method = TableParams.parse_harvest_method(options_string)
     if harvest_method == "mongodb" or harvest_method == "pymongo":
         if harvest_method == "pymongo":
-            msg = DeprecationWarning("Mode Pymongo is deprecated and was renamed MongoDB.")
-            warn(msg)
+            msg = "Mode Pymongo is deprecated and was renamed MongoDB."
+            warn(msg, DeprecationWarning)
         return TableHarvesterMongoCollection.init_from_options_string(options_string, file_url_attr=file_url_attr, base_dir=base_dir)
     elif harvest_method == "postgre":
         return TableHarvesterPostgre.init_from_options_string(options_string, file_url_attr=file_url_attr, base_dir=base_dir)
@@ -25,9 +26,12 @@ def init_table_harvester_from_options_string(options_string:str, *, file_url_att
         raise NotImplementedError(f"harvester method {harvest_method} not implemented")
 
 
-def init_dataset_harvester_from_options_string(options_string:str, *, base_dir:str=None) -> DatasetHarvesterABC:
+def init_dataset_harvester_from_options_string(options_string:str, *, base_dir:str=None) -> Tuple[DatasetHarvesterABC, List[str]]:
     harvest_method = DatasetParams.parse_harvest_method(options_string)
-    if harvest_method == "pymongo":
+    if harvest_method == "mongodb" or harvest_method == "pymongo":
+        if harvest_method == "pymongo":
+            msg = "Mode Pymongo is deprecated and was renamed MongoDB."
+            warn(msg, DeprecationWarning)
         return DatasetHarvesterMongoDatabase.init_from_options_string(options_string, base_dir=base_dir)
     elif harvest_method == "postgre":
         return DatasetHarvesterPostgre.init_from_options_string(options_string, base_dir=base_dir)

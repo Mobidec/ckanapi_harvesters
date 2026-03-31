@@ -297,7 +297,7 @@ class BuilderResourceABC(ABC):
     @abstractmethod
     def patch_request(self, ckan:CkanApi, package_id:str, *,
                       reupload:bool=None, override_ckan:bool=False,
-                      resources_base_dir:str=None) -> CkanResourceInfo:
+                      resources_base_dir:str=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
         """
         Function to perform all the necessary requests to initiate/reupload the resource on the CKAN server.
 
@@ -313,6 +313,8 @@ class BuilderResourceABC(ABC):
     def upload_request(self, resources_base_dir:str, ckan:CkanApi, package_id:str):
         # might be dead code
         # this function (patch_request) gets specialized in certain cases
+        msg = "upload_request is deprecated, use patch_request instead"
+        warn(msg, DeprecationWarning)
         return self.patch_request(ckan, package_id, resources_base_dir=resources_base_dir, reupload=True)
 
     def upload_request_final(self, ckan:CkanApi, *, force:bool=False) -> None:
@@ -421,7 +423,7 @@ class BuilderFileABC(BuilderResourceABC, ABC):
 
     def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, override_ckan:bool=False,
                       resources_base_dir:str=None,
-                      payload:Union[bytes, io.BufferedIOBase]=None) -> CkanResourceInfo:
+                      payload:Union[bytes, io.BufferedIOBase]=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
         """
         Perform a patch of the resource on the CKAN server.
         A patch is a full update of the metadata of the resource, and of the DataStore if appropriate.
@@ -445,6 +447,7 @@ class BuilderFileABC(BuilderResourceABC, ABC):
                                         state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                         files=files, datastore_create=False, auto_submit=False, create_default_view=self.create_default_view,
                                         cancel_if_exists=True, update_if_exists=True, reupload=reupload,
+                                        inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
                                         progress_callback=self.progress_callback)
         self.known_id = res_info.id
         self.upload_request_final(ckan)
@@ -551,7 +554,7 @@ class BuilderResourceUnmanaged(BuilderFileABC):  #, BuilderResourceUnmanagedABC)
 
     def patch_request(self, ckan:CkanApi, package_id:str, *,
                       reupload:bool=None, override_ckan:bool=False, resources_base_dir:str=None,
-                      payload:Union[bytes, io.BufferedIOBase]=None) -> CkanResourceInfo:
+                      payload:Union[bytes, io.BufferedIOBase]=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
         self._merge_resource_attributes(override_ckan=override_ckan)
         if payload is None:
             payload = self.default_payload
@@ -563,6 +566,7 @@ class BuilderResourceUnmanaged(BuilderFileABC):  #, BuilderResourceUnmanagedABC)
                                         state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                         files=files, datastore_create=False, auto_submit=False, create_default_view=self.create_default_view,
                                         cancel_if_exists=True, update_if_exists=True, reupload=reupload,
+                                        inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
                                         progress_callback=self.progress_callback)
         self.known_id = res_info.id
         self.upload_request_final(ckan)
@@ -690,7 +694,7 @@ class BuilderUrl(BuilderUrlABC):
 
     def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, override_ckan:bool=False,
                       resources_base_dir:str=None,
-                      payload:Union[bytes, io.BufferedIOBase]=None) -> CkanResourceInfo:
+                      payload:Union[bytes, io.BufferedIOBase]=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
         self._merge_resource_attributes(override_ckan=override_ckan)
         if reupload is None: reupload = self.reupload_on_update
         if payload is not None:

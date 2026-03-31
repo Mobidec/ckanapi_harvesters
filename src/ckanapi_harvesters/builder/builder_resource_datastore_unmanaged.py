@@ -81,7 +81,7 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
     def patch_request(self, ckan: CkanApi, package_id: str, *,
                       df_upload: pd.DataFrame=None,
                       reupload: bool = None, override_ckan:bool=False,
-                      resources_base_dir:str=None) -> CkanResourceInfo:
+                      resources_base_dir:str=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
         """
         Specific implementation of patch_request which does not upload any data and only updates the fields currently present in the database
 
@@ -133,6 +133,7 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
                                              cancel_if_exists=True, update_if_exists=True, reupload=reupload and df_upload is not None,
                                              datastore_create=execute_datastore_create, records=df_upload, fields=fields,
                                              primary_key=primary_key, indexes=indexes, aliases=aliases,
+                                             inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
                                              progress_callback=self.progress_callback)
         resource_id = resource_info.id
         self.known_id = resource_id

@@ -140,7 +140,8 @@ class BuilderMultiABC(ABC):
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
                             threads:int=1, external_stop_event=None, from_line_count:bool=False,
                             allow_chunks:bool=True,
-                            start_index:int=0, end_index:int=None, **kwargs) -> None:
+                            start_index:int=0, end_index:int=None,
+                            inhibit_datastore_patch_indexes:bool=False, **kwargs) -> None:
         """
         Perform all the upload requests.
 
@@ -174,7 +175,8 @@ class BuilderMultiABC(ABC):
                     print(f"{ckan.identifier} Interrupted")
                     return
                 self._unit_upload_apply(ckan=ckan, file_chunk=file_chunk, overall_chunk_index=overall_chunk_index,
-                                        start_index=start_index, end_index=end_index, file_count=total, **kwargs)
+                                        start_index=start_index, end_index=end_index, file_count=total,
+                                        inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes, **kwargs)
             self.progress_callback.end_task(self.get_local_file_total_size(), file_count=total, total_lines_read=self.read_line_counter,
                                          context=f"{ckan.identifier} single-thread upload", level=CkanCallbackLevel.ResourceChunks)
             # at last, apply final actions:

@@ -90,6 +90,7 @@ class FileFormatABC(ABC):
         self.write_kwargs.update(import_args_kwargs_dict(args.write_kwargs))
 
     def _process_extra_args(self):
+        # raise an error if there were unknown CLI arguments from resource Options field
         if len(self.extra_args) > 0:
             raise(UnknownCliArgumentError(self.extra_args, context="Resource options"))
 

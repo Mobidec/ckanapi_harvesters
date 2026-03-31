@@ -118,7 +118,8 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
 
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
                             threads:int=1, external_stop_event=None,
-                            start_index:int=0, end_index:int=None, **kwargs) -> None:
+                            start_index:int=0, end_index:int=None,
+                            inhibit_datastore_patch_indexes:bool=False, **kwargs) -> None:
         # CKAN manages URL resources: no upload is necessary
         return
 
@@ -139,7 +140,8 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
 
     def patch_request(self, ckan: CkanApi, package_id: str, *,
                       df_upload:pd.DataFrame=None, payload:Union[bytes, io.BufferedIOBase]=None,
-                      reupload: bool = None, override_ckan:bool=False, resources_base_dir:str=None) -> CkanResourceInfo:
+                      reupload: bool = None, override_ckan:bool=False, resources_base_dir:str=None,
+                      inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
         """
         Specific implementation of patch_request which does not upload any data and only updates the fields currently present in the database
 
@@ -183,6 +185,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
                                              url=self.url,
                                              datastore_create=False, auto_submit=False, create_default_view=self.create_default_view,
                                              cancel_if_exists=True, update_if_exists=True, aliases=aliases, reupload=False, data_cleaner=self.data_cleaner_upload,
+                                             inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
                                              progress_callback=self.progress_callback)
         resource_id = resource_info.id
         self.known_id = resource_id
@@ -190,7 +193,9 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
         if reupload:
             # re-initialize datastore to reupload from url
             # normally, data was automatically submitted to DataStore on resource_create (not needed)
-            ckan.datastore_create(resource_id, fields=fields, primary_key=primary_key, indexes=indexes, aliases=aliases)
+            ckan.datastore_create(resource_id, fields=fields, primary_key=primary_key, indexes=indexes, aliases=aliases,
+                                  inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
+                                  data_cleaner=self.data_cleaner_upload)
             ckan.datastore_submit(resource_id)
         return resource_info
 

@@ -123,3 +123,26 @@ class CkanProgressCallbackABC(ABC):
         canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
         **kwargs) -> Union[str,None]:
         raise NotImplementedError()
+
+
+class CkanProgressCallbackEmpty(CkanProgressCallbackABC):
+    """
+    Progress callback which does not display anything.
+    """
+    def copy(self, *, dest=None):
+        return super().copy(dest=CkanProgressCallbackEmpty())
+
+    def start_task(self, total:int, *, file_count:int=None, position:int=0, file_index:int=0, level:CkanCallbackLevel=None,
+                   info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=0,
+                   units:CkanProgressUnits=None, **kwargs) -> None:
+        return
+    def end_task(self, total:int, *, file_count:int=None, position:int=None, file_index:int=None, level:CkanCallbackLevel=None,
+                 info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=None, **kwargs) -> None:
+        return
+
+    def task_progress(self, position:int, total:int, *, info:Any=None, context:str=None,
+        file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
+        canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+        **kwargs) -> Union[str,None]:
+        return None
+

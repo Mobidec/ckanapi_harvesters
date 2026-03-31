@@ -38,9 +38,13 @@ class UserFileFormat(FileFormatABC):
         self.option_append_allowed = args.allow_append
 
     def _process_extra_args(self):
-        if len(self.extra_args) > 0:
-            msg = str(UnknownCliArgumentError(self.extra_args, context="Resource options"))
-            warn(msg)
+        # transmit extra CLI arguments to user-defined functions?
+        # this could cause issues: some arguments could not be recognized
+        # => raise an error, like in other file formats
+        super()._process_extra_args()
+        # if len(self.extra_args) > 0:
+        #     msg = str(UnknownCliArgumentError(self.extra_args, context="Resource options"))
+        #     warn(msg)
 
     def _connect_aux_functions(self, module: PythonUserCode, aux_read_fun_name:str, aux_write_fun_name:str) -> None:
         if (aux_read_fun_name or aux_write_fun_name) and module is None:

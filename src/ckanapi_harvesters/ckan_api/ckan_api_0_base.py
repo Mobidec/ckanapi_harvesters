@@ -919,8 +919,12 @@ class CkanApiBase(CkanApiABC):
         else:
             total_requests_estimation = None
         if progress_callback is not None:
-            progress_callback.task_progress(n_received, total_len, file_index=requests_count, file_count=total_requests_estimation,
-                                            level=CkanCallbackLevel.Requests)
+            # restart the progress now that we know the length of the requested data
+            progress_callback.start_task(total_len, position=n_received,
+                                         file_count=total_requests_estimation, file_index=requests_count,
+                                         level=CkanCallbackLevel.Requests, units=CkanProgressUnits.Records)
+            # progress_callback.task_progress(n_received, total_len, file_index=requests_count, file_count=total_requests_estimation,
+            #                                 level=CkanCallbackLevel.Requests)
         yield result_add
         current = time.time()
         timeout = (current - start) > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0

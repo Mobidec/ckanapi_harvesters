@@ -19,11 +19,14 @@ When publishing a new release, copy the relevant section on the [Github release 
 ### Fixed
 
 - `package_search_all` now includes draft datasets by default (option `include_drafts`).
+- `ckan.owner_org` is not applied when patching an existing package without specifying the `owner_org` argument.
+- Raise an error if a CLI argument is not recognized in the resource __Options__ field.
 
 ### Added
 
 - _Assist_ __Data Cleaner__ which detects field types which were not specified, improved invalid value detection. 
 This feature is for debug use as it is time-consuming.
+- Option `inhibit_datastore_patch_indexes` to ignore primary key and indexes arguments when calling datastore_create on an existing dataset (patch mode).
 
 
 ## [0.0.20] - 2026-03-27

@@ -50,10 +50,10 @@ class DatabaseHarvesterPostgre(DatabaseHarvesterABC):
             raise HarvesterArgumentRequiredError("auth-url", "postgre", "This argument defines the url used to authenticate.")
 
     @staticmethod
-    def init_from_options_string(options_string:str, base_dir:str=None) -> "DatabaseHarvesterPostgre":
+    def init_from_options_string(options_string:str, base_dir:str=None) -> Tuple["DatabaseHarvesterPostgre", List[str]]:
         params = DatabaseParams()
-        params.parse_options_string(options_string, base_dir=base_dir)
-        return DatabaseHarvesterPostgre(params)
+        extra_args = params.parse_options_string(options_string, base_dir=base_dir)
+        return DatabaseHarvesterPostgre(params), extra_args
 
     def copy(self, *, dest=None):
         if dest is None:
@@ -162,10 +162,10 @@ class DatasetHarvesterPostgre(DatabaseHarvesterPostgre, DatasetHarvesterABC):
         return super().get_description() + f" / Schema: {self.params.dataset}"
 
     @staticmethod
-    def init_from_options_string(options_string:str, base_dir:str=None) -> "DatasetHarvesterPostgre":
+    def init_from_options_string(options_string:str, base_dir:str=None) -> Tuple["DatasetHarvesterPostgre", List[str]]:
         params = DatasetParamsPostgreSchema()
-        params.parse_options_string(options_string, base_dir=base_dir)
-        return DatasetHarvesterPostgre(params)
+        extra_args = params.parse_options_string(options_string, base_dir=base_dir)
+        return DatasetHarvesterPostgre(params), extra_args
 
     def _finalize_connection(self):
         if super().is_connected():
@@ -274,10 +274,10 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
         return super().get_description() + f" / Table: {self.params.table}"
 
     @staticmethod
-    def init_from_options_string(options_string:str, *, base_dir:str=None, file_url_attr:str=None) -> "TableHarvesterPostgre":
+    def init_from_options_string(options_string:str, *, base_dir:str=None, file_url_attr:str=None) -> Tuple["TableHarvesterPostgre", List[str]]:
         params = TableParamsPostgre()
-        params.parse_options_string(options_string, file_url_attr=file_url_attr, base_dir=base_dir)
-        return TableHarvesterPostgre(params)
+        extra_args = params.parse_options_string(options_string, file_url_attr=file_url_attr, base_dir=base_dir)
+        return TableHarvesterPostgre(params), extra_args
 
     def copy(self, *, dest=None):
         if dest is None:

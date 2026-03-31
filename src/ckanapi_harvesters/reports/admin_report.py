@@ -390,8 +390,9 @@ if __name__ == '__main__':
     self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
     top_dir = os.path.abspath(os.path.join(self_dir, "..", ".."))
     tests_dir = os.path.abspath(os.path.join(top_dir, "..", "tests"))
-    out_file = os.path.join(tests_dir, "admin_report.json")
-    # out_file = os.path.join(tests_dir, f"admin_report_{report.report_date.strftime('%Y%m%dT%H%M')}.json")
+    out_file = os.path.join(tests_dir, "admin_report.json")  # file for last report
+    report.to_json(out_file)
+    out_file = os.path.join(tests_dir, f"admin_report_{report.report_date.strftime('%Y%m%dT%H%M')}.json")  # keep history of reports
     report.to_json(out_file)
 
     print(f"Done. Saved report to {out_file}")

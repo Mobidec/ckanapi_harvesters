@@ -5,7 +5,8 @@ Progress callback function definition
 """
 
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import (CkanCallbackLevel, CkanProgressBarType,
-                                                                      CkanProgressUnits, CkanProgressCallbackABC)
+                                                                      CkanProgressUnits, CkanProgressCallbackABC,
+                                                                      CkanProgressCallbackEmpty)
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_simple import CkanProgressCallbackSimple, default_progress_callback
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_tqdm import CkanProgressCallbackTqdm, tqdm
 
