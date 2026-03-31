@@ -5,6 +5,7 @@ Progress callback function definition
 """
 from typing import Any, Union, Callable
 from threading import Semaphore
+import time
 
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanCallbackLevel, CkanProgressBarType, CkanProgressUnits
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_simple import CkanProgressCallbackSimple
@@ -23,6 +24,7 @@ except ImportError:
 class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
     default_progress_bar_type = CkanProgressBarType.TqdmAuto
     progress_bar_update_threshold_pct = 0.5
+    progress_bar_update_min_interval_s = 0.25
 
     def __init__(self, callback_fun:Union[Callable,"CkanProgressCallbackSimple"]=None,
                  *, progress_bar_type:CkanProgressBarType=None):
@@ -39,6 +41,7 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
             raise RequirementError('tqdm', "CkanProgressCallbackTqdm")
         # state variables
         self.last_progress_displayed:dict[CkanCallbackLevel,int] = {level: 0 for level in CkanCallbackLevel}
+        self.last_progress_update_time:dict[CkanCallbackLevel,float] = {level: 0.0 for level in CkanCallbackLevel}
         self.tqdm_semaphore = Semaphore()
 
     @property
@@ -79,6 +82,7 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
                 if position > 0:
                     self.progress_bars[level].update(position)
                     self.last_progress_displayed[level] = position
+                    self.last_progress_update_time[level] = time.time()
 
     def end_task(self, total:int, *, file_count:int=None, position:int=None, file_index:int=None, level:CkanCallbackLevel=None,
                  info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=None, **kwargs) -> None:
@@ -90,6 +94,7 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
                     delta = max(0, total - self.progress_bars[level].last_print_n)
                     self.progress_bars[level].update(delta)
                     self.last_progress_displayed[level] += delta
+                    self.last_progress_update_time[level] = time.time()
                 self.progress_bars[level].close()
                 self.progress_bars[level] = None
 
@@ -113,10 +118,13 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
                     update_needed = True  # end of progress
                 else:
                     delta_pct = delta / total * 100.
-                    update_needed = delta_pct > self.progress_bar_update_threshold_pct
+                    time_elapsed = time.time() - self.last_progress_update_time[level]
+                    update_needed = (delta_pct > self.progress_bar_update_threshold_pct
+                                     or time_elapsed > self.progress_bar_update_min_interval_s)
                 if update_needed:
                     self.progress_bars[level].update(delta)
                     self.last_progress_displayed[level] += delta
+                    self.last_progress_update_time[level] = time.time()
         self.tqdm_semaphore.release()
         return msg
 
