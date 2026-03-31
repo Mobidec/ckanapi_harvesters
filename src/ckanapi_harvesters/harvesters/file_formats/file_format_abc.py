@@ -11,6 +11,7 @@ import io
 
 import pandas as pd
 
+from ckanapi_harvesters.auxiliary.ckan_errors import UnknownCliArgumentError
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField, CkanResourceInfo
 from ckanapi_harvesters.auxiliary.list_records import ListRecords
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import import_args_kwargs_dict
@@ -84,8 +85,13 @@ class FileFormatABC(ABC):
             self.chunk_size = args.chunk_size
             self.allow_chunks = True
         self.extra_args = extra_args
+        self._process_extra_args()
         self.read_kwargs.update(import_args_kwargs_dict(args.read_kwargs))
         self.write_kwargs.update(import_args_kwargs_dict(args.write_kwargs))
+
+    def _process_extra_args(self):
+        if len(self.extra_args) > 0:
+            raise(UnknownCliArgumentError(self.extra_args, context="Resource options"))
 
     def _apply_options_string(self, options_string:str=None, *, parser: argparse.ArgumentParser = None):
         if options_string is None:

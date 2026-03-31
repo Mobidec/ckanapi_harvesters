@@ -4,6 +4,8 @@
 CKAN error types
 """
 from typing import Iterable, List
+import shlex
+
 import requests
 
 # import to make these error codes available from here:
@@ -42,6 +44,10 @@ class CkanMandatoryArgumentError(Exception):
 class MandatoryAttributeError(Exception):
     def __init__(self, object_type: str, attribute_name: str):
         super().__init__(f"Attribute '{attribute_name}' is required for {object_type} to initiate builder")
+
+class UnknownCliArgumentError(Exception):
+    def __init__(self, extra_args: List[str], context: str):
+        super().__init__(f"CLI arguments were not parsed for {context} because unexpected: {shlex.join(extra_args)}")
 
 class MissingIdError(Exception):
     def __init__(self, object_type: str, object_name):
