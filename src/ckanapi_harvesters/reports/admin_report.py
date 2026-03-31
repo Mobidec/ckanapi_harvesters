@@ -40,6 +40,7 @@ class CkanAdminReport:
         self.include_resources_detail: bool = True
         self.include_policy_messages: bool = full_report
         self.include_group_report: bool = full_report
+        self.include_public_packages_in_header: bool = True
         self.date_format:Union[str,None] = '%d/%m/%Y %H:%M'
         self._connected_user: Union[CkanUserInfo, None] = None
         self.report_date: Union[datetime.datetime, None] = None
@@ -143,6 +144,7 @@ class CkanAdminReport:
         total_external_resource_count = 0
         total_datastore_count = 0
         total_datastore_lines = 0
+        public_packages = OrderedDict()
         global_last_modified_resources = None
         global_last_modified_metadata = None
         num_packages = len(ckan.map.packages)
@@ -171,6 +173,7 @@ class CkanAdminReport:
                 resource_report = OrderedDict([
                     ("resource_name", resource_info.name),
                     ("id", resource_id),
+                    ("page_url", ckan.get_resource_page_url(resource_id)),
                     ("state", str(resource_info.state)),
                     ("external_url", resource_info.download_url if resource_info.download_url and not internal_filestore else None),
                     ("filestore_size_mb", resource_info.download_size_mb if internal_filestore else None),
@@ -212,6 +215,7 @@ class CkanAdminReport:
             license_info = ckan.map.licenses[package_info.license_id] if package_info.license_id and package_info.license_id in ckan.map.licenses.keys() else None
             package_report = OrderedDict([
                 ("package_title", package_info.title),
+                ("page_url", ckan.get_package_page_url(package_name)),
                 ("state", str(package_info.state)),
                 ("organization", package_info.organization_info.name if package_info.organization_info else None),
                 ("version", package_info.version),
@@ -246,6 +250,7 @@ class CkanAdminReport:
             else:
                 # TODO: do all users have write access if package is Public
                 package_report["users"] = "all (Public)"
+                public_packages[package_name] = ckan.get_package_page_url(package_name)
             package_report["groups"] = sorted([group_info.name for group_info in package_info.groups])
             if self.include_policy_messages:
                 package_report["policy_messages"] = [message.to_dict() for message in package_data_format_messages]
@@ -296,6 +301,8 @@ class CkanAdminReport:
         ]) for group_info in ckan.map.groups.values()}
         groups_report = OrderedDict(sorted(groups_report.items()))
         elapsed_time_report_and_updates = time.time() - start
+        if self.include_public_packages_in_header:
+            report_header["public_packages"] = public_packages
         report_footer = OrderedDict([
             ("requests_count", self._request_count),
             ("time_elapsed_seconds", self._elapsed_time_requests + elapsed_time_report_and_updates),

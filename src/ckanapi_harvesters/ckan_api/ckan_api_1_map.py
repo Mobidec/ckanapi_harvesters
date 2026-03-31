@@ -823,6 +823,8 @@ class CkanApiMap(CkanApiBase):
         :param default_url: return url based on package name, even if it was not found.
         :return:
         """
+        package_info = self.get_package_info_or_request(package_name)
+        package_name = package_info.name
         self._error_empty_url()
         initial_url = url_join(self.url, "dataset" + urlsep + package_name)
         if default_url and error_not_found:
