@@ -46,10 +46,10 @@ class DatabaseHarvesterMongoServer(DatabaseHarvesterABC):
             raise HarvesterArgumentRequiredError("auth-url", "mongodb", "This argument defines the url used to authenticate.")
 
     @staticmethod
-    def init_from_options_string(options_string:str, base_dir:str=None) -> "DatabaseHarvesterMongoServer":
+    def init_from_options_string(options_string:str, base_dir:str=None) -> Tuple["DatabaseHarvesterMongoServer", List[str]]:
         params = DatabaseParams()
-        params.parse_options_string(options_string, base_dir=base_dir)
-        return DatabaseHarvesterMongoServer(params)
+        extra_args = params.parse_options_string(options_string, base_dir=base_dir)
+        return DatabaseHarvesterMongoServer(params), extra_args
 
     def copy(self, *, dest=None):
         if dest is None:
@@ -156,10 +156,10 @@ class DatasetHarvesterMongoDatabase(DatabaseHarvesterMongoServer, DatasetHarvest
         return super().get_description() + f" / Database: {self.params.dataset}"
 
     @staticmethod
-    def init_from_options_string(options_string:str, base_dir:str=None) -> "DatasetHarvesterMongoDatabase":
+    def init_from_options_string(options_string:str, base_dir:str=None) -> Tuple["DatasetHarvesterMongoDatabase", List[str]]:
         params = DatasetParams()
-        params.parse_options_string(options_string, base_dir=base_dir)
-        return DatasetHarvesterMongoDatabase(params)
+        extra_args = params.parse_options_string(options_string, base_dir=base_dir)
+        return DatasetHarvesterMongoDatabase(params), extra_args
 
     def _finalize_connection(self):
         if super().is_connected() and self.mongo_database is None:
@@ -252,10 +252,10 @@ class TableHarvesterMongoCollection(DatasetHarvesterMongoDatabase, TableHarveste
         return super().get_description() + f" / Collection: {self.params.table}"
 
     @staticmethod
-    def init_from_options_string(options_string:str, *, base_dir:str=None, file_url_attr:str=None) -> "TableHarvesterMongoCollection":
+    def init_from_options_string(options_string:str, *, base_dir:str=None, file_url_attr:str=None) -> Tuple["TableHarvesterMongoCollection", List[str]]:
         params = TableParamsMongoCollection()
-        params.parse_options_string(options_string, file_url_attr=file_url_attr, base_dir=base_dir)
-        return TableHarvesterMongoCollection(params)
+        extra_args = params.parse_options_string(options_string, file_url_attr=file_url_attr, base_dir=base_dir)
+        return TableHarvesterMongoCollection(params), extra_args
 
     def copy(self, *, dest=None):
         if dest is None:

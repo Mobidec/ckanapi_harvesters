@@ -180,12 +180,12 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         if file_index == 0 and file_chunk.chunk_index == 0 and self.upsert_method == UpsertChoice.Insert:
             return  # do not reupload the first document, which was used for the initialization of the dataset
         process_upsert = start_index <= file_index and file_index < end_index and file_chunk.read_line_counter - len(file_chunk.df) >= self.upload_start_line
-        self.progress_callback.task_progress(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(),
-                                             info=file_chunk, level=self.process_level,
-                                             file_index=file_index, file_count=file_count,
-                                             lines_chunk=len(file_chunk.df), total_lines_read=file_chunk.read_line_counter,
-                                             canceled_request=not process_upsert,
-                                             context=f"{ckan.identifier} upload")
+        self.progress_callback.update_task(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(),
+                                           info=file_chunk, level=self.process_level,
+                                           file_index=file_index, file_count=file_count,
+                                           lines_chunk=len(file_chunk.df), total_lines_read=file_chunk.read_line_counter,
+                                           canceled_request=not process_upsert,
+                                           context=f"{ckan.identifier} upload")
         if process_upsert:
             # if upload_alter:
             #     file_chunk.df = self.df_mapper.df_upload_alter(file_chunk.df, self.sample_data_source, fields=self._get_fields_info(), **kwargs)
@@ -206,7 +206,8 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
                             threads:int=1, external_stop_event=None,
                             allow_chunks:bool=True,
                             only_missing:bool=False, from_line_count:bool=False,
-                            start_index:int=0, end_index:int=None, **kwargs) -> None:
+                            start_index:int=0, end_index:int=None,
+                            inhibit_datastore_patch_indexes:bool=False, **kwargs) -> None:
         self.df_mapper.upsert_only_missing_rows = only_missing
         if from_line_count:
             self.upload_start_line = self.get_datastore_len(ckan)
@@ -222,7 +223,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
                                     threads=threads, external_stop_event=external_stop_event,
                                     allow_chunks=allow_chunks,
                                     start_index=start_index, end_index=end_index,
-                                    method=method, **kwargs)
+                                    method=method, inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes, **kwargs)
         # if threads < 0:
         #     # cancel large uploads in this case
         #     return None
@@ -326,10 +327,10 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
                             index:int, start_index:int, end_index:int, total:int,
                             **kwargs) -> Any:
         if start_index <= index and index < end_index:
-            self.progress_callback.task_progress(index, total, info=file_query_item, level=self.process_level,
-                                                 file_index=index, file_count=total,
-                                                 total_lines_read=self.read_line_counter,
-                                                 context=f"{ckan.identifier} single-thread download")
+            self.progress_callback.update_task(index, total, info=file_query_item, level=self.process_level,
+                                               file_index=index, file_count=total,
+                                               total_lines_read=self.read_line_counter,
+                                               context=f"{ckan.identifier} single-thread download")
             self.download_file_query_item(ckan=ckan, out_dir=out_dir, file_query_item=file_query_item)
         else:
             pass

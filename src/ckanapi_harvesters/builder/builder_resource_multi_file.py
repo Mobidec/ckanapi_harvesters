@@ -16,6 +16,7 @@ import fnmatch
 import pandas as pd
 import requests
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressUnits
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel
@@ -84,7 +85,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
     ## upload --------------------------------------------------------------------
     def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, override_ckan:bool=False,
                       resources_base_dir:str=None,
-                      payload:Union[bytes, io.BufferedIOBase]=None) -> Union[None, CkanResourceInfo]:
+                      payload:Union[bytes, io.BufferedIOBase]=None, inhibit_datastore_patch_indexes:bool=False) -> Union[None, CkanResourceInfo]:
         return None
 
     def upload_request_final(self, ckan:CkanApi, *, force:bool=False) -> None:
@@ -141,6 +142,9 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
     def get_local_file_total_size(self) -> int:
         return self.local_file_size_sum
 
+    def get_local_file_size_units(self):
+        return CkanProgressUnits.Bytes
+
     def get_local_file_offset(self, file_chunk: FileChunkDataFrame) -> int:
         return sum(self.local_file_size[:file_chunk.file_index]) + file_chunk.file_position
 
@@ -171,7 +175,8 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
                 f"Missing directory for multi-file resource {self.name}: {os.path.join(resources_base_dir, self.dir_name)}")
 
     def upload_file_chunk(self, ckan:CkanApi, package_id:str, file_chunk:FileChunkDataFrame, *,
-                          reupload:bool=False, override_ckan:bool=False, cancel_if_present:bool=True) -> CkanResourceInfo:
+                          reupload:bool=False, override_ckan:bool=False, cancel_if_present:bool=True,
+                          inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
         """
         Upload a file, using its name as resource name
         """
@@ -198,17 +203,19 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
 
     def _unit_upload_apply(self, *, ckan:CkanApi, file_chunk:FileChunkDataFrame,
                            overall_chunk_index:int, start_index:int, end_index:int, file_count:int,
-                           package_id:str, reupload:bool, only_missing:bool, excluded_files:Set[str]) -> None:
+                           package_id:str, reupload:bool, only_missing:bool, excluded_files:Set[str],
+                           inhibit_datastore_patch_indexes:bool) -> None:
         # For each file, this function initiates its own FileStore.
         file_path = file_chunk.file_path
         _, file_name = os.path.split(file_path)
         index = file_chunk.file_index
         if start_index <= index and index < end_index and file_path not in excluded_files:
-            self.progress_callback.task_progress(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(), info=file_path,
-                                         file_index=file_chunk.file_index, file_count=self.get_local_file_count(),
-                                         context=f"{ckan.identifier} upload", level=CkanCallbackLevel.MultiFileResource)
+            self.progress_callback.update_task(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(), info=file_path,
+                                               file_index=file_chunk.file_index, file_count=self.get_local_file_count(),
+                                               context=f"{ckan.identifier} upload", level=CkanCallbackLevel.MultiFileResource)
             self.upload_file_chunk(ckan=ckan, package_id=package_id, file_chunk=file_chunk,
-                                   reupload=reupload, cancel_if_present=only_missing)
+                                   reupload=reupload, cancel_if_present=only_missing,
+                                   inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
         else:
             # self.progress_callback.call(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip", level=CkanCallbackLevel.MultiFileResource)
             pass
@@ -217,14 +224,15 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
                             threads:int=1, external_stop_event=None,
                             start_index:int=0, end_index:int=None, allow_chunks:bool=True,
                             reupload:bool=False, only_missing:bool=False, from_line_count:bool=False,
-                            excluded_files:Set[str]=None) -> None:
+                            excluded_files:Set[str]=None, inhibit_datastore_patch_indexes:bool=False) -> None:
         if excluded_files is None:
             excluded_files = set()
         package_id = self.get_or_query_package_id(ckan)
         super().upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir, threads=threads,
                                     external_stop_event=external_stop_event, start_index=start_index, end_index=end_index,
                                     reupload=reupload, only_missing=only_missing, from_line_count=from_line_count,
-                                    package_id=package_id, excluded_files=excluded_files, allow_chunks=allow_chunks)
+                                    package_id=package_id, excluded_files=excluded_files, allow_chunks=allow_chunks,
+                                    inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
         # if threads < 0:
         #     # cancel large uploads in this case
         #     return None
@@ -397,8 +405,8 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
                              index:int, start_index:int, end_index:int, total:int,
                              excluded_resource_names:Set[str]) -> Any:
         if start_index <= index and index < end_index and file_query_item not in excluded_resource_names:
-            self.progress_callback.task_progress(index, total, info=file_query_item,
-                                         context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.MultiFileResource)
+            self.progress_callback.update_task(index, total, info=file_query_item,
+                                               context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.MultiFileResource)
             self.download_file_query_item(ckan=ckan, out_dir=out_dir, file_query_item=file_query_item)
         else:
             pass

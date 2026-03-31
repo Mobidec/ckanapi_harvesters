@@ -11,6 +11,7 @@ from warnings import warn
 
 import pandas as pd
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressUnits
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
@@ -89,6 +90,9 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
 
     def get_local_file_total_size(self) -> int:
         return self.file_size
+
+    def get_local_file_size_units(self):
+        return CkanProgressUnits.Bytes
 
     def get_local_file_count(self) -> int:
         return 1

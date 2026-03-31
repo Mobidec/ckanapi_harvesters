@@ -9,6 +9,7 @@ from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanData
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload import CkanDataCleanerUpload
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_1_basic import CkanDataCleanerUploadBasic, CkanDataCleanerUploadDigitalColumns
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_2_geom import CkanDataCleanerUploadGeom
+from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_3_assist import CkanDataCleanerUploadAssist
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_upload_3_check import CkanDataCleanerUploadCheckOnly
 
 data_cleaner_dict = {
@@ -17,6 +18,7 @@ data_cleaner_dict = {
     "digitalcolumns": CkanDataCleanerUploadDigitalColumns,
     "geojson": CkanDataCleanerUploadGeom,
     "check": CkanDataCleanerUploadCheckOnly,
+    "assist": CkanDataCleanerUploadAssist,
     "none": DataCleanerNone,
     # NB: member "mongo" is added when loading ckanapi_harvesters.harvesters.pymongo_data_cleaner
 }

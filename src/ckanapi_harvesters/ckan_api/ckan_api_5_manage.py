@@ -16,7 +16,7 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import json_encode_params
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckan_has_postgis, default_ckan_target_epsg
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanResourceInfo, CkanViewInfo, CkanField,
@@ -29,7 +29,7 @@ from ckanapi_harvesters.auxiliary.ckan_errors import (ReadOnlyError, AdminFeatur
                                                       IntegrityError, NameFormatError, MultipleErrors)
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
-from ckanapi_harvesters.ckan_api.ckan_api_1_map import use_ckan_owner_org_as_default
+from ckanapi_harvesters.ckan_api.ckan_api_0_base import use_ckan_owner_org_as_default_package_owner
 
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
@@ -527,7 +527,7 @@ class CkanApiManage(CkanApiReadWrite):
 
     ## Datastore creation ------------------
     @staticmethod
-    def default_resource_view(resource_format:str) -> Tuple[str,str]:
+    def default_resource_view(resource_format:str, is_datastore:bool=True) -> Tuple[str,str]:
         """
         Definition of the default resource view based on the resource format.
 
@@ -537,7 +537,7 @@ class CkanApiManage(CkanApiReadWrite):
         if resource_format is None:
             resource_format = "unknown"
         resource_format = resource_format.lower()
-        if resource_format == "csv":
+        if resource_format in {"csv", "shp", "xls"} or (is_datastore and resource_format == "json"):
             title = "Table"
             view_type = "recline_view"  # Data Explorer
         elif resource_format in {"json", "txt", "py"}:
@@ -588,8 +588,9 @@ class CkanApiManage(CkanApiReadWrite):
         return view_info_list
 
     def resource_view_create(self, resource_id:str, title:Union[str,List[str]]=None, *,
-                              view_type:Union[str,List[str]]=None, params:dict=None,
-                              error_no_default_view_type:bool=False, cancel_if_exists:bool=True) -> List[CkanViewInfo]:
+                             view_type:Union[str,List[str]]=None, params:dict=None,
+                             error_no_default_view_type:bool=False, cancel_if_exists:bool=True,
+                             is_datastore:bool=True) -> List[CkanViewInfo]:
         """
         Encapsulation of the API resource_view_create. If no resource view is provided to create (None),
         the function looks up the default view defined in default_resource_view.
@@ -607,7 +608,7 @@ class CkanApiManage(CkanApiReadWrite):
         if title is None and view_type is None:
             resource_info = self.get_resource_info_or_request_of_id(resource_id)
             resource_format = resource_info.format
-            title, view_type = self.default_resource_view(resource_format)
+            title, view_type = self.default_resource_view(resource_format, is_datastore=is_datastore)
             if title is None:
                 title = []
                 view_type = []
@@ -729,8 +730,9 @@ class CkanApiManage(CkanApiReadWrite):
                         cancel_if_exists:bool=True, update_if_exists:bool=False, reupload:bool=False, create_default_view:bool=True, auto_submit:bool=False,
                         datastore_create:bool=False, records:Union[dict, List[dict], pd.DataFrame]=None, fields:List[dict]=None,
                             primary_key: Union[str, List[str]] = None, indexes: Union[str, List[str]] = None,
-                            aliases: Union[str, List[str]] = None, data_cleaner:CkanDataCleanerABC=None,
-                            progress_callback:CkanProgressCallbackABC=None) -> CkanResourceInfo:
+                            aliases: Union[str, List[str]] = None, inhibit_datastore_patch_indexes:bool=False,
+                            data_cleaner:CkanDataCleanerABC=None,
+                        progress_callback:CkanProgressCallbackABC=None) -> CkanResourceInfo:
         """
         Proxy to API call resource_create verifying if a resource with the same name already exists and adding the default view.
 
@@ -792,7 +794,7 @@ class CkanApiManage(CkanApiReadWrite):
                                                              df=df, file_path=file_path, files=files,
                                                              payload=payload, payload_name=payload_name))
                     if create_default_view:
-                        view_info_list = self.resource_view_create(resource_info.id)
+                        view_info_list = self.resource_view_create(resource_info.id, is_datastore=resource_info.datastore_info is not None)
                         resource_info.update_view(view_info_list)
                     if has_file_data:
                         resource_info.newly_updated = True
@@ -801,7 +803,7 @@ class CkanApiManage(CkanApiReadWrite):
                     if datastore_create or delete_previous_datastore:
                         info = self.datastore_create(resource_info.id, records=records, fields=fields, primary_key=primary_key,
                                                      indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner,
-                                                     progress_callback=progress_callback)
+                                                     progress_callback=progress_callback, inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
                     return resource_info
                 else:
                     return resource_info
@@ -813,7 +815,7 @@ class CkanApiManage(CkanApiReadWrite):
         resource_info.newly_created = True
         resource_info.newly_updated = False
         if create_default_view:
-            view_info_list = self.resource_view_create(resource_info.id)
+            view_info_list = self.resource_view_create(resource_info.id, is_datastore=datastore_create)
             resource_info.update_view(view_info_list)
         if auto_submit and has_file_data:
             self.datastore_submit(resource_info.id)
@@ -884,6 +886,7 @@ class CkanApiManage(CkanApiReadWrite):
                          primary_key:Union[str, List[str]]=None, indexes:Union[str, List[str]]=None,
                          aliases: Union[str, List[str]]=None,
                          params:dict=None,force:bool=None, data_cleaner:CkanDataCleanerABC=None,
+                         inhibit_datastore_patch_indexes:bool=False,
                          progress_callback:CkanProgressCallbackABC=None) -> dict:
         """
         Encapsulation of the datastore_create API call.
@@ -897,6 +900,8 @@ class CkanApiManage(CkanApiReadWrite):
         :param indexes:
         :param params:
         :param force:
+        :param inhibit_datastore_patch_indexes: option to ignore primary_key and indexes in case the DataStore already
+            exists. In certain cases, running without this option can lead to impossible updates (recomputing indexes on large tables can be costly).
         :return:
         """
         if delete_previous:
@@ -916,8 +921,17 @@ class CkanApiManage(CkanApiReadWrite):
                 if indexes is None:
                     indexes = list(data_cleaner.field_suggested_index)
                 fields = data_cleaner.merge_field_changes(fields)
+        if inhibit_datastore_patch_indexes:
+            # do not apply indexes and primary_key arguments if DataStore exists
+            resource_info = self.get_resource_info_or_request_of_id(resource_id, error_not_found=False, datastore_info=True)
+            if resource_info is not None and resource_info.datastore_info is not None:
+                if primary_key is not None or indexes is not None:
+                    # msg = f"datastore_create in patch mode with option inhibit_datastore_patch_indexes: ignored arguments: primary_key={primary_key}, indexes={indexes}"
+                    # warn(msg)
+                    primary_key = None
+                    indexes = None
         if self.params.default_alias_enforce:
-            resource_info = self.get_resource_info_or_request_of_id(resource_id)
+            resource_info = self.get_resource_info_or_request_of_id(resource_id, error_not_found=False)
             package_info = self.get_package_info_or_request(resource_info.package_id)
             if aliases is None and not delete_previous:
                 datastore_info = self.get_datastore_info_or_request_of_id(resource_id, error_not_found=False)
@@ -937,7 +951,7 @@ class CkanApiManage(CkanApiReadWrite):
         else:
             df_upload_partial, df_upload_upsert = records, None
         if df_upload_partial is not None and progress_callback is not None:
-            progress_callback.start_task(len(df_upload_partial), level=CkanCallbackLevel.Requests, context="datastore_create")
+            progress_callback.start_task(len(df_upload_partial), level=CkanCallbackLevel.Requests, context="datastore_create", units=CkanProgressUnits.Records)
         info = self._api_datastore_create(resource_id, records=df_upload_partial, fields=fields,
                                           primary_key=primary_key, indexes=indexes, aliases=aliases,
                                           params=params, force=force)
@@ -1034,8 +1048,8 @@ class CkanApiManage(CkanApiReadWrite):
         package_info = self.get_package_info_or_request(package_id)
         if private is not None:
             params["private"] = private
-        if owner_org is None and use_ckan_owner_org_as_default:
-            owner_org = self.owner_org
+        # if owner_org is None and use_ckan_owner_org_as_default_package_owner:
+        #     owner_org = self.owner_org
         if owner_org is not None:
             params["owner_org"] = owner_org
         if package_name is not None:
@@ -1057,10 +1071,11 @@ class CkanApiManage(CkanApiReadWrite):
         if tags_list_dict is not None:
             params["tags"] = tags_list_dict
         if custom_fields is None:
-            if package_info.custom_fields is not None:
-                custom_fields = package_info.custom_fields.copy()
-            else:
-                custom_fields = OrderedDict()
+            if custom_fields_update is not None:
+                if package_info.custom_fields is not None:
+                    custom_fields = package_info.custom_fields.copy()
+                else:
+                    custom_fields = OrderedDict()
         if custom_fields_update is not None:
             custom_fields.update(custom_fields_update)
         if custom_fields is not None:
@@ -1137,8 +1152,8 @@ class CkanApiManage(CkanApiReadWrite):
         self.verify_package_name_format(name)
         params["name"] = name
         params["private"] = private
-        if owner_org is None and use_ckan_owner_org_as_default:
-            owner_org = self.owner_org
+        # if owner_org is None and use_ckan_owner_org_as_default_package_owner:
+        #     owner_org = self.owner_org
         if owner_org is not None:
             params["owner_org"] = owner_org
         if title is not None:
@@ -1238,6 +1253,8 @@ class CkanApiManage(CkanApiReadWrite):
                 custom_fields = OrderedDict()
             if custom_fields_update is not None:
                 custom_fields.update(custom_fields_update)
+            if owner_org is None and use_ckan_owner_org_as_default_package_owner:
+                owner_org = self.owner_org
             pkg_info = self._api_package_create(package_name, private, title=title, notes=notes,
                                                 owner_org=owner_org, state=state, license_id=license_id, tags=tags,
                                                 tags_list_dict=tags_list_dict,

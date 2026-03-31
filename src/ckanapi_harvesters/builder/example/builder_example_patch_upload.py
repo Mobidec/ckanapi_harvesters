@@ -7,6 +7,7 @@ import os
 
 from ckanapi_harvesters.builder.builder_package import BuilderPackage
 from ckanapi_harvesters.ckan_api import CkanApi
+from ckanapi_harvesters.auxiliary.ckan_model import CkanState
 
 from ckanapi_harvesters.builder.example import example_package_xls
 
@@ -26,6 +27,8 @@ def run(ckan:CkanApi = None):
     # Test re-encoding the Excel file from the loaded model
     example_package_xls_reencoded = os.path.abspath("builder_package_example-reencoded.xlsx")
     mdl.to_excel(example_package_xls_reencoded)
+
+    mdl.package_attributes.state = CkanState.Active  # publish at the end of this script
 
     # Patch package: apply metadata and upload small resources
     reupload = True  # True: reuploads all documents and resets large datasets to the first document

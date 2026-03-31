@@ -90,7 +90,7 @@ class DatabaseHarvesterABC(HarvesterConnectABC, ABC):
 
     @staticmethod
     @abstractmethod
-    def init_from_options_string(options_string:str, *, base_dir:str=None) -> "DatabaseHarvesterABC":
+    def init_from_options_string(options_string:str, *, base_dir:str=None) -> Tuple["DatabaseHarvesterABC", List[str]]:
         raise NotImplementedError()
 
     def _finalize_connection(self):
@@ -129,7 +129,7 @@ class DatasetHarvesterABC(DatabaseHarvesterABC, ABC):
 
     @staticmethod
     @abstractmethod
-    def init_from_options_string(options_string:str, *, base_dir:str=None) -> "DatasetHarvesterABC":
+    def init_from_options_string(options_string:str, *, base_dir:str=None) -> Tuple["DatasetHarvesterABC", List[str]]:
         raise NotImplementedError()
 
     ## metadata interface ---------------
@@ -176,7 +176,7 @@ class TableHarvesterABC(DatasetHarvesterABC, ABC):
 
     @staticmethod
     @abstractmethod
-    def init_from_options_string(options_string:str, *, base_dir:str=None, file_url_attr:str=None) -> "TableHarvesterABC":
+    def init_from_options_string(options_string:str, *, base_dir:str=None, file_url_attr:str=None) -> Tuple["TableHarvesterABC", List[str]]:
         raise NotImplementedError()
 
     ## metadata interface ---------------

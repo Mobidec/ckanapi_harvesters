@@ -609,7 +609,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
 
     def patch_request(self, ckan: CkanApi, package_id: str, *,
                       df_upload: pd.DataFrame=None, reupload: bool = None, override_ckan:bool=False,
-                      resources_base_dir:str=None) -> CkanResourceInfo:
+                      resources_base_dir:str=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
         self._merge_resource_attributes(override_ckan=override_ckan)
         if reupload is None: reupload = self.reupload_on_update
         if df_upload is None:
@@ -634,6 +634,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                                              cancel_if_exists=True, update_if_exists=True, reupload=reupload,
                                              datastore_create=True, records=df_upload, fields=fields,
                                              primary_key=primary_key, indexes=indexes, aliases=aliases,
+                                             inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
                                              progress_callback=self.progress_callback)
         resource_id = resource_info.id
         self.known_id = resource_id
@@ -725,7 +726,7 @@ class BuilderResourceIgnored(BuilderDataStoreABC):
 
     def patch_request(self, ckan:CkanApi, package_id:str, *,
                       reupload:bool=None, override_ckan:bool=False, resources_base_dir:str=None,
-                      payload:Union[bytes, io.BufferedIOBase]=None) -> None:
+                      payload:Union[bytes, io.BufferedIOBase]=None, inhibit_datastore_patch_indexes:bool=False) -> None:
         return None
 
     def download_request(self, ckan: CkanApi, out_dir: str, *, full_download: bool = True, force: bool = False,

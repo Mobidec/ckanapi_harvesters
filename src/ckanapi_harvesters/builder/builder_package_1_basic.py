@@ -17,7 +17,7 @@ from collections import OrderedDict
 import pandas as pd
 import numpy as np
 
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanProgressCallbackABC, CkanCallbackLevel
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.ckan_api import CkanApi, CkanApiMap
@@ -1024,15 +1024,26 @@ class BuilderPackageBasic:
 
     def patch_request_full(self, ckan:CkanApi, *,
                            reupload:bool=False, override_ckan:bool=False, resources_base_dir:str=None,
-                           create_default_view:bool=True, delete_all_resources:bool=False,
+                           create_default_view:bool=True, clear_all_resources:bool=False,
                            progress_callback:Union[CkanProgressCallbackABC,Callable]=None,
-                           sample_df_dict:Dict[str, Union[bytes, pd.DataFrame]]=None) \
+                           sample_df_dict:Dict[str, Union[bytes, pd.DataFrame]]=None,
+                           inhibit_datastore_patch_indexes:bool=False) \
             -> Tuple[CkanPackageInfo, Dict[str, CkanResourceInfo]]:
         """
-        Perform necessary requests to initiate/reupload the package and resources on the CKAN server.
+        Perform necessary requests to initiate/reupload the package and resources metadata on the CKAN server.
         For folder resources, this only uploads the first file of the resource.
 
         :param ckan:
+        :param reupload: Reupload files, even if present on CKAN server. For DataStores, this resets the DataStores to
+            an initial state.
+        :param override_ckan: Option to ignore metadata from CKAN server. Only metadata from Excel or data sources will be applied.
+        :param resources_base_dir: Override for resources directory. Location specified in Excel sheet is used by default.
+        :param progress_callback: Specific progress bar
+        :param create_default_view: Option to create default view for each resource.
+        :param clear_all_resources: Option to clear all resources in package before uploading.
+        :param sample_df_dict: default DataFrames/bytes for each resource
+        :param inhibit_datastore_patch_indexes: option to ignore primary_key and indexes in case for DataStores if they already
+            exists. In certain cases, running without this option can lead to impossible updates (recomputing indexes on large tables can be costly).
         :return:
         """
         # call to function update_request of package and update_request of resources
@@ -1046,17 +1057,17 @@ class BuilderPackageBasic:
         ckan.map_resources(self.package_name, datastore_info=True)
         package_id = pkg_info.id
         self.package_attributes.id = package_id
-        if delete_all_resources:
+        if clear_all_resources:
             ckan.package_delete_resources(package_id, bypass_admin=True)
         resource_info_dict: Dict[str, CkanResourceInfo] = {}
         self.update_package_name_in_resources()
         self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         if progress_callback is not None:
-            progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
+            progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources, units=CkanProgressUnits.Items)
         for resource_index, resource_builder in enumerate(self.resource_builders.values()):
             if progress_callback is not None:
                 resource_builder.progress_callback = progress_callback
-                progress_callback.task_progress(resource_index+1, len(self.resource_builders), level=CkanCallbackLevel.Resources)
+                progress_callback.update_task(resource_index + 1, len(self.resource_builders), level=CkanCallbackLevel.Resources)
             if create_default_view is not None:
                 resource_builder.create_default_view = create_default_view
             if sample_df_dict is not None and resource_builder.name in sample_df_dict.keys():
@@ -1067,14 +1078,17 @@ class BuilderPackageBasic:
                 if isinstance(resource_builder, BuilderDataStoreABC):
                     assert(isinstance(data_upload, pd.DataFrame) or isinstance(data_upload, list))
                     resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
-                                                                   resources_base_dir=resources_base_dir, df_upload=data_upload)
+                                                                   resources_base_dir=resources_base_dir, df_upload=data_upload,
+                                                                   inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
                 else:
                     assert(isinstance(data_upload, bytes))
                     resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
-                                                                   resources_base_dir=resources_base_dir, payload=data_upload)
+                                                                   resources_base_dir=resources_base_dir, payload=data_upload,
+                                                                   inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
             else:
                 resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
-                                                               resources_base_dir=resources_base_dir)
+                                                               resources_base_dir=resources_base_dir,
+                                                               inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
             resource_info_dict[resource_builder.name] = resource_info
             if resource_info is not None:  # this would be the case for BuilderMultiFile
                 pkg_info.update_resource(resource_info)
@@ -1142,11 +1156,18 @@ class BuilderPackageBasic:
 
     def upload_large_datasets(self, ckan:CkanApi, *, resources_base_dir:str=None, threads:int=None,
                               progress_callback:Union[CkanProgressCallbackABC,Callable]=None,
-                              only_missing:bool=False, from_line_count:bool=False, allow_chunks:bool=True) -> None:
+                              only_missing:bool=False, from_line_count:bool=False, allow_chunks:bool=True,
+                              inhibit_datastore_patch_indexes:bool=False) -> None:
         """
         Method to upload large datasets of the package.
-        The small datasets are to be uploaded with the patch_request_full method.
+        This method is to be called after patch_request_full, at least once, to initiate resources.
+        The first part of each DataStore is uploaded with the latter call.
+        This method upserts the remaining lines to the DataStore. If a primary key was defined, these lines are upserted.
+        This means the method can be called multiple times, even if the transfer was interrupted.
+        In the contrary case, the lines are inserted. If the resource is not reset with option reupload=True,
+        a second call to upload_large_datasets could lead to duplicate lines.
 
+        :see: patch_request_full
         :param ckan:
         :param resources_base_dir:
         :param threads:
@@ -1154,6 +1175,8 @@ class BuilderPackageBasic:
         :param only_missing: upsert only missing rows for DataStores and only missing files for MultiFile
         :param from_line_count: count the lines on the CKAN DataStore and ignore the first n lines of your data source
         :param allow_chunks: read DataStore files by chunks, when available
+        :param inhibit_datastore_patch_indexes: option to ignore primary_key and indexes in case for DataStores if they already
+            exists. In certain cases, running without this option can lead to impossible updates (recomputing indexes on large tables can be costly).
         :return:
         """
         if not isinstance(progress_callback, CkanProgressCallbackABC):
@@ -1168,15 +1191,16 @@ class BuilderPackageBasic:
         self.upload_file_checks(resource_names, resources_base_dir=resources_base_dir, ckan=ckan, verbose=True, raise_error=True)
         mono_resource_used_files = self._get_mono_resource_used_files(resources_base_dir, ckan)
         if progress_callback is not None:
-            progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
+            progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources, units=CkanProgressUnits.Items)
         for resource_index, resource_builder in enumerate(self.resource_builders.values()):
             if isinstance(resource_builder, BuilderDataStoreMultiABC):
                 if progress_callback is not None:
                     resource_builder.progress_callback = progress_callback
-                    progress_callback.task_progress(resource_index, len(self.resource_builders), level=CkanCallbackLevel.Resources)
+                    progress_callback.update_task(resource_index, len(self.resource_builders), level=CkanCallbackLevel.Resources)
                 resource_builder.upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir, threads=threads,
                                                      allow_chunks=allow_chunks,
-                                                     only_missing=only_missing, from_line_count=from_line_count)
+                                                     only_missing=only_missing, from_line_count=from_line_count,
+                                                     inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
         for index, resource_builder in enumerate(self.resource_builders.values()):
             if isinstance(resource_builder, BuilderMultiFile):
                 if progress_callback is not None:
@@ -1185,7 +1209,8 @@ class BuilderPackageBasic:
                 resource_builder.upload_request_full(ckan=ckan, resources_base_dir=resources_base_dir, threads=threads,
                                                      only_missing=only_missing, from_line_count=from_line_count,
                                                      allow_chunks=allow_chunks,
-                                                     excluded_files=mono_resource_used_files if multi_file_exclude_other_files else None)
+                                                     excluded_files=mono_resource_used_files if multi_file_exclude_other_files else None,
+                                                     inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
         self.package_resource_reorder(ckan)
         self.patch_request_final(ckan)
         if progress_callback is not None:

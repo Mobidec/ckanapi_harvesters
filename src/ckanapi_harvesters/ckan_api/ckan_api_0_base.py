@@ -20,7 +20,7 @@ from requests.auth import AuthBase
 from requests.exceptions import ProxyError, ReadTimeout
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.external_code_import import unlock_external_code_execution
 from ckanapi_harvesters.auxiliary.ckan_configuration import download_external_resource_urls, \
@@ -38,7 +38,8 @@ from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic, Ckan
 
 CKAN_API_VERSION = 3
 
-use_ckan_owner_org_as_default:bool = True  # the owner_org field of CkanApi is destined to default the owner organization (or else it should be None)
+use_ckan_owner_org_as_default_package_owner:bool = True  # the owner_org field of CkanApi is destined to default the owner organization (or else it should be None)
+use_ckan_owner_org_for_requests:bool = False  # False: do not take ckan.owner_org when owner_org argument is None (do not restrict requests to owner_org)
 ckan_request_proxy_default_auth_if_ckan:bool = True  # fill authentification headers for requests with CkanApi requests proxy method if same domain is used by default
 
 ## Abstract class
@@ -899,7 +900,7 @@ class CkanApiBase(CkanApiABC):
         if self.params.verbose_multi_requests:
             print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit} results from {api_fun.__name__}...")
         if progress_callback is not None:
-            progress_callback.start_task(None, level=CkanCallbackLevel.Requests)  # total len is unknown here because no API call was performed
+            progress_callback.start_task(None, level=CkanCallbackLevel.Requests, units=CkanProgressUnits.Records)  # total len is unknown here because no API call was performed
         result_add: Union[pd.DataFrame, CkanActionResponse, Collection] = api_fun(params=params, limit=limit, offset=offset, **kwargs)
         if self.params.store_last_response_debug_info:
             self.debug.multi_requests_last_successful_offset = offset
@@ -918,8 +919,12 @@ class CkanApiBase(CkanApiABC):
         else:
             total_requests_estimation = None
         if progress_callback is not None:
-            progress_callback.task_progress(n_received, total_len, file_index=requests_count, file_count=total_requests_estimation,
-                                            level=CkanCallbackLevel.Requests)
+            # restart the progress now that we know the length of the requested data
+            progress_callback.start_task(total_len, position=n_received,
+                                         file_count=total_requests_estimation, file_index=requests_count,
+                                         level=CkanCallbackLevel.Requests, units=CkanProgressUnits.Records)
+            # progress_callback.task_progress(n_received, total_len, file_index=requests_count, file_count=total_requests_estimation,
+            #                                 level=CkanCallbackLevel.Requests)
         yield result_add
         current = time.time()
         timeout = (current - start) > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
@@ -945,8 +950,8 @@ class CkanApiBase(CkanApiABC):
                     (self.params.max_requests_count == 0 or requests_count < self.params.max_requests_count) and
                     (requests_limit is None or requests_count < requests_limit))
             if progress_callback is not None and flag:
-                progress_callback.task_progress(n_received, total_len, file_index=requests_count, file_count=total_requests_estimation,
-                                                level=CkanCallbackLevel.Requests)
+                progress_callback.update_task(n_received, total_len, file_index=requests_count, file_count=total_requests_estimation,
+                                              level=CkanCallbackLevel.Requests)
             yield result_add
         if timeout:
             raise TimeoutError()

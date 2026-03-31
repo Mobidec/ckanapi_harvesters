@@ -186,6 +186,8 @@ Values for this field are:
   - ___Basic___: basic data conversions e.g. replace empty values by `null` for numeric columns.
   - ___GeoJSON___: conversions adapted for geometry columns (like GeoJSON) - this includes the ___Basic___ features.
   - ___Check___: this method raises an error if a data edit was recommended by the ___GeoJSON___ mode. The data is not modified with this implementation.
+  - ___Assist___: this method raises an error if a data edit was recommended by the ___GeoJSON___ mode. The data is not modified with this implementation 
+  but it detects field types automatically, replacing the field detection on server side. This can enable more explicit error codes. 
 - __Aliases__: Names for read only aliases of the resource (only for DataStores). 
 Resource aliases are used to construct SQL read-only queries with identifiers more easily memorizable than resource ids.
 

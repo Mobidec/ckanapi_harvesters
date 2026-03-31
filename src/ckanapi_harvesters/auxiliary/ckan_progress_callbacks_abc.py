@@ -26,6 +26,28 @@ class CkanProgressBarType(IntEnum):
     TqdmJupyter = 3
 
 
+class CkanProgressUnits(IntEnum):
+    Undef = 0
+    Bytes = 1
+    Records = 2
+    Pages = 3
+    Items = 4
+
+    def short_name(self) -> str:
+        if self == CkanProgressUnits.Undef:
+            return "U"
+        elif self == CkanProgressUnits.Bytes:
+            return "B"
+        elif self == CkanProgressUnits.Records:
+            return "L"
+        elif self == CkanProgressUnits.Pages:
+            return "P"
+        elif self == CkanProgressUnits.Items:
+            return "It"
+        else:
+            return {self.name}
+
+
 class CkanProgressCallbackABC(ABC):
     default_progress_bar_type = CkanProgressBarType.NoBar
 
@@ -36,6 +58,7 @@ class CkanProgressCallbackABC(ABC):
         self.progress_callback_fun: Union[Callable[[int, int, Any], None], None] = None
         self.progress_callback_kwargs: dict = {}
         self.verbosity:dict[CkanCallbackLevel,bool] = {level: True for level in CkanCallbackLevel}
+        self.verbosity[CkanCallbackLevel.Packages] = False
         # self.verbosity[CkanCallbackLevel.Request] = False
         self.progress_bar_enables:dict[CkanCallbackLevel,bool] = {level: False for level in CkanCallbackLevel}
         self._progress_bar_type: CkanProgressBarType = CkanProgressBarType.NoBar
@@ -46,6 +69,7 @@ class CkanProgressCallbackABC(ABC):
         self.progress_bars: Dict[CkanCallbackLevel, Any] = {level: None for level in CkanCallbackLevel}
         self.last_progress_position:dict[CkanCallbackLevel,int] = {level: 0 for level in CkanCallbackLevel}
         self.last_progress_file_index:dict[CkanCallbackLevel,int] = {level: 0 for level in CkanCallbackLevel}
+        self.extra_context:dict[CkanCallbackLevel,str] = {level: "" for level in CkanCallbackLevel}
         if isinstance(callback_fun, CkanProgressCallbackABC):
             callback_fun.copy(dest=self)
         else:
@@ -74,15 +98,46 @@ class CkanProgressCallbackABC(ABC):
     def __copy__(self):
         return self.copy()
 
+    def release_resources(self):
+        """
+        Release resources used by the progress callback like progress bars.
+        """
+        pass
+
+    def __del__(self):
+        self.release_resources()
+
+    # Context Manager behavior ----------
+    # to use CkanProgressCallback in a "with" statement
+    def __enter__(self):
+        self.release_resources()  # start with new resources
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.release_resources()
+        self.remove_context()
+        return True
+    # -------------
+
+    def add_context(self, context:str, *, level:CkanCallbackLevel=None):
+        if level is None:
+            for level in CkanCallbackLevel:
+                self.extra_context[level] = context
+        else:
+            self.extra_context[level] = context
+    def remove_context(self, *, level:CkanCallbackLevel=None):
+        self.add_context("", level=level)
+
     def start_task(self, total:int, *, file_count:int=None, position:int=0, file_index:int=0, level:CkanCallbackLevel=None,
-                 info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=0, **kwargs) -> None:
+                   info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=0,
+                   units:CkanProgressUnits=None, **kwargs) -> None:
         if level is not None:
             self.start_time[level] = time.time()
             self.last_progress_position[level] = 0
             self.last_progress_file_index[level] = 0
-        self.task_progress(position=position, total=total, file_index=file_index, file_count=file_count, level=level,
-            info=info, context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read,
-            canceled_request=False, end_message=False, **kwargs)
+        self.update_task(position=position, total=total, file_index=file_index, file_count=file_count, level=level,
+                         info=info, context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read,
+                         canceled_request=False, end_message=False, **kwargs)
 
     def end_task(self, total:int, *, file_count:int=None, position:int=None, file_index:int=None, level:CkanCallbackLevel=None,
                  info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=None, **kwargs) -> None:
@@ -90,13 +145,36 @@ class CkanProgressCallbackABC(ABC):
             position = total
         if file_index is None:
             file_index = file_count
-        self.task_progress(position=position, total=total, file_index=file_index, file_count=file_count, level=level,
-            info=info, context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read,
-            canceled_request=False, end_message=True, **kwargs)
+        self.update_task(position=position, total=total, file_index=file_index, file_count=file_count, level=level,
+                         info=info, context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read,
+                         canceled_request=False, end_message=True, **kwargs)
 
     @abstractmethod
-    def task_progress(self, position:int, total:int, *, info:Any=None, context:str=None,
-        file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
-        canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
-        **kwargs) -> Union[str,None]:
+    def update_task(self, position:int, total:int, *, info:Any=None, context:str=None,
+                    file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
+                    canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+                    **kwargs) -> Union[str,None]:
         raise NotImplementedError()
+
+
+class CkanProgressCallbackEmpty(CkanProgressCallbackABC):
+    """
+    Progress callback which does not display anything.
+    """
+    def copy(self, *, dest=None):
+        return super().copy(dest=CkanProgressCallbackEmpty())
+
+    def start_task(self, total:int, *, file_count:int=None, position:int=0, file_index:int=0, level:CkanCallbackLevel=None,
+                   info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=0,
+                   units:CkanProgressUnits=None, **kwargs) -> None:
+        return
+    def end_task(self, total:int, *, file_count:int=None, position:int=None, file_index:int=None, level:CkanCallbackLevel=None,
+                 info:Any=None, context:str=None, lines_chunk:int=None, total_lines_read:int=None, **kwargs) -> None:
+        return
+
+    def update_task(self, position:int, total:int, *, info:Any=None, context:str=None,
+                    file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
+                    canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+                    **kwargs) -> Union[str,None]:
+        return None
+

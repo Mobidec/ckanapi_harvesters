@@ -7,9 +7,11 @@ This concrete implementation is linked to the file system.
 from typing import List, Collection, Any, Tuple, Generator, Union
 from collections import OrderedDict
 from warnings import warn
+import shlex
 
 import pandas as pd
 
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressUnits
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
 from ckanapi_harvesters.auxiliary.list_records import ListRecords
@@ -51,8 +53,9 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
         self._update_metadata(None)
 
     def initialize_extra_options_string(self, extra_options_string:str, base_dir:str) -> None:
-        super().initialize_extra_options_string(extra_options_string, base_dir=base_dir)
-        self.harvester = init_table_harvester_from_options_string(self.options_string, file_url_attr=self.file_url_attr, base_dir=base_dir)
+        self.harvester, extra_extra_args = init_table_harvester_from_options_string(extra_options_string, file_url_attr=self.file_url_attr, base_dir=base_dir)
+        extra_extra_options_string = shlex.join(extra_extra_args)
+        super().initialize_extra_options_string(extra_extra_options_string, base_dir=base_dir)
 
     def init_options_from_ckan(self, ckan:CkanApi, *, base_dir:str=None) -> None:
         self.harvester.update_from_ckan(ckan)
@@ -211,6 +214,9 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
         if self.local_file_list is None:
             raise RuntimeError("You must call list_local_files first")
         return len(self.local_file_list)
+
+    def get_local_file_size_units(self):
+        return CkanProgressUnits.Pages  # requests to source database
 
     # def patch_request(self, ckan: CkanApi, package_id: str, *,
     #                   df_upload: pd.DataFrame=None, reupload: bool = None, resources_base_dir:str=None) -> CkanResourceInfo:

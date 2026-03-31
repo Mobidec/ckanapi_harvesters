@@ -14,6 +14,7 @@ from warnings import warn
 
 
 from ckanapi_harvesters.auxiliary.ckan_errors import UnexpectedError
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressUnits
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import FileChunkDataFrame
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel
@@ -109,6 +110,10 @@ class BuilderMultiABC(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    def get_local_file_size_units(self) -> CkanProgressUnits:
+        raise NotImplementedError()
+
+    @abstractmethod
     def get_local_file_count(self) -> int:
         """
         Get the number of parts of the upload.
@@ -135,7 +140,8 @@ class BuilderMultiABC(ABC):
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
                             threads:int=1, external_stop_event=None, from_line_count:bool=False,
                             allow_chunks:bool=True,
-                            start_index:int=0, end_index:int=None, **kwargs) -> None:
+                            start_index:int=0, end_index:int=None,
+                            inhibit_datastore_patch_indexes:bool=False, **kwargs) -> None:
         """
         Perform all the upload requests.
 
@@ -162,14 +168,15 @@ class BuilderMultiABC(ABC):
             total = self.get_local_file_count()
             end_index = positive_end_index(end_index, total)
             self.read_line_counter = 0
-            self.progress_callback.start_task(self.get_local_file_total_size(), file_count=total,
+            self.progress_callback.start_task(self.get_local_file_total_size(), file_count=total, units=self.get_local_file_size_units(),
                                               context=f"{ckan.identifier} single-thread upload", level=CkanCallbackLevel.ResourceChunks)
             for overall_chunk_index, file_chunk in enumerate(self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, ckan=ckan, allow_chunks=allow_chunks, **kwargs)):
                 if external_stop_event is not None and external_stop_event.is_set():
                     print(f"{ckan.identifier} Interrupted")
                     return
                 self._unit_upload_apply(ckan=ckan, file_chunk=file_chunk, overall_chunk_index=overall_chunk_index,
-                                        start_index=start_index, end_index=end_index, file_count=total, **kwargs)
+                                        start_index=start_index, end_index=end_index, file_count=total,
+                                        inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes, **kwargs)
             self.progress_callback.end_task(self.get_local_file_total_size(), file_count=total, total_lines_read=self.read_line_counter,
                                          context=f"{ckan.identifier} single-thread upload", level=CkanCallbackLevel.ResourceChunks)
             # at last, apply final actions:
@@ -211,7 +218,7 @@ class BuilderMultiABC(ABC):
         """
         self.init_local_files_list(resources_base_dir=resources_base_dir, ckan=ckan, cancel_if_present=True, **kwargs)
         self._prepare_for_multithreading(ckan)
-        self.progress_callback.start_task(self.get_local_file_total_size(), file_count=self.get_local_file_count(),
+        self.progress_callback.start_task(self.get_local_file_total_size(), file_count=self.get_local_file_count(), units=self.get_local_file_size_units(),
                                           context=f"{ckan.identifier} multi-thread upload", level=CkanCallbackLevel.ResourceChunks)
         try:
             with ThreadPoolExecutor(max_workers=threads, initializer=self._init_thread, initargs=(ckan,)) as executor:
@@ -309,7 +316,8 @@ class BuilderMultiABC(ABC):
             total = self.get_file_query_count()
             end_index = positive_end_index(end_index, total)
             self.read_line_counter = 0
-            self.progress_callback.start_task(total, file_count=total, context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.ResourceChunks)
+            self.progress_callback.start_task(total, file_count=total, context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.ResourceChunks,
+                                              units=CkanProgressUnits.Pages)
             for index, file_query_item in enumerate(self.get_file_query_generator()):
                 if external_stop_event is not None and external_stop_event.is_set():
                     print(f"{ckan.identifier} Interrupted")
@@ -352,7 +360,7 @@ class BuilderMultiABC(ABC):
         self._prepare_for_multithreading(ckan)
         self.read_line_counter = 0
         total = self.get_file_query_count()
-        self.progress_callback.start_task(total, file_count=total, context=f"multi-thread download", level=CkanCallbackLevel.ResourceChunks)
+        self.progress_callback.start_task(total, file_count=total, context=f"multi-thread download", level=CkanCallbackLevel.ResourceChunks, units=CkanProgressUnits.Pages)
         try:
             with ThreadPoolExecutor(max_workers=threads, initializer=self._init_thread, initargs=(ckan,)) as executor:
                 if ckan.params.verbose_extra:

@@ -3,7 +3,7 @@
 """
 Harvester parameters. The base names of the parameters are shared between harvesters.
 """
-from typing import Union, Tuple
+from typing import Union, Tuple, List
 from abc import abstractmethod
 import argparse
 import shlex
@@ -50,6 +50,9 @@ class DatabaseParams:
         self.verbose_harvester: bool = True
         self.ckan_postgis: Union[bool,None] = default_ckan_has_postgis
         self.ckan_default_target_epsg:Union[int,None] = default_ckan_target_epsg
+        # table arguments which can be put in common:
+        self.limit: Union[int, None] = None
+        self.single_request: bool = False
         if source is not None:
             source.copy(dest=self)
 
@@ -73,6 +76,9 @@ class DatabaseParams:
         dest.database = self.database
         dest.verbose_harvester = self.verbose_harvester
         dest.ckan_postgis = self.ckan_postgis
+        # table arguments which can be put in common:
+        dest.limit = self.limit
+        dest.single_request = self.single_request
         return dest
     
     @staticmethod
@@ -106,6 +112,12 @@ class DatabaseParams:
                             help="Option to use CKAN with PostGIS geometric types")  # default=default_ckan_has_postgis
         parser.add_argument("--ckan-epsg", type=int,
                             help="Default EPSG for CKAN", default=default_ckan_target_epsg)
+        # table arguments which can be put in common:
+        parser.add_argument("-l", "--limit", type=int,
+                            help="Number of rows per request", default=10000)
+        parser.add_argument("--once",
+                            help="Option to perform only one request with the default limit. This will limit the size of the Data.",
+                            action="store_true", default=False)
         return parser
 
     def print_help_cli(self, display:bool=True) -> str:
@@ -141,6 +153,10 @@ class DatabaseParams:
             self.ckan_postgis = args.ckan_postgis
         if args.ckan_epsg:
             self.ckan_default_target_epsg = args.ckan_epsg
+        # table arguments which can be put in common:
+        self.limit = args.limit
+        if args.once is not None:
+            self.single_request = args.once
 
     def _update_from_ckan(self, ckan):
         # aim: make these values accessible to the harvester algorithms (for the rest, Harvesters are independent of CkanApi)
@@ -152,6 +168,7 @@ class DatabaseParams:
     @staticmethod
     def parse_harvest_method(options_string: str) -> str:
         # parser = DatabaseParams.setup_cli_harvester_parser()
+        # only parse --harvester argument in this step
         parser = argparse.ArgumentParser(description="Harvester selection", add_help=False)
         parser.add_argument("--harvester", type=str,
                             help="Type of harvester to use", required=True)
@@ -160,13 +177,14 @@ class DatabaseParams:
         return args.harvester.lower().strip()
 
     def parse_options_string(self, options_string: str, *, base_dir: str = None, file_url_attr: str=None,
-                             parser:argparse.ArgumentParser=None):
+                             parser:argparse.ArgumentParser=None) -> List[str]:
         self.file_url_attr = file_url_attr
         parser = self.setup_cli_harvester_parser(parser)
-        args, _ = parser.parse_known_args(shlex.split(options_string))
+        args, extra_args = parser.parse_known_args(shlex.split(options_string))
         self.options_string = options_string
         self.base_dir = base_dir
         self.initialize_from_cli_args(args, base_dir=base_dir)
+        return extra_args
 
     @property
     def proxies(self) -> dict:
@@ -263,8 +281,6 @@ class TableParams(DatasetParams):
         self.resource_url: Union[str, None] = None
         self.table: Union[str, None] = None
         self.query_string: Union[str, None] = None
-        self.limit: Union[int, None] = None
-        self.single_request: bool = False
         if source is not None:
             source.copy(dest=self)
 
@@ -277,8 +293,6 @@ class TableParams(DatasetParams):
         dest.resource_url = self.resource_url
         dest.table = self.table
         dest.query_string = self.query_string
-        dest.limit = self.limit
-        dest.single_request = self.single_request
         dest.ckan_postgis = self.ckan_postgis
         return dest
 
@@ -298,11 +312,6 @@ class TableParams(DatasetParams):
                             help="Table name")  # normally specified in the File/URL attribute of builder
         parser.add_argument("--query", type=str,
                             help="Query to restrict the lines of the table")
-        parser.add_argument("-l", "--limit", type=int,
-                            help="Number of rows per request", default=10000)
-        parser.add_argument("--once",
-                            help="Option to perform only one request with the default limit. This will limit the size of the Data.",
-                            action="store_true", default=False)
         return parser
 
     def initialize_from_cli_args(self, args: argparse.Namespace, base_dir: str = None, error_not_found: bool = True,
@@ -313,17 +322,15 @@ class TableParams(DatasetParams):
         self.enable_download = not args.no_download if args.no_download is not None else None  # applies to parent (builder)
         self.resource_url = args.resource_url
         self.table = args.table
-        self.limit = args.limit
-        if args.once is not None:
-            self.single_request = args.once
 
     def parse_options_string(self, options_string: str, *, base_dir: str = None, file_url_attr: str=None,
-                             parser:argparse.ArgumentParser=None):
+                             parser:argparse.ArgumentParser=None) -> List[str]:
         self.file_url_attr = file_url_attr
         parser = self.setup_cli_harvester_parser(parser)
-        args = parser.parse_args(shlex.split(options_string))
+        args, extra_args = parser.parse_known_args(shlex.split(options_string))
         self.options_string = options_string
         self.base_dir = base_dir
         self.initialize_from_cli_args(args, base_dir=base_dir)
+        return extra_args
 
 

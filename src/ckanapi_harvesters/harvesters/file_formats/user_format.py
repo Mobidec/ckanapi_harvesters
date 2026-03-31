@@ -6,12 +6,13 @@ The basic file format for DataStore: CSV
 from typing import Union, Dict, Callable, Any
 import io
 import argparse
+from warnings import warn
 
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField, CkanResourceInfo
 from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
-from ckanapi_harvesters.auxiliary.ckan_errors import MissingCodeFileError, MissingIOFunctionError
+from ckanapi_harvesters.auxiliary.ckan_errors import MissingCodeFileError, MissingIOFunctionError, UnknownCliArgumentError
 from ckanapi_harvesters.auxiliary.external_code_import import PythonUserCode
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 
@@ -35,6 +36,15 @@ class UserFileFormat(FileFormatABC):
     def _apply_arguments(self, args: argparse.Namespace, extra_args: list):
         super()._apply_arguments(args, extra_args)
         self.option_append_allowed = args.allow_append
+
+    def _process_extra_args(self):
+        # transmit extra CLI arguments to user-defined functions?
+        # this could cause issues: some arguments could not be recognized
+        # => raise an error, like in other file formats
+        super()._process_extra_args()
+        # if len(self.extra_args) > 0:
+        #     msg = str(UnknownCliArgumentError(self.extra_args, context="Resource options"))
+        #     warn(msg)
 
     def _connect_aux_functions(self, module: PythonUserCode, aux_read_fun_name:str, aux_write_fun_name:str) -> None:
         if (aux_read_fun_name or aux_write_fun_name) and module is None:

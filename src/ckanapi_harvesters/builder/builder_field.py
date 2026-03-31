@@ -9,7 +9,8 @@ from typing import Union
 import pandas as pd
 from collections import OrderedDict
 
-from ckanapi_harvesters.auxiliary.ckan_model import CkanFieldType, CkanField
+from ckanapi_harvesters.auxiliary.ckan_field_types import CkanFieldType
+from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanFieldInternalAttrs
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, _bool_from_string
 

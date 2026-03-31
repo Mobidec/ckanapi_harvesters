@@ -28,11 +28,13 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_errors import CleanError, CleanerRequirementError
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
+from ckanapi_harvesters.auxiliary.ckan_field_types import field_type_synonyms
 
-non_finite_authorized_types = {"numeric", "float4", "float8", "float2"}
+non_finite_authorized_types = field_type_synonyms["double precision"].union({"numeric", "float", "float4", "float2"})
 real_number_types = non_finite_authorized_types
-int_types = {"int", "int4", "int8", "int2"}
-no_empty_str_types = real_number_types.union(int_types).union({"bool", "timestamp", "date"})
+int_types = field_type_synonyms["integer"].union(field_type_synonyms["bigint"]).union({"int2"})
+numeric_types = real_number_types.union(int_types)
+no_empty_str_types = numeric_types.union(field_type_synonyms["boolean"]).union(field_type_synonyms["timestamp"]).union({"date"})
 # see also: ckan_api_2_readonly ckan_dtype_mapper
 dtype_ckan_mapper = {
     "float64": "numeric",
@@ -49,7 +51,9 @@ def _pd_series_type_instance_detect(values: pd.Series, test_type:Type):
 
 def _pd_str_series_type_detect(values: pd.Series) -> str:
     # remove NA values
-    series = values.where(values.notna(), None)
+    series = values.astype(object)
+    series = series.replace("", None)
+    series = series[series.notna()]
     if len(series) == 0:
         return "text"  # could not determine data type
 
@@ -67,7 +71,7 @@ def _pd_str_series_type_detect(values: pd.Series) -> str:
         return 'float'
 
     # Check for timestamps
-    if pd.to_datetime(series, errors='coerce').notna().all():
+    if pd.to_datetime(series, errors='coerce', format="ISO8601").notna().all():
         return 'timestamp'
 
     return 'text'
@@ -110,7 +114,7 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
             # detect type
             if isinstance(values, pd.Series):
                 dtype = str(values.dtype)
-                if dtype == "object":
+                if dtype == "object" or dtype == "str":
                     field_info = self._detect_standard_field_bypass(field_name, values)
                     if field_info is not None:
                         return field_info
@@ -263,7 +267,7 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
                     elif field_data_type == "numeric":
                         if self.param_cast_types:
                             return int(value)
-                    elif not field_data_type == "bool":
+                    elif not field_data_type in ["bool", "boolean"]:
                         self.field_changes[field_name] = CkanField(field_name, "bool")
                 elif field_data_type not in real_number_types and not round(value) == value:
                     if self.param_round_values:
@@ -282,6 +286,11 @@ class CkanDataCleanerUploadBasic(CkanDataCleanerABC):
                 if field_data_type in no_empty_str_types:
                     if self.param_empty_str_digital:
                         new_value = None
+            elif isinstance(value, str) and field_data_type in numeric_types:
+                try:
+                    float(value)
+                except ValueError:
+                    new_value = math.nan if field_data_type in non_finite_authorized_types else None
             else:
                 new_value = self._replace_non_standard_value(value, field, field_data_type=field_data_type)
         return new_value
