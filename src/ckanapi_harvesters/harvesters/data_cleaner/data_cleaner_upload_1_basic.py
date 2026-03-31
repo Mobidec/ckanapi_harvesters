@@ -34,7 +34,7 @@ non_finite_authorized_types = field_type_synonyms["double precision"].union({"nu
 real_number_types = non_finite_authorized_types
 int_types = field_type_synonyms["integer"].union(field_type_synonyms["bigint"]).union({"int2"})
 numeric_types = real_number_types.union(int_types)
-no_empty_str_types = numeric_types.union(field_type_synonyms["boolean"]).union({"timestamp", "date"})
+no_empty_str_types = numeric_types.union(field_type_synonyms["boolean"]).union(field_type_synonyms["timestamp"]).union({"date"})
 # see also: ckan_api_2_readonly ckan_dtype_mapper
 dtype_ckan_mapper = {
     "float64": "numeric",

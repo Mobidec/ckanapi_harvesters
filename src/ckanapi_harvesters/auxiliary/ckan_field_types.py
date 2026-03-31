@@ -105,13 +105,15 @@ class CkanFieldTypeEnum(IntEnum):  #, CkanFieldTypeABC):
 
 
 # List to suppress warnings about field type override inconsistency
+# synonyms or near match
 field_type_synonyms = {
     "text": {"text"},
     "boolean": {"boolean", "bool"},
     "integer": {"integer", "int4", "int"},
     "bigint": {"bigint", "int8"},
     "double precision": {"double precision", "double", "float8", "float"},
+    "timestamp": {"timestamp", "timestamp without time zone"}
 }
 # geometry: special treatment
-# see also: data cleaner
+# see also: data cleaner ckanapi_harvesters.harvesters.data_cleaner
 
