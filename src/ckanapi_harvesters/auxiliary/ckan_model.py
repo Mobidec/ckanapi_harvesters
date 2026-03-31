@@ -278,9 +278,9 @@ class CkanField(CkanConfigurableObjectABC):
                 else:
                     obj.type_override = field_info["type_override"] > 0
             if "label" in field_info.keys():
-                obj.label = field_info["label"] if len(field_info["label"]) > 0 else None
+                obj.label = field_info["label"] if d["label"] is not None and  len(field_info["label"]) > 0 else None
             if "notes" in field_info.keys():
-                obj.notes = field_info["notes"] if len(field_info["notes"]) > 0 else None
+                obj.notes = field_info["notes"] if d["notes"] is not None and len(field_info["notes"]) > 0 else None
         if "schema" in d.keys():
             schema_info = d["schema"]
             if "is_index" in schema_info.keys():
@@ -596,8 +596,8 @@ class CkanResourceInfo(CkanConfigurableObjectABC):
                 self.state = CkanState.from_str(d["state"])
             self.datastore_active = d["datastore_active"]
             self.download_url = d["url"]
-            self.format = d["format"] if len(d["format"]) > 0 else None
-            self.description = d["description"] if len(d["description"]) > 0 else None
+            self.format = d["format"] if d["format"] is not None and len(d["format"]) > 0 else None
+            self.description = d["description"] if d["description"] is not None and len(d["description"]) > 0 else None
             if "datastore_info" in d.keys():
                 self.datastore_info = CkanDataStoreInfo.from_dict(d["datastore_info"])
             if "datastore_info_error" in d.keys():
@@ -777,8 +777,8 @@ class CkanPackageInfo(CkanConfigurableObjectABC):
         if d is not None:
             self.id = d["id"]
             self.name = d["name"]
-            self.title = d["title"] if len(d["title"]) > 0 else None
-            self.description = d["notes"] if len(d["notes"]) > 0 else None
+            self.title = d["title"] if d["title"] is not None and len(d["title"]) > 0 else None
+            self.description = d["notes"] if d["notes"] is not None and len(d["notes"]) > 0 else None
             self.private = d["private"]
             if "state" in d.keys():
                 self.state = CkanState.from_str(d["state"])

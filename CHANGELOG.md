@@ -10,6 +10,13 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-03-31
 
 
+## [0.0.22] - 2026-03-31
+
+### Fixed
+
+- Data format policy checks for mandatory attributes.
+
+
 ## [0.0.21] - 2026-03-31
 
 ### Changed
