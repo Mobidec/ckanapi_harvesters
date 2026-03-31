@@ -13,7 +13,6 @@ from ckanapi_harvesters.policies.data_format_policy import (SingleValueListPolic
                                                             ListChoiceMode, CustomFieldsPolicy, CustomFieldSpecification,
                                                             ErrorLevel, DataPolicyError,
                                                             StringMatchMode, TagListPolicy, TagGroupsListPolicy)
-
 from ckanapi_harvesters.builder.specific.configuration_builder import ConfigurationBuilder
 from ckanapi_harvesters.builder.example import example_package_xls
 
@@ -32,7 +31,7 @@ def run(ckan:CkanApi = None):
     ckan.verbose_policy = True
 
     policy = CkanPackageDataFormatPolicy()
-    policy.resource_format = SingleValueListPolicy(ValueListPolicy([StringValueSpecification("CSV")]), extra_values=ListChoiceMode.NoExtra)
+    policy.resource_format = SingleValueListPolicy(ValueListPolicy([StringValueSpecification("CSV")]), extra_values=ListChoiceMode.MandatoryOne)
     policy.package_custom_fields = CustomFieldsPolicy([
                                                         CustomFieldSpecification(key="New field", mandatory=True),
                                                         CustomFieldSpecification(key="Algorithm", values=["Random"], match_mode=StringMatchMode.Match, mandatory=True)], error_level=ErrorLevel.Error)

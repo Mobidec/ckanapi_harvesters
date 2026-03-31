@@ -278,9 +278,9 @@ class CkanField(CkanConfigurableObjectABC):
                 else:
                     obj.type_override = field_info["type_override"] > 0
             if "label" in field_info.keys():
-                obj.label = field_info["label"]
+                obj.label = field_info["label"] if len(field_info["label"]) > 0 else None
             if "notes" in field_info.keys():
-                obj.notes = field_info["notes"]
+                obj.notes = field_info["notes"] if len(field_info["notes"]) > 0 else None
         if "schema" in d.keys():
             schema_info = d["schema"]
             if "is_index" in schema_info.keys():
@@ -596,8 +596,8 @@ class CkanResourceInfo(CkanConfigurableObjectABC):
                 self.state = CkanState.from_str(d["state"])
             self.datastore_active = d["datastore_active"]
             self.download_url = d["url"]
-            self.format = d["format"]
-            self.description = d["description"]
+            self.format = d["format"] if len(d["format"]) > 0 else None
+            self.description = d["description"] if len(d["description"]) > 0 else None
             if "datastore_info" in d.keys():
                 self.datastore_info = CkanDataStoreInfo.from_dict(d["datastore_info"])
             if "datastore_info_error" in d.keys():
@@ -632,6 +632,12 @@ class CkanResourceInfo(CkanConfigurableObjectABC):
 
     def datastore_queried(self) -> bool:
         return self.datastore_info is not None or self.datastore_info_error is not None
+
+    def is_datastore(self) -> Union[bool,None]:
+        if self.datastore_queried():
+            return self.datastore_info is not None
+        else:
+            return None
 
     def update_view(self, view_info: Union[CkanViewInfo, List[CkanViewInfo]], view_list:bool=False) -> None:
         if isinstance(view_info, CkanViewInfo):
@@ -771,8 +777,8 @@ class CkanPackageInfo(CkanConfigurableObjectABC):
         if d is not None:
             self.id = d["id"]
             self.name = d["name"]
-            self.title = d["title"]
-            self.description = d["notes"]
+            self.title = d["title"] if len(d["title"]) > 0 else None
+            self.description = d["notes"] if len(d["notes"]) > 0 else None
             self.private = d["private"]
             if "state" in d.keys():
                 self.state = CkanState.from_str(d["state"])

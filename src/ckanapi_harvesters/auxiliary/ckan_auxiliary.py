@@ -297,6 +297,9 @@ def empty_str_to_None(value:Union[str,None]) -> Union[str,None]:
     else:
         return value
 
+def str_is_not_empty(value:Union[str,None]) -> bool:
+    return value is not None and len(value) > 0
+
 def bytes_to_megabytes(size_bytes:Union[int,None]) -> Union[float,None]:
     if size_bytes is None:
         return None

@@ -35,9 +35,12 @@ class ConfigurationBuilder(SpecificBuilderABC):
                                  file_name="users_local.csv")
 
     def patch_policy(self, ckan:CkanApi, policy: CkanPackageDataFormatPolicy,
-                     *, reduced_size:bool=None, update_ckan:bool=True):
+                     *, reduced_size:bool=None, full_patch:bool=True, update_ckan:bool=True):
         package_info = self.patch_request_package(ckan)
         package_id = package_info.id
+        if full_patch:
+            self.patch_request_full(ckan, reupload=True)
+            self.upload_large_datasets(ckan)
         if policy is not None:
             payload = policy.to_jsons(reduced_size=reduced_size).encode()
             policy_builder: BuilderResourceUnmanaged = self.resource_builders[ckan_configuration.policy_resource]

@@ -198,7 +198,7 @@ class CkanApiPolicy(CkanApiReadOnly):
         for i_package, package_name in enumerate(package_list):
             if progress_callback is not None:
                 progress_callback.update_task(i_package, num_packages, level=CkanCallbackLevel.Packages)
-            package_info = self.get_package_info_or_request(package_name)
+            package_info = self.get_package_info_or_request(package_name, datastore_info=True)
             package_buffer: List[DataPolicyError] = []
             success &= policy.policy_check_package(package_info, display_message=verbose,
                                                    package_buffer=package_buffer, raise_error=raise_error)

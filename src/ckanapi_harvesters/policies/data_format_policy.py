@@ -17,6 +17,7 @@ from ckanapi_harvesters.auxiliary.ckan_configuration import allow_policy_from_ur
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.urls import is_valid_url
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import str_is_not_empty
 from ckanapi_harvesters.policies import POLICY_FILE_FORMAT_VERSION
 from ckanapi_harvesters.policies.data_format_policy_errors import (DataPolicyError, UnsupportedPolicyVersionError,
                                                                    _policy_msg, ErrorCount, ErrorLevel, UrlPolicyLockedError)
@@ -26,7 +27,7 @@ from ckanapi_harvesters.policies.data_format_policy_abc import DataPolicyABC
 from ckanapi_harvesters.policies.data_format_policy_lists import ValueListPolicy, GroupedValueListPolicy, SingleValueListPolicy
 from ckanapi_harvesters.policies.data_format_policy_tag_groups import TagListPolicy, TagGroupsListPolicy
 from ckanapi_harvesters.policies.data_format_policy_custom_fields import CustomFieldSpecification, CustomFieldsPolicy
-from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanConfigurableObjectABC
+from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanConfigurableObjectABC, CkanUserInfo
 from ckanapi_harvesters.policies.data_format_policy_output_config import DataFormatPolicyOutputCustomFields
 
 
@@ -56,6 +57,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         self.package_tags:TagGroupsListPolicy = package_tags
         self.package_custom_fields: CustomFieldsPolicy = package_custom_fields
         self.package_mandatory_attributes:Set[str] = package_mandatory_attributes
+        self.package_author_or_maintainer_level: ErrorLevel = ErrorLevel.Error
         self.resource_same_name_level:ErrorLevel = ErrorLevel.Error
         self.resource_mandatory_attributes:Set[str] = resource_mandatory_attributes
         self.datastore_fields_mandatory_attributes:Set[str] = datastore_fields_mandatory_attributes
@@ -74,6 +76,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         dest.package_tags = copy.deepcopy(self.package_tags)
         dest.package_custom_fields = copy.deepcopy(self.package_custom_fields)
         dest.package_mandatory_attributes = copy.deepcopy(self.package_mandatory_attributes)
+        dest.package_author_or_maintainer_level = self.package_author_or_maintainer_level
         dest.resource_same_name_level = self.resource_same_name_level
         dest.resource_mandatory_attributes = copy.deepcopy(self.resource_mandatory_attributes)
         dest.datastore_fields_mandatory_attributes = copy.deepcopy(self.datastore_fields_mandatory_attributes)
@@ -98,6 +101,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
             if sets_as_lists:
                 set_object = sorted(list(set_object))
             d["package_mandatory_attributes"] = set_object
+        d["package_author_or_maintainer_error"] = str(self.package_author_or_maintainer_level)
         d["resource_same_name_level"] = str(self.resource_same_name_level)
         if self.resource_mandatory_attributes is not None:
             set_object = self.resource_mandatory_attributes
@@ -133,6 +137,8 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         self.package_tags = TagGroupsListPolicy.from_dict(d["package_tags_policy"]) if "package_tags_policy" in d.keys() else None
         self.package_custom_fields = CustomFieldsPolicy.from_dict(d["package_custom_fields_policy"]) if "package_custom_fields_policy" in d.keys() else None
         self.package_mandatory_attributes = set(d["package_mandatory_attributes"]) if "package_mandatory_attributes" in d.keys() else None
+        error_level_str = d.get("package_author_or_maintainer_error", None)
+        self.package_author_or_maintainer_level = ErrorLevel.from_str(error_level_str) if error_level_str is not None else None
         self.resource_same_name_level = ErrorLevel.from_str(d.get("resource_same_name_level", str(ErrorLevel.Error)))
         self.resource_mandatory_attributes = set(d["resource_mandatory_attributes"]) if "resource_mandatory_attributes" in d.keys() else None
         self.datastore_fields_mandatory_attributes = set(d["datastore_fields_mandatory_attributes"]) if "datastore_fields_mandatory_attributes" in d.keys() else None
@@ -225,6 +231,13 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
             success &= self.package_custom_fields.enforce(package_info.custom_fields, context=context, verbose=verbose, buffer=buffer)
         if self.package_mandatory_attributes is not None:
             success &= self._enforce_attributes_list(package_info, self.package_mandatory_attributes, context=context, verbose=verbose, buffer=buffer)
+        if self.package_author_or_maintainer_level is not None:
+            success_author_or_maintainer = (str_is_not_empty(package_info.author) or str_is_not_empty(package_info.author_email)
+                                            or str_is_not_empty(package_info.maintainer) or str_is_not_empty(package_info.maintainer_email))
+            if not success_author_or_maintainer:
+                msg = DataPolicyError(context, self.package_author_or_maintainer_level, f"Author/Maintainer not found")
+                _policy_msg(msg, error_level=self.package_author_or_maintainer_level, buffer=buffer, verbose=verbose)
+            success &= success_author_or_maintainer
         resource_name_index = OrderedDict()
         for resource_info in package_info.package_resources.values():
             if resource_info.name in resource_name_index.keys():
@@ -238,7 +251,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
             if self.resource_mandatory_attributes is not None:
                 success &= self._enforce_attributes_list(resource_info, self.resource_mandatory_attributes, context=resource_context, verbose=verbose, buffer=buffer)
             if self.datastore_fields_mandatory_attributes is not None and resource_info.datastore_info is not None:
-                for field_info in resource_info.datastore_info.fields:
+                for field_info in resource_info.datastore_info.fields_dict.values():
                     field_context = resource_context + " / field " + field_info.name
                     success &= self._enforce_attributes_list(field_info, self.datastore_fields_mandatory_attributes, context=field_context, verbose=verbose, buffer=buffer)
         if any([len(resource_ids) > 1 for resource_ids in resource_name_index.values()]):
