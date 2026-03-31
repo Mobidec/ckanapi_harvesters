@@ -1160,8 +1160,14 @@ class BuilderPackageBasic:
                               inhibit_datastore_patch_indexes:bool=False) -> None:
         """
         Method to upload large datasets of the package.
-        The small datasets are to be uploaded with the patch_request_full method.
+        This method is to be called after patch_request_full, at least once, to initiate resources.
+        The first part of each DataStore is uploaded with the latter call.
+        This method upserts the remaining lines to the DataStore. If a primary key was defined, these lines are upserted.
+        This means the method can be called multiple times, even if the transfer was interrupted.
+        In the contrary case, the lines are inserted. If the resource is not reset with option reupload=True,
+        a second call to upload_large_datasets could lead to duplicate lines.
 
+        :see: patch_request_full
         :param ckan:
         :param resources_base_dir:
         :param threads:

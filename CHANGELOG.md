@@ -10,7 +10,7 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-03-31
 
 
-## [Future 0.0.21 Unreleased] - 2026-03-31
+## [0.0.21] - 2026-03-31
 
 ### Changed
 
@@ -24,9 +24,10 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ### Added
 
-- _Assist_ __Data Cleaner__ which detects field types which were not specified, improved invalid value detection. 
+- _Assist_ mode __Data Cleaner__ which detects field types which were not specified. 
 This feature is for debug use as it is time-consuming.
-- Option `inhibit_datastore_patch_indexes` to ignore primary key and indexes arguments when calling datastore_create on an existing dataset (patch mode).
+- Option `inhibit_datastore_patch_indexes` to ignore primary key and indexes arguments when calling datastore_create 
+on an existing dataset (patch mode). This argument has been routed up to package builder `patch_request_full`.
 
 
 ## [0.0.20] - 2026-03-27
