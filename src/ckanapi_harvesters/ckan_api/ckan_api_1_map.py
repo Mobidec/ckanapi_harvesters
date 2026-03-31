@@ -441,6 +441,18 @@ class CkanApiMap(CkanApiBase):
         """
         package_info = self.map.get_package_info(package_name, error_not_mapped=error_not_mapped)
         if package_info is not None:
+            if datastore_info:
+                require_update = False
+                for resource in package_info.package_resources.values():
+                    if not resource.datastore_queried():
+                        require_update = True
+                if require_update:
+                    self.map_resources(package_name, error_not_found=error_not_found,
+                                       datastore_info=datastore_info, resource_view_list=resource_view_list,
+                                       organization_info=organization_info,
+                                       license_list=license_list)  # request DataStore information if parameterized for
+                    package_info = self.map.get_package_info(package_name, error_not_mapped=error_not_mapped)
+                    return package_info
             return package_info
         elif request_missing:
             self.map_resources(package_name, error_not_found=error_not_found,
