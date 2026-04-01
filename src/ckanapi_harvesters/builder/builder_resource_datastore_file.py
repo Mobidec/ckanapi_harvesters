@@ -45,6 +45,7 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row, base_dir=base_dir)
         self.file_name: str = _string_from_element(row["file/url"], strip=True)
+        self._user_fields_used.add("file/url")
 
     @staticmethod
     def resource_mode_str() -> str:

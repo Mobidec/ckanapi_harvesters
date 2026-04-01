@@ -72,6 +72,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row, base_dir=base_dir)
         self.dir_name = _string_from_element(row["file/url"], empty_value="", strip=True)
+        self._user_fields_used.add("file/url")
 
     def _to_dict(self, include_id:bool=True) -> dict:
         d = super()._to_dict(include_id=include_id)

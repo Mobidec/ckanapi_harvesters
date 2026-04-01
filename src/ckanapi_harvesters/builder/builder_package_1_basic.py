@@ -5,7 +5,7 @@ Code to upload metadata to the CKAN server to create/update an existing package
 The metadata is defined by the user in an Excel worksheet
 This file implements the package definition.
 """
-from typing import Dict, List, Tuple, Union, Callable
+from typing import Dict, List, Tuple, Union, Callable, Set
 import warnings
 from warnings import warn
 import os
@@ -61,6 +61,18 @@ def load_help_page_df(*, engine:str=None) -> pd.DataFrame:
 forbidden_resource_names = {"ckan", "info", "package", "resources", "validation", "help"}
 excel_subs_characters_re = r"[:\*\?\/\[\]\\]"  # characters used in wildcards (MultiFile & MultiDataStore), forbidden in Excel sheet names
 excel_subs_dest_character = '#'
+
+info_allowed_user_fields: Set[str] = {
+    "builder format version", "resources local directory", "download directory",
+    "auxiliary functions file", "comment",
+}
+package_base_user_fields: Set[str] = {
+    "name", "name in url", "description", "version", "visibility", "state", "url",
+    "tags", "author", "author email", "maintainer", "maintainer email",
+    "organization", "license"
+    "known id",
+    "attribute",  # reserved name for table header
+}  # any extra fields are added to package custom fields
 
 
 def excel_name_of_sheet(resource_name: str) -> str:
@@ -129,6 +141,7 @@ class BuilderPackageBasic:
         self.external_python_code: Union[PythonUserCode, None] = None
         self.comment: str = ""
         self.built_from_ckan:bool = False
+        self._user_fields_used: Set[str] = set()
 
     def __str__(self):
         return f"Package builder for {self.package_name} ({len(self.resource_builders)} resources)"
@@ -371,6 +384,10 @@ class BuilderPackageBasic:
         :param package_df:
         :return:
         """
+        extra_fields = set(package_df.keys()).union(set(package_df.keys())) - package_base_user_fields - info_allowed_user_fields
+        # if extra_fields:
+        #     msg = f"The following field attributes were recognized as custom fields: {', '.join(extra_fields)}"
+        #     warn(msg)
         if info_df is not None:
             package_df = pd.concat([package_df, info_df], axis=1)
         original_columns = list(package_df.columns)
@@ -382,71 +399,92 @@ class BuilderPackageBasic:
         if "builder format version" in package_df.columns:
             self.builder_format_version = _string_from_element(package_df.pop("builder format version")).strip()
             assert_or_raise(self.builder_format_version == BUILDER_VER, UnsupportedBuilderVersionError(self.builder_format_version))
+            self._user_fields_used.add("builder format version")
         if "resources local directory" in package_df.columns:
             resources_base_dir_src = sanitize_path(_string_from_element(package_df.pop("resources local directory")))
+            self._user_fields_used.add("resources local directory")
         else:
             resources_base_dir_src = None
         self._resources_base_dir_src = resources_base_dir_src
         self._apply_resources_base_dir_src(base_dir=base_dir)
         if "download directory" in package_df.columns:
             out_dir_src = sanitize_path(_string_from_element(package_df.pop("download directory")))
+            self._user_fields_used.add("download directory")
         else:
             out_dir_src = None
         self._default_out_dir_src = out_dir_src
         self._apply_out_dir_src(base_dir=base_dir)
         if "auxiliary functions file" in package_df.columns:
             auxiliary_functions_file = sanitize_path(_string_from_element(package_df.pop("auxiliary functions file")))
+            self._user_fields_used.add("auxiliary functions file")
             if auxiliary_functions_file is not None:
                 self.external_python_code = PythonUserCode(auxiliary_functions_file, base_dir=base_dir)
         if "comment" in package_df.columns:
             self.comment = _string_from_element(package_df.pop("comment"), empty_value="")
+            self._user_fields_used.add("comment")
         # package attributes
         self.package_attributes: CkanPackageInfo
         if "name" in package_df.columns:
             # deprecated: package "Name" column was renamed "Name in URL"
             self.package_name = _string_from_element(package_df.pop("name")).strip()
+            self._user_fields_used.add("name")
             msg = "Package attribute 'Name' was renamed to 'Name in URL'. Previous name 'Name' is deprecated. Use 'Name in URL' instead."
             warn(msg)
         else:
             self.package_name = _string_from_element(package_df.pop("name in url")).strip()
+            self._user_fields_used.add("name in url")
         self.package_attributes.title = _string_from_element(package_df.pop("title"))
         if "known id" in package_df.columns:
             self.package_attributes.id = _string_from_element(package_df.pop("known id"))
+            self._user_fields_used.add("known id")
         if "description" in package_df.columns:
             self.package_attributes.description = _string_from_element(package_df.pop("description"))
+            self._user_fields_used.add("description")
         if "version" in package_df.columns:
             self.package_attributes.version = _string_from_element(package_df.pop("version"))
+            self._user_fields_used.add("version")
         if "visibility" in package_df.columns:
             visibility = _string_from_element(package_df.pop("visibility"))
+            self._user_fields_used.add("visibility")
             if visibility is not None:
                 self.package_attributes.private = CkanVisibility.from_str(visibility).to_bool_is_private()
         if "state" in package_df.columns:
             state = _string_from_element(package_df.pop("state"))
+            self._user_fields_used.add("state")
             if state is not None:
                 self.package_attributes.state = CkanState.from_str(state)
         if "url" in package_df.columns:
             # field not in the default Excel file
             self.package_attributes.url = _string_from_element(package_df.pop("url"))
+            self._user_fields_used.add("url")
         if "tags" in package_df.columns:
             tags_string = _string_from_element(package_df.pop("tags"))
+            self._user_fields_used.add("tags")
             if tags_string is not None:
                 self.package_attributes.tags = [label.strip() for label in tags_string.split(ckan_tags_sep)]
         if "author" in package_df.columns:
             self.package_attributes.author = _string_from_element(package_df.pop("author"))
+            self._user_fields_used.add("author")
         if "author email" in package_df.columns:
             self.package_attributes.author_email = _string_from_element(package_df.pop("author email"))
+            self._user_fields_used.add("author email")
         if "maintainer" in package_df.columns:
             self.package_attributes.maintainer = _string_from_element(package_df.pop("maintainer"))
+            self._user_fields_used.add("maintainer")
         if "maintainer email" in package_df.columns:
             self.package_attributes.maintainer_email = _string_from_element(package_df.pop("maintainer email"))
+            self._user_fields_used.add("maintainer email")
         # fields which may require additional CKAN requests to obtain ids of the designated objects
         if "license" in package_df.columns:
             self.license_name = _string_from_element(package_df.pop("license"))
+            self._user_fields_used.add("license")
         if "organization" in package_df.columns:
             self.organization_name = _string_from_element(package_df.pop("organization"))
+            self._user_fields_used.add("organization")
         # other fields = user custom fields
         if "attribute" in package_df.columns:
             package_df.pop("attribute")  # reserved name for table header
+            self._user_fields_used.add("attribute")
         remaining_columns = list(package_df.columns)
         self.package_attributes.custom_fields = OrderedDict()
         for column in remaining_columns:

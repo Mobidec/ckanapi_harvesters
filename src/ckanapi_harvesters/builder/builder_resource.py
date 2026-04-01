@@ -5,7 +5,7 @@ Code to upload metadata to the CKAN server to create/update an existing package
 The metadata is defined by the user in an Excel worksheet
 This file implements the basic resources. See builder_datastore for specific functions to initiate datastores.
 """
-from typing import Union, Any
+from typing import Union, Any, Set
 from abc import ABC, abstractmethod
 import os
 from warnings import warn
@@ -32,6 +32,14 @@ builder_request_default_auth_if_ckan:Union[bool,None] = True  # fill authentific
 builder_default_resource_state:CkanState = CkanState.Active  # CkanState.Draft
 initial_resource_building_state:Union[CkanState,None] = None  # CkanState.Draft
 
+resource_allowed_user_fields: Set[str] = {
+    "mode",
+    "name", "datastore columns sheet", "format", "description", "file/url",
+    "options", "download", "state", "known id", "known url", "comment",
+    "primary key", "indexes", "data cleaner", "upload function", "download function",
+    "read function", "write function", "aliases",
+}
+
 
 class BuilderResourceABC(ABC):
     def __init__(self, *, parent:"BuilderPackage", name:str=None, format:str=None, description:str=None,
@@ -52,6 +60,7 @@ class BuilderResourceABC(ABC):
         self.enable_download:bool = enable_download
         self.options_string: str = options_string
         self.comment: Union[str,None] = None
+        self._user_fields_used: Set[str] = set()
         # Map information, if present
         self.parent_package: "BuilderPackage" = parent  # BuilderPackage
         self.download_url: Union[str,None] = download_url
@@ -155,35 +164,51 @@ class BuilderResourceABC(ABC):
     @abstractmethod
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         # abstract method because does not take into account file/url field
+        extra_fields = set(row.keys()) - resource_allowed_user_fields
+        if extra_fields:
+            msg = f"The following resource attributes were not recognized: {', '.join(extra_fields)}"
+            warn(msg)
         self.name = _string_from_element(row["name"], empty_value="", strip=True)
         if self.name is None:
             raise MandatoryAttributeError("Resource", "name")
+        self._user_fields_used.add("name")
         self.columns_sheet_name = None
         if "datastore columns sheet" in row.keys():
             self.columns_sheet_name = _string_from_element(row["datastore columns sheet"])
+            self._user_fields_used.add("datastore columns sheet")
         self.resource_attributes_user.format = _string_from_element(row["format"]).upper().strip()
+        self._user_fields_used.add("format")
         self.resource_attributes_user.description = None
         if "description" in row.keys():
             self.resource_attributes_user.description = _string_from_element(row["description"])
+            self._user_fields_used.add("description")
         self.enable_download = True
+        if "file/url" in row.keys():
+            self._user_fields_used.add("file/url")  # always mark as used
         if "options" in row.keys():
             self.options_string = _string_from_element(row["options"], empty_value="")
+            self._user_fields_used.add("options")
         if "download" in row.keys():
             self.enable_download = _bool_from_string(row["download"])
+            self._user_fields_used.add("download")
         self.resource_attributes_user.state = None
         if "state" in row.keys():
             state = _string_from_element(row["state"])
             if state is not None:
                 self.resource_attributes_user.state = CkanState.from_str(state)
+            self._user_fields_used.add("state")
         # Map information, if present
         self.known_id = None
         self.download_url = None
         if "known id" in row.keys():
             self.known_id = _string_from_element(row["known id"])
+            self._user_fields_used.add("known id")
         if "known url" in row.keys():
             self.download_url = _string_from_element(row["known url"])
+            self._user_fields_used.add("known url")
         if "comment" in row.keys():
             self.comment = _string_from_element(row["comment"])
+            self._user_fields_used.add("comment")
 
     def get_or_query_resource_id(self, ckan: CkanApi, cancel_if_present:bool=True, error_not_found:bool=True) -> str:
         """
@@ -420,6 +445,7 @@ class BuilderFileABC(BuilderResourceABC, ABC):
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row, base_dir=base_dir)
         self.file_name = _string_from_element(row["file/url"], strip=True)
+        self._user_fields_used.add("file/url")
 
     def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, override_ckan:bool=False,
                       resources_base_dir:str=None,
@@ -648,6 +674,7 @@ class BuilderUrlABC(BuilderFileABC, ABC):
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row, base_dir=base_dir)
         self.url: str = _string_from_element(row["file/url"], strip=True)
+        self._user_fields_used.add("file/url")
         self.file_name = self.name
         self._check_mandatory_attributes()
 

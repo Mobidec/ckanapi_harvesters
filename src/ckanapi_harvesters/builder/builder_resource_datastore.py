@@ -258,23 +258,35 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
 
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row, base_dir=base_dir)
-        primary_keys_string: Union[str,None] = _string_from_element(row["primary key"])
-        indexes_string: Union[str,None] = _string_from_element(row["indexes"])
+        primary_keys_string = None
+        if "primary key" in row.keys():
+            primary_keys_string: Union[str,None] = _string_from_element(row["primary key"])
+            self._user_fields_used.add("primary key")
+        indexes_string = None
+        if "indexes" in row.keys():
+            indexes_string: Union[str,None] = _string_from_element(row["indexes"])
+            self._user_fields_used.add("indexes")
         aliases_string: Union[str,None] = None
         if "data cleaner" in row.keys():
             data_cleaner_string = _string_from_element(row["data cleaner"], empty_value="")
             if data_cleaner_string is not None:
                 self.data_cleaner_upload = init_data_cleaner(data_cleaner_string)
+            self._user_fields_used.add("data cleaner")
         if "upload function" in row.keys():
             self.aux_upload_fun_name: str = _string_from_element(row["upload function"], empty_value="")
+            self._user_fields_used.add("upload function")
         if "download function" in row.keys():
             self.aux_download_fun_name: str = _string_from_element(row["download function"], empty_value="")
+            self._user_fields_used.add("download function")
         if "read function" in row.keys():
             self.aux_read_fun_name: str = _string_from_element(row["read function"], empty_value="")
+            self._user_fields_used.add("read function")
         if "write function" in row.keys():
             self.aux_write_fun_name: str = _string_from_element(row["write function"], empty_value="")
+            self._user_fields_used.add("write function")
         if "aliases" in row.keys():
             aliases_string = _string_from_element(row["aliases"])
+            self._user_fields_used.add("aliases")
         if primary_keys_string is not None:
             if primary_keys_string.lower() == "none":
                 self.primary_key_user = []
@@ -701,6 +713,7 @@ class BuilderResourceIgnored(BuilderDataStoreABC):
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
         super()._load_from_df_row(row=row, base_dir=base_dir)
         self.file_url: str = _string_from_element(row["file/url"], strip=True)
+        self._user_fields_used.add("file/url")
         self._check_mandatory_attributes()
 
     def _to_dict(self, include_id:bool=True) -> dict:

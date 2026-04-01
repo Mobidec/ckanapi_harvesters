@@ -51,6 +51,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
         super(BuilderDataStoreFile, self)._load_from_df_row(row=row)
         # super(BuilderUrlABC, self)._load_from_df_row(row=row)
         self.url: str = _string_from_element(row["file/url"], strip=True)
+        self._user_fields_used.add("file/url")
         self.file_name = self.name
 
     @staticmethod

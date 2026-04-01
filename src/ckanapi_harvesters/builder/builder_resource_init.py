@@ -75,6 +75,7 @@ def init_resource_from_df(row: pd.Series, parent, base_dir:str=None) -> Union[Bu
     else:
         raise ValueError(f"{mode} is not a valid mode")
     resource_builder._load_from_df_row(row=row, base_dir=base_dir)
+    resource_builder._user_fields_used.add("mode")
     return resource_builder
 
 

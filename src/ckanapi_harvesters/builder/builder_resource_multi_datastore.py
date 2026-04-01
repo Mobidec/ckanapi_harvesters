@@ -60,24 +60,10 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
         dest.local_file_format = self.local_file_format.copy()
         return dest
 
-    def _load_from_df_row(self, row: pd.Series, base_dir:str=None):
-        super()._load_from_df_row(row=row, base_dir=base_dir)
-        primary_keys_string: str = _string_from_element(row["primary key"])
-        indexes_string: str = _string_from_element(row["indexes"])
-        if primary_keys_string is not None:
-            if primary_keys_string.lower() == "none":
-                self.primary_key = []
-            else:
-                self.primary_key = [field.strip() for field in primary_keys_string.split(ckan_tags_sep)]
-        if indexes_string is not None:
-            if indexes_string.lower() == "none":
-                self.indexes = []
-            else:
-                self.indexes = [field.strip() for field in indexes_string.split(ckan_tags_sep)]
-        if "upload function" in row.keys():
-            self.aux_upload_fun_name: str = _string_from_element(row["upload function"], empty_value="")
-        if "download function" in row.keys():
-            self.aux_download_fun_name: str = _string_from_element(row["download function"], empty_value="")
+    def _load_from_df_row(self, row: pd.Series, base_dir:str=None):  # from BuilderDataStoreABC
+        super(BuilderDataStoreABC, self)._load_from_df_row(row=row, base_dir=base_dir)
+        self.dir_name = _string_from_element(row["file/url"], empty_value="", strip=True)  # from BuilderMultiFile
+        self._user_fields_used.add("file/url")
 
     def _load_fields_df(self, fields_df: pd.DataFrame):
         fields_df.columns = fields_df.columns.map(str.lower)

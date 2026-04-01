@@ -140,6 +140,7 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
     def _load_from_df_row(self, row: pd.Series, base_dir:str=None) -> None:
         self.dir_name = ""
         self.file_url_attr: str = _string_from_element(row["file/url"], strip=True)
+        self._user_fields_used.add("file/url")
         super()._load_from_df_row(row=row, base_dir=base_dir)
 
     def _to_dict(self, include_id:bool=True) -> dict:

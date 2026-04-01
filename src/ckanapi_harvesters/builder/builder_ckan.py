@@ -5,8 +5,9 @@ Code to upload metadata to the CKAN server to create/update an existing package
 The metadata is defined by the user in an Excel worksheet
 This file implements the ckan connection definition.
 """
-from typing import Union
+from typing import Union, Set
 from collections import OrderedDict
+from warnings import warn
 
 import pandas as pd
 
@@ -16,6 +17,16 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import ca_file_rel_to_dir, ca_arg_to_str
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
+
+ckan_allowed_user_fields: Set[str] = {
+    "ckan url", "ckan api key file",
+    "proxies", "proxy authentication file",
+    "ckan remote ca", "external ca",
+    "data format policy file", "options",
+    "limit", "time between requests", "thread count",
+    "comment",
+    "attribute",  # reserved name for table header
+}
 
 
 class BuilderCkan:
@@ -36,6 +47,7 @@ class BuilderCkan:
         self.time_between_requests: Union[float, None] = None
         self.default_thread_count: int = 1
         self.comment: Union[str, None] = None
+        self._user_fields_used: Set[str] = set()
 
     def __str__(self):
         return f"CKAN builder"
@@ -107,47 +119,63 @@ class BuilderCkan:
         """
         ckan_df.columns = ckan_df.columns.map(str.lower)
         ckan_df.columns = ckan_df.columns.map(str.strip)
+        extra_fields = set(ckan_df.columns) - ckan_allowed_user_fields
+        if extra_fields:
+            msg = f"The following CKAN attributes were not recognized: {', '.join(extra_fields)}"
+            warn(msg)
         # order is important here:
         if "ckan url" in ckan_df.columns:
             self.url = _string_from_element(ckan_df.pop("ckan url"))
+            self._user_fields_used.add("ckan url")
         if "ckan api key file" in ckan_df.columns:
             self.apikey_file = _string_from_element(ckan_df.pop("ckan api key file"))
+            self._user_fields_used.add("ckan api key file")
         if "proxies" in ckan_df.columns:
             self._proxy_config.proxy_string = _string_from_element(ckan_df.pop("proxies"))
+            self._user_fields_used.add("proxies")
         if "proxy authentication file" in ckan_df.columns:
             proxy_auth_file = _string_from_element(ckan_df.pop("proxy authentication file"))
+            self._user_fields_used.add("proxy authentication file")
             if proxy_auth_file is not None:
                 self._proxy_config.load_proxy_auth_from_file(proxy_auth_file, base_dir=base_dir)
         self.ckan_ca = None
         self._ckan_ca_src = None
         if "ckan remote ca" in ckan_df.columns:
             ca_cert = _string_from_element(ckan_df.pop("ckan remote ca"))
+            self._user_fields_used.add("ckan remote ca")
             self.ckan_ca, self._ckan_ca_src = ca_file_rel_to_dir(ca_cert, base_dir)
         self.extern_ca = None
         self._extern_ca_src = None
         if "external ca" in ckan_df.columns:
             ca_cert = _string_from_element(ckan_df.pop("external ca"))
+            self._user_fields_used.add("external ca")
             self.extern_ca, self._extern_ca_src = ca_file_rel_to_dir(ca_cert, base_dir)
         if "data format policy file" in ckan_df.columns:
             policy_file = _string_from_element(ckan_df.pop("data format policy file"))
+            self._user_fields_used.add("data format policy file")
             self.set_policy_file(policy_file, base_dir=base_dir, proxies=proxies,
                                  error_not_found=error_not_found)
         if "options" in ckan_df.columns:
             self.options_string = _string_from_element(ckan_df.pop("options"))
+            self._user_fields_used.add("options")
         if "limit" in ckan_df.columns:
             number_str = _string_from_element(ckan_df.pop("limit"))
+            self._user_fields_used.add("limit")
             if number_str is not None:
                 self.limit = int(number_str)
         if "time between requests" in ckan_df.columns:
             number_str = _string_from_element(ckan_df.pop("time between requests"))
+            self._user_fields_used.add("time between requests")
             if number_str is not None:
                 self.time_between_requests = float(number_str)
         if "thread count" in ckan_df.columns:
             number_str = _string_from_element(ckan_df.pop("thread count"))
+            self._user_fields_used.add("thread count")
             if number_str is not None:
                 self.default_thread_count = int(number_str)
         if "comment" in ckan_df.columns:
             self.comment = _string_from_element(ckan_df.pop("comment"))
+            self._user_fields_used.add("comment")
 
     def _to_dict(self, base_dir:str) -> dict:
         """

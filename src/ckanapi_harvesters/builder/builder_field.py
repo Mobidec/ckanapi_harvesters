@@ -5,15 +5,22 @@ Code to upload metadata to the CKAN server to create/update an existing package
 The metadata is defined by the user in an Excel worksheet
 This file implements the field definition
 """
-from typing import Union
+from typing import Union, Set
 import pandas as pd
 from collections import OrderedDict
+from warnings import warn
 
 from ckanapi_harvesters.auxiliary.ckan_field_types import CkanFieldType
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanFieldInternalAttrs
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, _bool_from_string
 
+
+field_allowed_user_fields: Set[str] = {
+    "name", "type override", "label", "description",
+    "index", "unique", "not null",
+    "options", "comment",
+}
 
 
 
@@ -30,6 +37,7 @@ class BuilderField:
         self.options_string: Union[str,None] = None
         self.internal_attrs: CkanFieldInternalAttrs = CkanFieldInternalAttrs()
         self.comment: Union[str,None] = None
+        self._user_fields_used: Set[str] = set()
 
     def update_missing(self, other: "BuilderField") -> None:
         if self.name is None:
@@ -74,8 +82,18 @@ class BuilderField:
         return dest
 
     def _load_from_df_row(self, row: pd.Series):
+        extra_fields = set(row.keys()) - field_allowed_user_fields
+        if extra_fields:
+            msg = f"The following field attributes were not recognized: {', '.join(extra_fields)}"
+            warn(msg)
         self.name = _string_from_element(row["field name"]).strip()
-        type_override_string = _string_from_element(row["type override"])
+        # if self.name is None:
+        #     raise MandatoryAttributeError("Field", "name")
+        self._user_fields_used.add("name")
+        type_override_string = None
+        if "type override" in row.keys():
+            type_override_string = _string_from_element(row["type override"])
+            self._user_fields_used.add("type override")
         self.type_override = None
         if type_override_string is not None:
             self.type_override = CkanFieldType.from_str(type_override_string)
@@ -85,18 +103,25 @@ class BuilderField:
         self.description = None
         if "label" in row.keys():
             self.label = _string_from_element(row["label"])
+            self._user_fields_used.add("label")
         if "description" in row.keys():
             self.description = _string_from_element(row["description"])
+            self._user_fields_used.add("description")
         if "index" in row.keys():
             self.is_index = _bool_from_string(row["index"], default_value=None)
+            self._user_fields_used.add("index")
         if "unique" in row.keys():
             self.uniquekey = _bool_from_string(row["unique"], default_value=None)
+            self._user_fields_used.add("unique")
         if "not null" in row.keys():
             self.notnull = _bool_from_string(row["not null"], default_value=None)
+            self._user_fields_used.add("not null")
         if "options" in row.keys():
             self.options_string = _string_from_element(row["options"])
+            self._user_fields_used.add("options")
         if "comment" in row.keys():
             self.comment = _string_from_element(row["comment"])
+            self._user_fields_used.add("comment")
         self.internal_attrs.init_from_native_type(self.type_override)
         self.internal_attrs.init_from_options_string(self.options_string)
 
