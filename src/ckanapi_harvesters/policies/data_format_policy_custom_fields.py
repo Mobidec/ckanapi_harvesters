@@ -64,8 +64,9 @@ class CustomFieldSpecification(DataPolicyElementABC):
             help = _string_from_element(row["help"])
         return CustomFieldSpecification(key=key, values=values, match_mode=mode, help=help)
 
-    def enforce(self, values: str, *, context:str=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
-        key_context = context + " / custom key " + self.key
+    def enforce(self, values: str, *, context:dict=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
+        key_context = context.copy()
+        key_context["custom_key"] = self.key
         value = values
         specs = self.values
         if specs is None:
@@ -125,7 +126,7 @@ class CustomFieldsPolicy(DataPolicyElementABC):
         self.keys_case_sensitive = _bool_from_string(d["keys_case_sensitive"]) if "keys_case_sensitive" in d.keys() else None
         self.restrict_to_list = ErrorLevel.from_str(d["restrict_to_list"]) if "restrict_to_list" in d.keys() else None
 
-    def enforce(self, values: Dict[str, str], *, context:str=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
+    def enforce(self, values: Dict[str, str], *, context:dict=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
         success = True
         if values is None:
             return success
@@ -145,7 +146,8 @@ class CustomFieldsPolicy(DataPolicyElementABC):
             _policy_msg(msg, error_level=self.error_level, buffer=buffer, verbose=verbose)
             success = False
         for key, value in values.items():
-            key_context = context + " / custom key " + key
+            key_context = context.copy()
+            key_context["custom_key"] = key
             if not self.keys_case_sensitive:
                 key = key.lower()
             spec = self.custom_fields_spec[key] if key in self.custom_fields_spec.keys() else None

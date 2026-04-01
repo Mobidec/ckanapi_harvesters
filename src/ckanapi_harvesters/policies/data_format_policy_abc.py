@@ -31,7 +31,7 @@ class DataPolicyABC(ABC):
         self.error_level = ErrorLevel.from_str(d["error_level"])
 
     @abstractmethod
-    def enforce(self, values: Any, *, context:str=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
+    def enforce(self, values: Any, *, context:dict=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
         raise NotImplementedError()
 
 
@@ -58,7 +58,7 @@ class DataPolicyElementABC(DataPolicyABC, ABC):
         self.mandatory = d["mandatory"]
         self.match_mode = StringMatchMode.from_str(d["match_mode"])
 
-    def _enforce_unit_string(self, values: Union[str, List[str]], spec: Union[str, Iterable[str]], *, context:str, verbose:bool,
+    def _enforce_unit_string(self, values: Union[str, List[str]], spec: Union[str, Iterable[str]], *, context:dict, verbose:bool,
                              buffer:List[DataPolicyError], add_buffer:bool=True) -> bool:
         if values is None or len(values) == 0:
             return not self.match_mode == StringMatchMode.NotEmpty

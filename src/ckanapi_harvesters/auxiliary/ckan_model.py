@@ -155,7 +155,7 @@ class CkanField(CkanConfigurableObjectABC):
     configurable_attributes = {"name", "notes", "label"}
 
     # TODO: implement schema part of dict? e.g. {'index_name': None, 'is_index': False, 'native_type': 'numeric', 'notnull': False, 'uniquekey': False}
-    def __init__(self, name:str, data_type:str, *, native_type:str=None, notes:str=None,
+    def __init__(self, name:str, data_type:str, *, notes:str=None, native_type:str=None,
                  type_override:bool=False, label:str=None):
         if native_type is None:
             native_type = data_type

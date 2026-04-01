@@ -11,10 +11,12 @@ from ckanapi_harvesters.auxiliary.error_level_message import ErrorLevelMessage, 
 
 
 class DataPolicyError(ErrorLevelMessage):
-    def __init__(self, context:str, error_level:ErrorLevel, policy_message: str):
-        message = f"In {context} / Data format policy {error_level.name}: {policy_message}"
+    def __init__(self, context:dict, error_level:ErrorLevel, policy_message: str):
+        reversed_context = OrderedDict(reversed(context.items()))
+        reversed_context_str = ", ".join([f"{key} '{value}'" for key, value in reversed_context.items()])
+        message = f"{error_level.name}: {policy_message} ({reversed_context_str})"
         super().__init__(error_level, message)
-        self.context: str = context
+        self.context: dict = context
         self.specific_message: str = policy_message
 
     def to_dict(self) -> dict:
@@ -24,11 +26,15 @@ class DataPolicyError(ErrorLevelMessage):
             ("message", self.specific_message),
         ])
 
-    def get_message(self, *, with_context:bool=False) -> str:
-        if with_context:
+    def get_message(self, *, with_package:bool=False) -> str:
+        if with_package:
             return self.message
         else:
-            return f"{self.error_level.name}: {self.specific_message}"
+            context = self.context.copy()
+            context.pop("package")
+            reversed_context = OrderedDict(reversed(context.items()))
+            reversed_context_str = ", ".join([f"{key} '{value}'" for key, value in reversed_context.items()])
+            return f"{self.error_level.name}: {self.specific_message} ({reversed_context_str})"
 
 
 class UnsupportedPolicyVersionError(Exception):

@@ -6,12 +6,14 @@ CKAN configuration builder
 from typing import Union, List, Dict
 
 from ckanapi_harvesters.auxiliary import ckan_configuration
+from ckanapi_harvesters.auxiliary.ckan_field_types import CkanFieldType
 from ckanapi_harvesters.auxiliary.ckan_model import CkanState
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceUnmanaged
 from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
+from ckanapi_harvesters.builder.builder_field import BuilderField
 from ckanapi_harvesters.builder.specific_builder_abc import SpecificBuilderABC
 from ckanapi_harvesters.builder.builder_package_1_basic import example_package_resources_dir
 
@@ -21,10 +23,11 @@ class ConfigurationBuilder(SpecificBuilderABC):
         super().__init__(ckan, package_name=ckan_configuration.configuration_package_name, organization_name=organization_name,
                          title="Configuration for scripts",
                          description="Configuration for use with Python scripts",
-                         private=True,
+                         state=CkanState.Active,
                          )
-        self.package_attributes.state = CkanState.Active
-        self.package_attributes.private = False
+        self.package_attributes.private = False  # Make policy rules public so that all users can access it
+        # self.package_attributes.state = CkanState.Draft  # draft state would make the policy unavailable to all users
+        self.package_attributes.author = "Admin"
         self.set_resources_base_dir(example_package_resources_dir)
         self.resource_builders[ckan_configuration.policy_resource] = \
             BuilderResourceUnmanaged(parent=self, name=ckan_configuration.policy_resource, format="JSON",
@@ -33,6 +36,11 @@ class ConfigurationBuilder(SpecificBuilderABC):
             BuilderDataStoreFile(parent=self, name=ckan_configuration.datastore_sample_resource, format="CSV",
                                  description="Sample DataStore",
                                  file_name="users_local.csv")
+        self.resource_builders[ckan_configuration.datastore_sample_resource].field_builders_user = {
+            "user_id": BuilderField(name="user_id", type_override=CkanFieldType("numeric"), description="Numeric user ID"),
+            "age": BuilderField(name="age", type_override=CkanFieldType("numeric"), description="User age"),
+        }
+        self.resource_builders[ckan_configuration.datastore_sample_resource].primary_key_user = ["user_id"]
 
     def patch_policy(self, ckan:CkanApi, policy: CkanPackageDataFormatPolicy,
                      *, reduced_size:bool=None, full_patch:bool=True, update_ckan:bool=True):
@@ -48,6 +56,7 @@ class ConfigurationBuilder(SpecificBuilderABC):
         else:
             # delete data format policy
             self.resource_builders[ckan_configuration.policy_resource].delete_request(ckan)
+        self.patch_request_final(ckan)
         if update_ckan:
             ckan.policy = policy
 

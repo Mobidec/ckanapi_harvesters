@@ -52,10 +52,12 @@ class ValueListPolicy(DataPolicyElementABC):
         self.list_specs = [StringValueSpecification.from_dict(value)  for value in d["values"]]
         self.value_select = ListChoiceMode.from_str(d["value_select"]) if "value_select" in d.keys() else ListChoiceMode.Any
 
-    def enforce(self, values: Union[str, List[str]], *, context:str=None,
+    def enforce(self, values: Union[str, List[str]], *, context:dict=None,
                 verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
         if self.group_name is not None:
-            context = context + " / " + self._group_type_str + " " + self.group_name
+            context = context.copy()
+            context["group_type"] = self._group_type_str
+            context["group_name"] = self.group_name
         success = True
         spec = [tag_spec.value for tag_spec in self.list_specs]
         if values is None:
@@ -64,7 +66,8 @@ class ValueListPolicy(DataPolicyElementABC):
             values = values.split(ckan_tags_sep)
         values = list(set(values).intersection(set(spec)))
         msg = None
-        value_context = context + " / value '" + ','.join(values).join(values) + "'"
+        value_context = context.copy()
+        value_context["value"] = ','.join(values).join(values)
         if (self.value_select == ListChoiceMode.MaxOne and len(values) > 1):
             success = False
             msg = DataPolicyError(value_context, self.error_level, f"Too many values for value list group '{self.group_name}'. Max one value is admitted within {spec}.")
@@ -104,10 +107,12 @@ class ExtraValueListPolicy(ValueListPolicy):
         obj._load_from_dict(d)
         return obj
 
-    def enforce(self, values: Union[str, List[str]], *, context:str=None,
+    def enforce(self, values: Union[str, List[str]], *, context:dict=None,
                 verbose: bool = True, buffer:List[DataPolicyError]=None, extra_spec_rm:Set[str]=None) -> bool:
         if self.group_name is not None:
-            context = context + " / group " + self.group_name
+            context = context.copy()
+            context["group_type"] = self._group_type_str
+            context["group_name"] = self.group_name
         success = True
         spec = [tag_spec.value for tag_spec in self.list_specs]
         if values is None:
@@ -116,7 +121,8 @@ class ExtraValueListPolicy(ValueListPolicy):
             values = values.split(ckan_tags_sep)
         values = list(set(values) - extra_spec_rm)
         msg = None
-        value_context = context + " / value '" + ','.join(values).join(values) + "'"
+        value_context = context.copy()
+        value_context["value"] = ','.join(values).join(values)
         if (self.value_select == ListChoiceMode.MaxOne and len(values) > 1):
             success = False
             msg = DataPolicyError(value_context, self.error_level, f"Too many values for value list group '{self.group_name}'. Max one value is admitted within {spec}.")
@@ -185,7 +191,7 @@ class GroupedValueListPolicy(DataPolicyElementABC):
         self.extra_values_spec = None
         self._extract_extra_values()
 
-    def enforce(self, values: Union[str, List[str]], *, context:str=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
+    def enforce(self, values: Union[str, List[str]], *, context:dict=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
         success = True
         extra_spec_rm = set()
         for value_group_spec in self.value_group_specs:
@@ -225,6 +231,6 @@ class SingleValueListPolicy(DataPolicyElementABC):
         else:
             self.base_list.value_group_specs = []
 
-    def enforce(self, values: Union[str, List[str]], *, context:str=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
+    def enforce(self, values: Union[str, List[str]], *, context:dict=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
         success = self.base_list.enforce(values, context=context, verbose=verbose, buffer=buffer)
         return success

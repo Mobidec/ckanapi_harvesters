@@ -29,6 +29,7 @@ def size_str_mb(size_mb:float) -> str:
 class CkanAdminReport:
     def __init__(self, package_list:List[str]=None, *, cancel_if_present:bool=True,
                  package_custom_fields:List[str]=None, ckan:CkanApi=None, full_report:bool=False,
+                 owner_org:str=None,
                  auto_exec:bool=True, progress_callback:CkanProgressCallbackABC=None):
         if package_custom_fields is None:
             package_custom_fields = []  # option to include specific custom fields in the report e.g. a end of license date
@@ -47,6 +48,7 @@ class CkanAdminReport:
         self._elapsed_time_requests: Union[float,None] = None
         self._request_count: Union[int,None] = None
         self.allow_downgraded_queries:bool = False
+        self.owner_org :Union[str,None] = owner_org
         self.report: Union[dict,None] = None  # report output
         if auto_exec and ckan is not None:
             self.execute(ckan, progress_callback=progress_callback)
@@ -79,8 +81,8 @@ class CkanAdminReport:
             warn(msg)
         if progress_callback is not None:
             progress_callback.add_context("Step 1: Map resources", level=CkanCallbackLevel.Packages)
-        ckan.map_resources(self.package_list, datastore_info=True, only_missing=self.cancel_if_present,
-                           progress_callback=progress_callback)
+        ckan.map_resources(self.package_list, datastore_info=True, owner_org=self.owner_org,
+                           only_missing=self.cancel_if_present, progress_callback=progress_callback)
         try:
             ckan.organization_list_all(cancel_if_present=False, include_users=True)
         except CkanAuthorizationError as e:

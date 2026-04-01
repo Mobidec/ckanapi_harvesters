@@ -19,7 +19,7 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, _b
 
 class BuilderField:
     def __init__(self, *, name:str=None, type_override:CkanFieldType=None,
-                 label:str=None, description:str=None):
+                 description:str=None, label:str=None):
         self.name: str = name
         self.type_override: Union[CkanFieldType,None] = type_override
         self.label: Union[str,None] = label

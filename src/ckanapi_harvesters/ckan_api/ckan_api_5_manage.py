@@ -1231,7 +1231,7 @@ class CkanApiManage(CkanApiReadWrite):
         if pkg_info is not None and clear_if_deleted_state:
             if pkg_info.state == CkanState.Deleted:
                 if self.params.verbose_request_error:
-                    print(f"Package {package_name} was found in Delete state. All ressources will be deleted before updating it.")
+                    print(f"Package {package_name} was found in Delete state. All resources will be deleted before updating it.")
                 try:
                     self.package_delete_resources(package_name, bypass_admin=True)
                 except Exception as e:

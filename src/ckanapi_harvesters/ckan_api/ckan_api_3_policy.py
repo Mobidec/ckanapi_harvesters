@@ -26,6 +26,7 @@ class CkanApiPolicyParams(CkanApiReadOnlyParams):
         self.policy_check_pre: bool = False
         self.policy_check_post: bool = True
         self.verbose_policy: bool = False
+        self.default_update_policy_on_check: bool = True  # default behavior for auto_update argument of policy_check function (updates scores on CKAN server)
 
     def copy(self, new_identifier:str=None, *, dest=None):
         if dest is None:
@@ -171,7 +172,7 @@ class CkanApiPolicy(CkanApiReadOnly):
 
     def policy_check(self, package_list:Union[str,List[str]]=None, policy: CkanPackageDataFormatPolicy=None,
                      *, buffer:Dict[str, List[DataPolicyError]]=None, raise_error:bool=False,
-                     verbose:bool=None, auto_update:bool=True, progress_callback:CkanProgressCallbackABC=None) -> bool:
+                     verbose:bool=None, auto_update:bool=None, progress_callback:CkanProgressCallbackABC=None) -> bool:
         """
         Enforce policy on mapped packages
 
@@ -187,6 +188,8 @@ class CkanApiPolicy(CkanApiReadOnly):
             policy = self.policy
         if verbose is None:
             verbose = self.params.verbose_policy
+        if auto_update is None:
+            auto_update = self.params.default_update_policy_on_check
         if policy is None:
             # no policy loaded at all
             return True

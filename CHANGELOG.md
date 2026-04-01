@@ -10,6 +10,20 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-03-31
 
 
+## [0.0.24] - 2026-04-01
+
+### Added
+
+- Improved data format policy messages.
+
+
+## [0.0.23] - 2026-03-31
+
+### Fixed
+
+- Implementation issues due to previous version changes.
+
+
 ## [0.0.22] - 2026-03-31
 
 ### Fixed
@@ -147,7 +161,7 @@ It is enabled by default. To disable it, use the `allow_chunks=False` argument o
 
 - Datasets are uploaded in ___Draft___ state by default. When the upload is finished, the state specified in the Excel workbook is applied.
 Datasets with ___Draft___ state are visible by clicking on your profile name at the top of the CKAN web interface (if you originally created it).
-  - Upon dataset creation, if was found in ___Deleted___ state, its ressources are deleted. 
+  - Upon dataset creation, if was found in ___Deleted___ state, its resources are deleted. 
 - Primary key when uploading to a DataStore:
   - When no primary key is specified, the program adds a new column named `py_upload_index` as a primary key. 
   - The default behavior when a multi-column primary key has changed. It is specified is to systematically upsert all records

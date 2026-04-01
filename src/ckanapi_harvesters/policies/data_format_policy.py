@@ -231,26 +231,46 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         obj.source_file = policy_file
         return obj
 
-    def _enforce_attributes_list(self, value:CkanConfigurableObjectABC, spec:Set[str], *, context:str, verbose: bool, buffer:List[DataPolicyError]):
+    def _enforce_attributes_list(self, value:CkanConfigurableObjectABC, spec:Set[str], *, context:dict, verbose: bool, buffer:List[DataPolicyError]):
         extra_spec = spec - value.configurable_attributes
         if len(extra_spec) > 0:
             raise KeyError("These attributes do not exist for " + value.get_resource_type() + ": " + ",".join(extra_spec) + ". Allowed attributes: " + str(value.configurable_attributes))
         current_attributes = {name for name in value.configurable_attributes if getattr(value, name) is not None}
         missing_attributes = set(spec) - current_attributes
+        success = len(missing_attributes) == 0
+        # specialized error messages (more user-friendly)
+        if "field" in context:
+            if "notes" in missing_attributes:
+                msg = DataPolicyError(context, self.error_level, f"Missing field description")
+                _policy_msg(msg, error_level=self.error_level, buffer=buffer, verbose=verbose)
+                missing_attributes.remove("notes")
+        elif "resource" in context:
+            if "description" in missing_attributes:
+                msg = DataPolicyError(context, self.error_level, f"Missing resource description")
+                _policy_msg(msg, error_level=self.error_level, buffer=buffer, verbose=verbose)
+                missing_attributes.remove("description")
+        else:  # if "package" in context:
+            if "description" in missing_attributes:
+                msg = DataPolicyError(context, self.error_level, f"Missing package description")
+                _policy_msg(msg, error_level=self.error_level, buffer=buffer, verbose=verbose)
+                missing_attributes.remove("description")
         if missing_attributes:
             msg = DataPolicyError(context, self.error_level, f"Mandatory attributes were not found: {', '.join(missing_attributes)}")
             _policy_msg(msg, error_level=self.error_level, buffer=buffer, verbose=verbose)
-            return False
+            return success
         else:
-            return True
+            return success
 
-    def enforce(self, values: CkanPackageInfo, *, context:str=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
+    def enforce(self, values: CkanPackageInfo, *, context:dict=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
         package_info = values
         success = True
         if context is None:
-            context = "Package " + package_info.name
+            context = OrderedDict()
+            context["package"] = package_info.name
         if self.package_tags is not None:
-            success &= self.package_tags.enforce(package_info.tags, context=context + " / package tags", verbose=verbose, buffer=buffer)
+            tags_context = context.copy()
+            tags_context["package_attribute"] = "tags"
+            success &= self.package_tags.enforce(package_info.tags, context=tags_context, verbose=verbose, buffer=buffer)
         if self.package_custom_fields is not None:
             success &= self.package_custom_fields.enforce(package_info.custom_fields, context=context, verbose=verbose, buffer=buffer)
         if self.package_mandatory_attributes is not None:
@@ -268,15 +288,18 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
                 resource_name_index[resource_info.name].append(resource_info.id)
             else:
                 resource_name_index[resource_info.name] = [resource_info.id]
-            resource_context = context + " / resource " + resource_info.name
+            resource_context = context.copy()
+            resource_context["resource"] = resource_info.name
             if self.resource_format is not None:
-                resource_format_context = resource_context + " / resource format"
+                resource_format_context = resource_context.copy()
+                resource_format_context["resource_attribute"] = "format"
                 success &= self.resource_format.enforce(resource_info.format, context=resource_format_context, verbose=verbose, buffer=buffer)
             if self.resource_mandatory_attributes is not None:
                 success &= self._enforce_attributes_list(resource_info, self.resource_mandatory_attributes, context=resource_context, verbose=verbose, buffer=buffer)
             if self.datastore_fields_mandatory_attributes is not None and resource_info.datastore_info is not None:
                 for field_info in resource_info.datastore_info.fields_dict.values():
-                    field_context = resource_context + " / field " + field_info.name
+                    field_context = resource_context.copy()
+                    field_context["field"] = field_info.name
                     success &= self._enforce_attributes_list(field_info, self.datastore_fields_mandatory_attributes, context=field_context, verbose=verbose, buffer=buffer)
         if any([len(resource_ids) > 1 for resource_ids in resource_name_index.values()]):
             for resource_name, resource_ids in resource_name_index.items():
@@ -300,7 +323,8 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         """
         if package_buffer is None:
             package_buffer: List[DataPolicyError] = []
-        context = "Package " + package_info.name
+        context = OrderedDict()
+        context["package"] = package_info.name
         success = self.enforce(package_info, context=context, verbose=True, buffer=package_buffer)
         error_count = ErrorCount(package_buffer)
         # consistency check
@@ -341,7 +365,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
                 package_update_needed = True
             package_info.custom_fields[self.output_custom_fields.package_score_field] = package_score_str
         if self.output_custom_fields.package_report_field is not None:
-            package_report_str = "\n".join(["- " + error_message.get_message(with_context=False) for error_message in package_buffer])
+            package_report_str = "; \n".join(["- " + error_message.get_message(with_package=False) for error_message in package_buffer])
             if self.output_custom_fields.package_report_field in package_info.custom_fields.keys():
                 package_update_needed |= not package_info.custom_fields[self.output_custom_fields.package_report_field] == package_report_str
             else:
