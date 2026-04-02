@@ -44,6 +44,8 @@ class DatabaseHarvesterPostgre(DatabaseHarvesterABC):
             raise HarvesterRequirementError("sqlalchemy", "postgre")
         if psycopg2 is None:
             raise HarvesterRequirementError("psycopg2", "postgre")
+        if self.params.ssl is None:
+            self.params.ssl = None  # default behavior: do not specify
         self.alchemy_engine: Union[sqlalchemy.Engine,None] = None
         self.alchemy_connection: Union[sqlalchemy.Connection,None] = None
         if self.params.auth_url is None and self.params.host is None and self.params.port is None and self.params.database is None:
@@ -90,12 +92,56 @@ class DatabaseHarvesterPostgre(DatabaseHarvesterABC):
                 self.alchemy_engine.dispose()
                 self.alchemy_connection = None
                 self.alchemy_engine = None
-            ssl, ssl_certfile = ssl_arguments_decompose(self.params.verify_ca)
+            ca_verify, ssl_server_certfile = ssl_arguments_decompose(self.params.verify_server_ca)
             auth_url = self.get_login_url_without_auth()
             auth_url_with_login = url_insert_login(auth_url, self.params.login)
-            self.alchemy_engine = sqlalchemy.create_engine(auth_url_with_login)
-                                                           # ssl=ssl, tlscafile=ssl_certfile,
-                                                           # timeoutMS=self.params.timeout*1000.0 if self.params.timeout is not None else None)
+            full_url = sqlalchemy.engine.url.make_url(auth_url_with_login)
+            update_query_dict = {}
+            # argument names according to MariaDB documentation: https://mariadb.com/docs/connectors/mariadb-connector-python/api/module
+            # if self.params.ssl is not None:
+            #     update_query_dict["ssl"] = str(self.params.ssl)
+            # if ca_verify is not None:
+            #     update_query_dict["ssl_verify_cert"] = str(ca_verify)
+            # if ssl_server_certfile is not None:
+            #     update_query_dict["ssl_ca"] = ssl_server_certfile
+            # if self.params.ssl_client_certfile is not None:
+            #     update_query_dict["ssl_cert"] = self.params.ssl_client_certfile
+            # if self.params.ssl_client_keyfile is not None:
+            #     update_query_dict["ssl_key"] = self.params.ssl_client_keyfile
+            # if self.params.timeout is not None:
+            #     update_query_dict["connect_timeout"] = self.params.timeout
+            #     update_query_dict["read_timeout"] = self.params.timeout
+            #     update_query_dict["write_timeout"] = self.params.timeout
+            # argument names for psycopg2 (no documentation found but https://www.geeksforgeeks.org/python/how-to-use-ssl-mode-in-psycopg2-using-python/)
+            ssl_mode = None
+            if ca_verify is not None and ca_verify:
+                if self.params.allow_invalid_hostnames is None:
+                    ssl_mode = "verify-full"
+                elif self.params.allow_invalid_hostnames:
+                    ssl_mode = "verify-ca"
+                else:
+                    ssl_mode = "verify-full"
+                assert(self.params.ssl is None or self.params.ssl)
+            elif self.params.ssl is not None:
+                if self.params.ssl:
+                    ssl_mode = "require"
+                else:
+                    ssl_mode = "disable"
+            elif ca_verify is not None and not ca_verify:
+                msg = "You cannot disable SSL CA verification (option --ca False) without enabling SSL"
+                warn(msg)
+            if ssl_server_certfile is not None:
+                update_query_dict["sslmode"] = ssl_mode
+            if ssl_server_certfile is not None:
+                update_query_dict["sslrootcert"] = ssl_server_certfile
+            if self.params.ssl_client_certfile is not None:
+                update_query_dict["sslcert"] = self.params.ssl_client_certfile
+            if self.params.ssl_client_keyfile is not None:
+                update_query_dict["sslkey"] = self.params.ssl_client_keyfile
+            if len(update_query_dict) > 0:
+                full_url = full_url.update_query_dict(update_query_dict)
+                raise NotImplementedError("Advanced SSL options were not tested. You can contribute to the package by sending us feedback on the proposed configuration.")
+            self.alchemy_engine = sqlalchemy.create_engine(full_url)
             self.alchemy_connection = self.alchemy_engine.connect()
             if self.params.host is None and self.params.port is None:
                 # complete with host and port parsed by sqlalchemy

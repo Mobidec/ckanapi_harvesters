@@ -13,6 +13,7 @@ import shutil
 import json
 import re
 from collections import OrderedDict
+import datetime
 
 import pandas as pd
 import numpy as np
@@ -29,7 +30,7 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, as
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_errors import (DuplicateNameError, ForbiddenNameError, MissingIdError,
                                                       MandatoryAttributeError, FileOrDirNotExistError)
-from ckanapi_harvesters.auxiliary.ckan_configuration import unlock_external_url_resource_download, unlock_no_ca
+from ckanapi_harvesters.auxiliary.ckan_configuration import unlock_external_url_resource_download, unlock_no_server_ca
 from ckanapi_harvesters.builder.builder_errors import (UnsupportedBuilderVersionError,
                                                        MissingDataStoreColumnsSheet)
 from ckanapi_harvesters.builder import BUILDER_FILE_FORMAT_VERSION as BUILDER_VER
@@ -248,7 +249,7 @@ class BuilderPackageBasic:
         Only allow in a local environment!
 
         """
-        unlock_no_ca(value)
+        unlock_no_server_ca(value)
 
     @staticmethod
     def unlock_external_url_resource_download(value:bool=True):
@@ -1087,6 +1088,10 @@ class BuilderPackageBasic:
         # call to function update_request of package and update_request of resources
         if not isinstance(progress_callback, CkanProgressCallbackABC):
             progress_callback = CkanProgressCallback(progress_callback)
+        start_time = datetime.datetime.now()
+        if ckan.params.verbose_extra:
+            print(f"Initializing/updating package metadata {ckan.get_package_page_url(self.package_name)} & resources")
+            print("Timestamp", start_time)
         if ckan.params.policy_check_pre:
             self.local_policy_check()
         resources_base_dir = self.get_resources_base_dir(resources_base_dir)
@@ -1137,6 +1142,11 @@ class BuilderPackageBasic:
             self.remote_policy_check(ckan)
         if progress_callback is not None:
             progress_callback.end_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
+        if ckan.params.verbose_extra:
+            print(f"Done update of package metadata & resources for package {ckan.get_package_page_url(self.package_name)}")
+            end_time = datetime.datetime.now()
+            print("Timestamp", start_time)
+            print(f"{(end_time - start_time).total_seconds()} elapsed")
         return pkg_info, resource_info_dict
 
     def _get_mono_resource_used_files(self, resources_base_dir:str, ckan:CkanApi):
@@ -1221,6 +1231,10 @@ class BuilderPackageBasic:
             progress_callback = CkanProgressCallback(progress_callback)
         if threads is None:
             threads = self.ckan_builder.default_thread_count
+        start_time = datetime.datetime.now()
+        if ckan.params.verbose_extra:
+            print(f"Uploading extra lines to DataStores of package {ckan.get_package_page_url(self.package_name)}")
+            print("Timestamp", start_time)
         self.info_request_package(ckan=ckan)
         resources_base_dir = self.get_resources_base_dir(resources_base_dir)
         self.update_package_name_in_resources()
@@ -1253,6 +1267,11 @@ class BuilderPackageBasic:
         self.patch_request_final(ckan)
         if progress_callback is not None:
             progress_callback.end_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
+        if ckan.params.verbose_extra:
+            print(f"Done upload of large DataStores for package {ckan.get_package_page_url(self.package_name)}")
+            end_time = datetime.datetime.now()
+            print("Timestamp", start_time)
+            print(f"{(end_time - start_time).total_seconds()} elapsed")
 
     def patch_request_final(self, ckan:CkanApi):
         if initial_package_building_state is not None:

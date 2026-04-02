@@ -33,11 +33,16 @@ This sheet contains information necessary for the Python script.
 
 Field specification:
 - __Builder format version__: This field is provided to distinguish future versions of the Excel file format.
-- __Auxiliary functions file__: The auxiliary functions file enables the user to define functions to apply to the DataFrames on upload/download of DataStores. See the resources sheet help for more information.
-___Warning___: only execute code if you trust the source !
+- __Auxiliary functions file__: The auxiliary functions file enables the user to define functions to apply to the DataFrames on upload/download of DataStores. 
+See the [resources sheet help](#sheet-resources) for more information.
+___Warning___: Only execute code if you trust the source.
 - __Resources local directory__: By default, the resources mentioned in this file are in the same folder as the file. This field enables the user to point to a specific folder, relative to this Excel file or as an absolute path. If the path points to a text file, the first line of the text file defines the resources directory.
 - __Download directory__: Default path to download the resources to, relative to this Excel workbook folder.
 - __Comment__: A place to leave a comment on the file e.g. for specific instructions. This field is preserved during import/exports.
+
+___Warning___: By default, the execution of the __Auxiliary functions file__ is disabled for security reasons.
+Executing code from untrusted sources could lead to the execution of malicious code. Only execute code if you trust the source !
+To enable the execution of auxiliary functions, call `BuilderPackage.unlock_external_code_execution()`.
 
 
 ### Sheet "ckan"
@@ -52,7 +57,7 @@ Field specification:
 - __CKAN API key file__: Path to a file containing the API key in the first line, or:
   - The string `environ` loads the API key from the environment variables `CKAN_API_KEY_FILE`, or not recommended `CKAN_API_KEY`.
   - _NB_: If the first line of the API key file is an URL, it is checked against the CKAN URL. 
-  This reduces the risk of using the API key on another CKAN server. 
+  This removes the risk of leaking the API key to another CKAN server. 
 - __Proxies__: Proxies configuration. It is applied to all requests made by the package (to CKAN server and external sources). 
 If not specified, the proxies set in the environment variables are used (at least `http_proxy`, `https_proxy`, `no_proxy`). The values entered can be either:
   - one unique url or

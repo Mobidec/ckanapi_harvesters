@@ -195,16 +195,24 @@ Example of arguments enabling a connection to a database without using SSL:
 
 ```
 --harvester Postgre --login-file postgre_login.txt 
---ca False --host my-postgre-server.com --port 5432 
+--ca server_ca.pem --host my-postgre-server.com --port 5432 
 --database My_Database --schema My_Schema 
 --limit 1000
 ```
 
-The table name is specified in the ___File/URL___ column of the _resource_ sheet.
+The argument `--ca` can be used to pass a user-specific signing certificate to authenticate the server. 
+You can disable certificate verification by passing `--ca False`.
+This is not recommended, especially if the database server is on the global web 
+because any server could impersonate the target server, under certain conditions.
+A warning is generated in this case.
+
+In the Excel _resources_ worksheet, the table name is specified in the ___File/URL___ column of the _resource_ sheet.
 The PostgreSQL schema is comparable with a CKAN dataset (set of tables).
 
 If you need to setup a secure connection to the database, you can setup an SSH tunnel outside of the Python package. 
-This feature is not handled by the present package.
+This feature is not handled by the present package. 
+__Warning__: Please verify if the SSL options are correctly transferred when the connection is created in the harvester code.
+These features were not tested in the package. An error is raised inviting you to contribute to this package.
 
 
 #### Documentation
@@ -212,6 +220,7 @@ This feature is not handled by the present package.
 ```
 Harvester parameters
 
+options:
 options:
   --harvester HARVESTER
                         Type of harvester to use
@@ -225,6 +234,16 @@ options:
                         Path to a proxy authentication file with 3 lines
                         (authentication method, username, password)
   --ca CA               Server CA certificate location (.pem file)
+  --ssl-certfile SSL_CERTFILE
+                        Client certificate location (.pem file). This file
+                        sometimes includes the client private key.
+  --ssl-keyfile SSL_KEYFILE
+                        Client private key location (.pem/.key file)
+  --ssl                 Enable SSL encryption
+  --no-ssl              Disable SSL encryption (when enabled by default, not
+                        recommended)
+  --allow-invalid-hostnames
+                        Allow invalid host names (not recommended)
   --timeout TIMEOUT     Server timeout (seconds)
   --host HOST           Host for queries
   --port PORT           Port for queries
@@ -238,11 +257,19 @@ options:
   --login-file LOGIN_FILE
                         Path to a text file containing login credentials for
                         authentification (user, password)
+  --login-user LOGIN_USER
+                        Login user name (prefer using a file)
+  --login-password LOGIN_PASSWORD
+                        Login user password (prefer using a file)
   -v, --verbose         Option to set verbosity
   --database DATABASE   Database name
   --ckan-postgis        Option to use CKAN with PostGIS geometric types
   --ckan-epsg CKAN_EPSG
                         Default EPSG for CKAN
+  -l LIMIT, --limit LIMIT
+                        Number of rows per request
+  --once                Option to perform only one request with the default
+                        limit. This will limit the size of the Data.
   --dataset DATASET     Dataset name
   -o OUTPUT_DIR, --output-dir OUTPUT_DIR
                         Output directory of download, relative to the download
@@ -253,10 +280,6 @@ options:
                         URL of resource
   --table TABLE         Table name
   --query QUERY         Query to restrict the lines of the table
-  -l LIMIT, --limit LIMIT
-                        Number of rows per request
-  --once                Option to perform only one request with the default
-                        limit. This will limit the size of the Data.
   --schema SCHEMA       PostgreSQL schema name
 ```
 
@@ -269,17 +292,25 @@ Example of arguments enabling a connection to a database without using SSL:
 
 ```
 --harvester MongoDB --login-file mongodb_login.txt 
---ca False --host mongodb://my-postgre-server.com:27017/admin 
+--ca server_ca.pem --host mongodb://my-postgre-server.com:27017/admin 
 --url --host mongodb://my-postgre-server.com:27017
 --dataset My_Schema 
 --limit 1000
 ```
 
-The table name is specified in the ___File/URL___ column of the _resource_ sheet.
+The argument `--ca` can be used to pass a user-specific signing certificate to authenticate the server. 
+You can disable certificate verification by passing `--ca False`.
+This is not recommended, especially if the database server is on the global web 
+because any server could impersonate the target server, under certain conditions.
+A warning is generated in this case.
+
+In the Excel _resources_ worksheet, the table name is specified in the ___File/URL___ column of the _resource_ sheet.
 In MongoDB, tables are called collections.
 
 If you need to setup a secure connection to the database, you can setup an SSH tunnel outside of the Python package. 
 This feature is not handled by the present package.
+__Warning__: Please verify if the SSL options are correctly transferred when the connection is created in the harvester code.
+These features were not tested in the package. An error is raised inviting you to contribute to this package.
 
 
 #### Documentation
@@ -300,6 +331,16 @@ options:
                         Path to a proxy authentication file with 3 lines
                         (authentication method, username, password)
   --ca CA               Server CA certificate location (.pem file)
+  --ssl-certfile SSL_CERTFILE
+                        Client certificate location (.pem file). This file
+                        sometimes includes the client private key.
+  --ssl-keyfile SSL_KEYFILE
+                        Client private key location (.pem/.key file)
+  --ssl                 Enable SSL encryption
+  --no-ssl              Disable SSL encryption (when enabled by default, not
+                        recommended)
+  --allow-invalid-hostnames
+                        Allow invalid host names (not recommended)
   --timeout TIMEOUT     Server timeout (seconds)
   --host HOST           Host for queries
   --port PORT           Port for queries
@@ -313,11 +354,19 @@ options:
   --login-file LOGIN_FILE
                         Path to a text file containing login credentials for
                         authentification (user, password)
+  --login-user LOGIN_USER
+                        Login user name (prefer using a file)
+  --login-password LOGIN_PASSWORD
+                        Login user password (prefer using a file)
   -v, --verbose         Option to set verbosity
   --database DATABASE   Database name
   --ckan-postgis        Option to use CKAN with PostGIS geometric types
   --ckan-epsg CKAN_EPSG
                         Default EPSG for CKAN
+  -l LIMIT, --limit LIMIT
+                        Number of rows per request
+  --once                Option to perform only one request with the default
+                        limit. This will limit the size of the Data.
   --dataset DATASET     Dataset name
   -o OUTPUT_DIR, --output-dir OUTPUT_DIR
                         Output directory of download, relative to the download
@@ -328,10 +377,6 @@ options:
                         URL of resource
   --table TABLE         Table name
   --query QUERY         Query to restrict the lines of the table
-  -l LIMIT, --limit LIMIT
-                        Number of rows per request
-  --once                Option to perform only one request with the default
-                        limit. This will limit the size of the Data.
   --collection COLLECTION
                         MongoDB collection name
   --dbref-expand        Option to expand DBRefs

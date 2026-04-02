@@ -221,16 +221,16 @@ def ca_arg_to_str(ca_cert:Union[bool,str,None], base_dir:str=None, source_string
     else:
         return None
 
-def ssl_arguments_decompose(ca_cert:Union[bool,str,None], *, default_ssl:bool=True) -> Tuple[bool, Union[str,None]]:
+def ssl_arguments_decompose(ca_cert:Union[bool,str,None], *, default_ca_verify:bool=True) -> Tuple[bool, Union[str,None]]:
     """
     Decompose requirements argument verify into boolean and path to a certificate file.
 
     :param ca_cert:
-    :param default_ssl: option to indicate if SSL should be enabled if ca_cert is None
-    :return: Tuple ssl, ssl_certfile
+    :param default_ca_verify: option to indicate if SSL should be enabled if ca_cert is None
+    :return: Tuple ca_verify, ssl_server_certfile
     """
     if ca_cert is None:
-        return default_ssl, None
+        return default_ca_verify, None
     elif isinstance(ca_cert, bool):
         return ca_cert, None
     elif isinstance(ca_cert, str):

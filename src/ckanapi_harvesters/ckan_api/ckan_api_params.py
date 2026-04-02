@@ -13,7 +13,7 @@ from requests.auth import AuthBase
 
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanIdFieldTreatment
-from ckanapi_harvesters.auxiliary.ckan_configuration import allow_no_ca
+from ckanapi_harvesters.auxiliary.ckan_configuration import allow_no_server_ca
 from ckanapi_harvesters.auxiliary.ckan_errors import NoCAVerificationError
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir
 
@@ -108,7 +108,7 @@ class CkanApiParamsBasic:
     @ckan_ca.setter
     def ckan_ca(self, ca_cert:Union[bool,str,None]) -> None:
         if ca_cert is not None and isinstance(ca_cert, bool) and not ca_cert:
-            if not allow_no_ca:
+            if not allow_no_server_ca:
                 raise NoCAVerificationError()
             else:
                 msg = "CA verification has been disabled. Only allow in a local environment!"
@@ -120,7 +120,7 @@ class CkanApiParamsBasic:
     @extern_ca.setter
     def extern_ca(self, ca_cert:Union[bool,str,None]) -> None:
         if ca_cert is not None and isinstance(ca_cert, bool) and not ca_cert:
-            if not allow_no_ca:
+            if not allow_no_server_ca:
                 raise NoCAVerificationError()
             else:
                 msg = "CA verification has been disabled. Only allow in a local environment!"

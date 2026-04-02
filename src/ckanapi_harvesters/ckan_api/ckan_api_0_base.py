@@ -24,7 +24,7 @@ from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCal
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.external_code_import import unlock_external_code_execution
 from ckanapi_harvesters.auxiliary.ckan_configuration import download_external_resource_urls, \
-    unlock_external_url_resource_download, allow_no_ca, unlock_no_ca
+    unlock_external_url_resource_download, allow_no_server_ca, unlock_no_server_ca
 from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
 from ckanapi_harvesters.auxiliary.urls import urlsep, url_join, clean_base_url, url_matches_host
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, max_len_debug_print, assert_or_raise, HTTP_STATUS_CODE_RETRY
@@ -213,7 +213,7 @@ class CkanApiBase(CkanApiABC):
         :return:
         """
         if no_ca is not None:
-            unlock_no_ca(no_ca)
+            unlock_no_server_ca(no_ca)
         if external_url_resource_download is not None:
             unlock_external_url_resource_download(external_url_resource_download)
 
@@ -548,7 +548,7 @@ class CkanApiBase(CkanApiABC):
         __Warning__:
         Only allow in a local environment!
         """
-        unlock_no_ca(value)
+        unlock_no_server_ca(value)
 
     @staticmethod
     def unlock_external_url_resource_download(value:bool=True):

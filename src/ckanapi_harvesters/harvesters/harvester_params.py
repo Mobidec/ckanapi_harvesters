@@ -13,7 +13,7 @@ import io
 from requests.auth import AuthBase
 
 from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckan_has_postgis, default_ckan_target_epsg
-from ckanapi_harvesters.auxiliary.ckan_configuration import unlock_external_url_resource_download, allow_no_ca, unlock_no_ca
+from ckanapi_harvesters.auxiliary.ckan_configuration import unlock_external_url_resource_download, allow_no_server_ca, unlock_no_server_ca
 from ckanapi_harvesters.auxiliary.ckan_errors import NoCAVerificationError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import ca_file_rel_to_dir, assert_or_raise
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
@@ -36,8 +36,12 @@ class DatabaseParams:
         self.base_dir: Union[str,None] = None
         self.harvest_method: str = ""
         self._proxy_config: ProxyConfig = ProxyConfig()
-        self._verify_ca: Union[str, bool, None] = None
-        self._verify_ca_src: Union[str, None] = None
+        self._verify_server_ca: Union[str, bool, None] = None
+        self._verify_server_ca_src: Union[str, None] = None
+        self.ssl: Union[bool,None] = None
+        self.allow_invalid_hostnames: Union[bool,None] = None
+        self.ssl_client_certfile: Union[str, None] = None
+        self.ssl_client_keyfile: Union[str, None] = None
         self.timeout: Union[float, None] = None
         self.host: Union[str, None] = None
         self.port: Union[int, None] = None
@@ -63,8 +67,12 @@ class DatabaseParams:
         dest.base_dir = self.base_dir
         dest.harvest_method = self.harvest_method
         dest._proxy_config = self._proxy_config
-        dest._verify_ca = self._verify_ca
-        dest._verify_ca_src = self._verify_ca_src
+        dest._verify_server_ca = self._verify_server_ca
+        dest._verify_server_ca_src = self._verify_server_ca_src
+        dest.ssl = self.ssl
+        dest.allow_invalid_hostnames = self.allow_invalid_hostnames
+        dest.ssl_client_certfile = self.ssl_client_certfile
+        dest.ssl_client_keyfile = self.ssl_client_keyfile
         dest.timeout = self.timeout
         dest.host = self.host
         dest.port = self.port
@@ -90,6 +98,16 @@ class DatabaseParams:
         ProxyConfig._setup_cli_proxy_parser(parser)  # add arguments --proxy --http-proxy --https-proxy --no-proxy --proxy-auth-file
         parser.add_argument("--ca", type=str,
                             help="Server CA certificate location (.pem file)")
+        parser.add_argument("--ssl-certfile", type=str,
+                            help="Client certificate location (.pem file). This file sometimes includes the client private key.")
+        parser.add_argument("--ssl-keyfile", type=str,
+                            help="Client private key location (.pem/.key file)")
+        parser.add_argument("--ssl",
+                            help="Enable SSL encryption", default=None, action="store_true")
+        parser.add_argument("--no-ssl",
+                            help="Disable SSL encryption (when enabled by default, not recommended)", default=None, action="store_true")
+        parser.add_argument("--allow-invalid-hostnames",
+                            help="Allow invalid host names (not recommended)", default=None, action="store_true")
         parser.add_argument("--timeout", type=float,
                             help="Server timeout (seconds)")
         parser.add_argument("--host", type=str,
@@ -136,8 +154,19 @@ class DatabaseParams:
         if proxy_config is not None:
             self._proxy_config = proxy_config
         ca_cert = args.ca
-        verify_ca, self._verify_ca_src = ca_file_rel_to_dir(ca_cert, base_dir=base_dir)
-        self.set_verify_ca(verify_ca)
+        verify_ca, self._verify_server_ca_src = ca_file_rel_to_dir(ca_cert, base_dir=base_dir)
+        self.set_verify_server_ca(verify_ca)
+        if args.ssl is not None:
+            self.ssl = args.ssl
+            assert(args.no_ssl is None)
+        elif args.no_ssl is not None:
+            self.ssl = not args.no_ssl
+        if args.allow_invalid_hostnames is not None:
+            self.allow_invalid_hostnames = args.allow_invalid_hostnames
+        self.ssl_client_keyfile = args.ssl_keyfile
+        self.ssl_client_certfile = args.ssl_certfile
+        if args.ssl_keyfile is not None and args.ssl is not None and not args.ssl:
+            raise ValueError("--ssl-keyfile implies --ssl")
         self.timeout = args.timeout
         self.host = args.host
         self.port = args.port
@@ -211,29 +240,29 @@ class DatabaseParams:
         self._proxy_config.proxy_auth = proxy_auth
 
     @property
-    def verify_ca(self) -> Union[bool, str, None]:
-        return self._verify_ca
+    def verify_server_ca(self) -> Union[bool, str, None]:
+        return self._verify_server_ca
 
-    def set_verify_ca(self, ca_cert: Union[bool, str, None], enforce_ca_safety: bool = None) -> None:
+    def set_verify_server_ca(self, ca_cert: Union[bool, str, None], enforce_ca_safety: bool = None) -> None:
         if enforce_ca_safety is None:
             enforce_ca_safety = harvester_enforce_ca_verification
         if ca_cert is not None and isinstance(ca_cert, bool) and not ca_cert:
-            if enforce_ca_safety and not allow_no_ca:
+            if enforce_ca_safety and not allow_no_server_ca:
                 raise NoCAVerificationError()
             else:
                 msg = "CA verification has been disabled. Only allow in a local environment!"
                 warn(msg)
-        self._verify_ca = ca_cert
+        self._verify_server_ca = ca_cert
 
     @staticmethod
-    def unlock_no_ca(value: bool = True):
+    def unlock_no_server_ca(value: bool = True):
         """
         This function enables you to disable the CA verification of the CKAN server.
 
         __Warning__:
         Only allow in a local environment!
         """
-        unlock_no_ca(value)
+        unlock_no_server_ca(value)
 
     @staticmethod
     def unlock_external_url_resource_download(value: bool = True):

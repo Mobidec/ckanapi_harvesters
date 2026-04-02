@@ -10,7 +10,7 @@ from ckanapi_harvesters.ckan_api.ckan_api_5_manage import CkanApiManage as CkanA
 from ckanapi_harvesters.ckan_api.ckan_api_5_manage import CkanApiExtendedParams as CkanApiParams  # alias
 from ckanapi_harvesters.auxiliary.external_code_import import unlock_external_code_execution
 from ckanapi_harvesters.auxiliary.ckan_configuration import (unlock_external_url_resource_download,
-                                                             allow_no_ca, unlock_no_ca)
+                                                             allow_no_server_ca, unlock_no_server_ca)
 
 
 if __name__ == '__main__':

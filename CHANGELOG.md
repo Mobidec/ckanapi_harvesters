@@ -13,6 +13,7 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 - HTTP status code messages.
 - Disconnect at second request retry.
+- Reviewed SSL parameters for MongoDB/PostgreSQL connections.
 
 ## [0.0.25] - 2026-04-01
 

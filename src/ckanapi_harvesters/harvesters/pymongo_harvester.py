@@ -39,6 +39,8 @@ class DatabaseHarvesterMongoServer(DatabaseHarvesterABC):
         pymongo = lazy_import_pymongo()
         if pymongo.MongoClient is None:
             raise HarvesterRequirementError("pymongo", "mongodb")
+        if self.params.ssl is None:
+            self.params.ssl = False  # default behavior of pymongo
         self.params.harvest_method = "MongoDB"
         self.mongo_client: Union[pymongo.MongoClient,None] = None
         self.mongo_session: Union[pymongo.client_session.ClientSession,None] = None
@@ -84,10 +86,22 @@ class DatabaseHarvesterMongoServer(DatabaseHarvesterABC):
                 self.mongo_client.close()
                 self.mongo_session = None
                 self.mongo_client = None
-            ssl, ssl_certfile = ssl_arguments_decompose(self.params.verify_ca)
+            ca_verify, ssl_server_certfile = ssl_arguments_decompose(self.params.verify_server_ca)
             auth_url = self.get_login_url_without_auth()
+            allow_invalid_hostnames_kwargs = {}
+            if self.params.allow_invalid_hostnames is not None:
+                allow_invalid_hostnames_kwargs = dict(tlsAllowInvalidHostnames=self.params.allow_invalid_hostnames)
+                assert_or_raise(self.params.ssl == True, Exception("--allow-invalid-hostnames requires --ssl"))
+            if len(allow_invalid_hostnames_kwargs) > 0 or self.params.ssl == True:
+                raise NotImplementedError("Advanced SSL options were not tested. You can contribute to the package by sending us feedback on the proposed configuration.")
+            if ca_verify:
+                assert_or_raise(self.params.ssl == True, Exception("CA verification requires --ssl option. Please use with `--ca False` option to disable CA or enable SSL with `--ssl` option."))
+            if self.params.ssl_client_keyfile is not None:
+                raise KeyError("Client key must be transmitted with the client certificate in the same .pem file using --ssl-client-keyfile parameter. --ssl-client-keyfile is not enabled in MongoDB mode.")
             self.mongo_client = pymongo.MongoClient(auth_url, username=self.params.login.username, password=self.params.login.password,
-                                                    ssl=ssl, tlscafile=ssl_certfile,
+                                                    ssl=self.params.ssl, **allow_invalid_hostnames_kwargs,
+                                                    tlsAllowInvalidCertificates=not ca_verify, tlscafile=ssl_server_certfile,
+                                                    tlsCertificateKeyFile=self.params.ssl_client_certfile,
                                                     timeoutMS=self.params.timeout*1000.0 if self.params.timeout is not None else None)
             self.mongo_session = self.mongo_client.start_session()
             if self.params.host is None and self.params.port is None:

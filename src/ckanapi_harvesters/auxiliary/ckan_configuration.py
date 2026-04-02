@@ -19,9 +19,9 @@ epsg_wgs84 = 4326  # WGS-84
 default_ckan_target_epsg: Union[int,None] = epsg_wgs84  # default target geodesic system
 
 
-allow_no_ca = False
+allow_no_server_ca = False
 
-def unlock_no_ca(value:bool=True) -> None:
+def unlock_no_server_ca(value:bool=True) -> None:
     """
     This function enables you to disable the CA verification of the CKAN server.
 
@@ -30,8 +30,8 @@ def unlock_no_ca(value:bool=True) -> None:
 
     :return:
     """
-    global allow_no_ca
-    allow_no_ca = value
+    global allow_no_server_ca
+    allow_no_server_ca = value
 
 ## Resource download from external urls
 download_external_resource_urls:bool = True
