@@ -113,13 +113,13 @@ class CkanFieldInternalAttrs:
 
 
 ## Requests ------------------
-HTTP_STATUS_CODE_RETRY = {500,  # Internal Server Error
-                          502,  # Bad Gateway
-                          503,  # Service Unavailable
-                          504,  # Gateway Timeout
-                          429,  # Too Many Requests
-                          408,  # Request Timeout
-                          499,  # Client Closed Request (nginx)
+HTTP_STATUS_CODE_RETRY = {500: "Internal Server Error",
+                          502: "Bad Gateway",
+                          503: "Service Unavailable",
+                          504: "Gateway Timeout",
+                          429: "Too Many Requests",
+                          408: "Request Timeout",
+                          499: "Client Closed Request (nginx)",
                           }
 
 json_headers = {"Content-Type": "application/json; charset=utf-8", 'Accept': 'text/plain'}

@@ -733,8 +733,8 @@ class CkanApiBase(CkanApiABC):
                                                   proxies=self.params.proxies, verify=self.params.ckan_ca, auth=self.params.proxy_auth)
             if self.params.dry_run:
                 pass
-            elif response.status_code in HTTP_STATUS_CODE_RETRY:
-                raise HttpRetryCodeError(response.status_code)
+            elif response.status_code in HTTP_STATUS_CODE_RETRY.keys():
+                raise HttpRetryCodeError(response.status_code, HTTP_STATUS_CODE_RETRY[response.status_code])
             elif self.params.action_requests_retry_always and not response.status_code == 200:
                 raise HttpRetryCodeError(response.status_code)
             elif self.params.action_requests_retry_always:
@@ -743,9 +743,9 @@ class CkanApiBase(CkanApiABC):
                     raise action_response.default_error(self)
             elif self.params.response_time_wait_threshold is not None and response.elapsed.total_seconds() > self.params.response_time_wait_threshold:
                 msg = f"Long response time detected ({response.elapsed.total_seconds()} s). Waiting the same amount of time."
-                print(msg)
+                warn(msg)
                 if self.params.verbose_request_error:
-                    warn(msg)
+                    print(msg)
                 time.sleep(response.elapsed.total_seconds())
         except Exception as e:
             _attempt_counts += 1
@@ -754,16 +754,20 @@ class CkanApiBase(CkanApiABC):
             self._error_print_debug_response(response, url=url, params=params, headers=headers, json=json, error=e)
             is_retry_case = (self.params.action_requests_retry_always
                              or isinstance(e, HttpRetryCodeError)
-                             or (response is not None and response.status_code in HTTP_STATUS_CODE_RETRY)
+                             or (response is not None and response.status_code in HTTP_STATUS_CODE_RETRY.keys())
                              or isinstance(e, ProxyError) or isinstance(e, ReadTimeout))
             if (is_retry_case and _attempt_counts <= self.params.max_requests_attempts):
                 # current_response = CkanActionResponse(response, self.params.dry_run)
-                msg = f"Waiting to retry API call to {action} after server error (attempt {_attempt_counts}): {str(e)}"
+                time_wait = self.params.time_between_attempts * _attempt_counts
+                msg = f"Waiting {time_wait} seconds to retry API call to {action} after server error (attempt {_attempt_counts}): {str(e)}"
                 warn(msg)
                 if self.params.verbose_request_error:
                     print(msg)
+                if _attempt_counts % 2 == 0:
+                    # disconnect at second attempt and every two attempts
+                    self.disconnect()
                 if self.params.time_between_attempts > 0:
-                    time.sleep(self.params.time_between_attempts * _attempt_counts)
+                    time.sleep(time_wait)
                 return self._api_action_request(action=action, method=method, params=params, headers=headers, data=data,
                                                 json=json, files=files, timeout=timeout,
                                                 _attempt_counts=_attempt_counts, _attempt_traceback=_attempt_traceback)

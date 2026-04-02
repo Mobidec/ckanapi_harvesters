@@ -141,8 +141,12 @@ class RequestError(Exception):
     pass
 
 class HttpRetryCodeError(Exception):
-    def __init__(self, status_code:int):
-        super().__init__(f"HTTP status code {status_code} received. An attempt should be made to retry this request.")
+    def __init__(self, status_code:int, description:str=None):
+        if description is None:
+            description = ""
+        else:
+            description = f" ({description})"
+        super().__init__(f"HTTP status code {status_code} received{description}. An attempt should be made to retry this request.")
 
 class RequirementError(Exception):
     def __init__(self, requirement:str, function:str):

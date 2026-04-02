@@ -9,6 +9,10 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ## [Unreleased] - 2026-04-15
 
+### Added
+
+- HTTP status code messages.
+- Disconnect at second request retry.
 
 ## [0.0.25] - 2026-04-01
 
