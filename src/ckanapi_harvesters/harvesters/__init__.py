@@ -11,8 +11,9 @@ from . import harvester_errors
 from . import harvester_model
 from . import harvester_params
 from . import harvester_abc
-from . import pymongo_data_cleaner
-from . import pymongo_params
+from . import mongodb_data_cleaner
+from . import mongodb_params
+from . import mongodb_harvester
 from . import pymongo_harvester
 from . import postgre_params
 from . import postgre_harvester

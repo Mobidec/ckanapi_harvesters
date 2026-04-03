@@ -1,7 +1,7 @@
 #!python3
 # -*- coding: utf-8 -*-
 """
-Harvest from a mongo database using pymongo
+Harvest from a MongoDB database using pymongo (parameters)
 """
 import argparse
 

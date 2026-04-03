@@ -10,7 +10,7 @@ from ckanapi_harvesters.harvesters.harvester_abc import TableHarvesterABC, Datas
 from ckanapi_harvesters.harvesters.harvester_params import TableParams
 from ckanapi_harvesters.harvesters.harvester_params import DatasetParams
 from ckanapi_harvesters.harvesters.postgre_harvester import TableHarvesterPostgre, DatasetHarvesterPostgre
-from ckanapi_harvesters.harvesters.pymongo_harvester import TableHarvesterMongoCollection, DatasetHarvesterMongoDatabase
+from ckanapi_harvesters.harvesters.mongodb_harvester import TableHarvesterMongoCollection, DatasetHarvesterMongoDatabase
 
 
 def init_table_harvester_from_options_string(options_string:str, *, file_url_attr:str, base_dir:str=None) -> Tuple[TableHarvesterABC, List[str]]:

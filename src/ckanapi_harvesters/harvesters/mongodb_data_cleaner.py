@@ -1,7 +1,7 @@
 #!python3
 # -*- coding: utf-8 -*-
 """
-Harvest from a mongo database using pymongo
+Harvest from a MongoDB database using pymongo (data cleaner)
 """
 from typing import Union, List, Any, Dict, Set
 from types import SimpleNamespace
@@ -35,7 +35,7 @@ mongodb_dbref_extract_new_id_column_max_level:int = 1  # option to create a new 
 mongodb_dbref_alt_type:str = "json"  # used if not resumed in one column
 
 
-def pymongo_default_df_conversion(documents: List[dict], **kwargs) -> Union[pd.DataFrame, ListRecords]:
+def mongo_default_df_conversion(documents: List[dict], **kwargs) -> Union[pd.DataFrame, ListRecords]:
     df = ListRecords(documents)
     # if df.columns is not None:
     #     for i, field_name in enumerate(df.columns):
@@ -173,7 +173,7 @@ class MongoDataCleanerUpload(CkanDataCleanerUpload):
             else:
                 warn(msg)
 
-def pymongo_default_data_cleaner() -> MongoDataCleanerUpload:
+def mongo_default_data_cleaner() -> MongoDataCleanerUpload:
     return MongoDataCleanerUpload()
 
 data_cleaner_dict["mongo"] = MongoDataCleanerUpload  # add cannot be performed in the file
