@@ -17,7 +17,7 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, _b
 
 
 field_allowed_user_fields: Set[str] = {
-    "name", "type override", "label", "description",
+    "field name", "type override", "label", "description",
     "index", "unique", "not null",
     "options", "comment",
 }
@@ -89,7 +89,7 @@ class BuilderField:
         self.name = _string_from_element(row["field name"]).strip()
         # if self.name is None:
         #     raise MandatoryAttributeError("Field", "name")
-        self._user_fields_used.add("name")
+        self._user_fields_used.add("field name")
         type_override_string = None
         if "type override" in row.keys():
             type_override_string = _string_from_element(row["type override"])
