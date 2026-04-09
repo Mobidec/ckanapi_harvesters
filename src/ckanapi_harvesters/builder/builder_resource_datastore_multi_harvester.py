@@ -131,7 +131,7 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderDataStoreHarvester(parent=self.parent_package)
+            dest = BuilderDataStoreHarvester(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         dest.file_url_attr = self.file_url_attr
         dest.harvester = self.harvester

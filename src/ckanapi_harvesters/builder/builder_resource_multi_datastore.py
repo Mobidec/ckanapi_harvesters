@@ -48,7 +48,7 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderMultiDataStore(parent=self.parent_package)
+            dest = BuilderMultiDataStore(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         dest.field_builders = copy.deepcopy(self.field_builders)
         dest.field_builders_user = copy.deepcopy(self.field_builders_user)
@@ -107,7 +107,7 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
 
     def _data_store_builder_of_file(self, file_path:str) -> Tuple[BuilderDataStoreFile, str]:
         file_dir, file_name = os.path.split(file_path)
-        ds_builder = BuilderDataStoreFile(parent=self.parent_package, name=file_name, description=self.resource_attributes_user.description, download_url=self.download_url,
+        ds_builder = BuilderDataStoreFile(parent=self.parent_package_builder, name=file_name, description=self.resource_attributes_user.description, download_url=self.download_url,
                                           format=self.resource_attributes_user.format, file_name=file_name)
         ds_builder.field_builders = self.field_builders
         ds_builder.primary_key = self.primary_key

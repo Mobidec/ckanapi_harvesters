@@ -36,7 +36,7 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderDataStoreUnmanaged(parent=self.parent_package)
+            dest = BuilderDataStoreUnmanaged(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         dest.reupload_on_update = self.reupload_on_update
         dest.reupload_if_needed = self.reupload_if_needed
@@ -78,7 +78,7 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
     def upload_file_checks(self, *, resources_base_dir:str=None, ckan: CkanApi=None, **kwargs) -> Union[None,ContextErrorLevelMessage]:
         return None
 
-    def patch_request(self, ckan: CkanApi, package_id: str, *,
+    def patch_request(self, ckan: CkanApi, *,
                       df_upload: pd.DataFrame=None,
                       reupload: bool = None, override_ckan:bool=False,
                       resources_base_dir:str=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
@@ -91,6 +91,7 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
         :param reupload:
         :return:
         """
+        package_id = self.parent_package_builder.get_or_query_package_id(ckan)
         self._merge_resource_attributes(override_ckan=override_ckan)
         if df_upload is None:
             df_upload = self.default_df_upload

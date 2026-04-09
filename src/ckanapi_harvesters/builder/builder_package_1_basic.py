@@ -164,7 +164,7 @@ class BuilderPackageBasic:
         dest.built_from_ckan = self.built_from_ckan
         for resource_name, resource_builder in self.resource_builders.items():
             dest.resource_builders[resource_name] = resource_builder.copy(parent=dest)  # change parent reference to the new instance of BuilderPackage
-            assert_or_raise(dest.resource_builders[resource_name].parent_package == dest, RuntimeError())
+            assert_or_raise(dest.resource_builders[resource_name].parent_package_builder == dest, RuntimeError())
         dest.ckan_builder = self.ckan_builder.copy()
         if self.external_python_code is not None:
             dest.external_python_code = self.external_python_code.copy()
@@ -1120,16 +1120,16 @@ class BuilderPackageBasic:
             if data_upload is not None:
                 if isinstance(resource_builder, BuilderDataStoreABC):
                     assert(isinstance(data_upload, pd.DataFrame) or isinstance(data_upload, list))
-                    resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
+                    resource_info = resource_builder.patch_request(ckan, reupload=reupload, override_ckan=override_ckan,
                                                                    resources_base_dir=resources_base_dir, df_upload=data_upload,
                                                                    inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
                 else:
                     assert(isinstance(data_upload, bytes))
-                    resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
+                    resource_info = resource_builder.patch_request(ckan, reupload=reupload, override_ckan=override_ckan,
                                                                    resources_base_dir=resources_base_dir, payload=data_upload,
                                                                    inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
             else:
-                resource_info = resource_builder.patch_request(ckan, package_id, reupload=reupload, override_ckan=override_ckan,
+                resource_info = resource_builder.patch_request(ckan, reupload=reupload, override_ckan=override_ckan,
                                                                resources_base_dir=resources_base_dir,
                                                                inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
             resource_info_dict[resource_builder.name] = resource_info

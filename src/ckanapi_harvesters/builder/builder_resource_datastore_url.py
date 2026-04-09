@@ -39,7 +39,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderDataStoreUrl(parent=self.parent_package)
+            dest = BuilderDataStoreUrl(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         dest.reupload_on_update = self.reupload_on_update
         dest.reupload_if_needed = self.reupload_if_needed
@@ -139,7 +139,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
         else:
             return ckan.download_url_proxy_test_head(self.url, **kwargs)
 
-    def patch_request(self, ckan: CkanApi, package_id: str, *,
+    def patch_request(self, ckan: CkanApi, *,
                       df_upload:pd.DataFrame=None, payload:Union[bytes, io.BufferedIOBase]=None,
                       reupload: bool = None, override_ckan:bool=False, resources_base_dir:str=None,
                       inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
@@ -152,6 +152,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
         :param reupload:
         :return:
         """
+        package_id = self.parent_package_builder.get_or_query_package_id(ckan)
         self._merge_resource_attributes(override_ckan=override_ckan)
         if reupload is None: reupload = self.reupload_on_update
         if payload is not None or df_upload is not None:

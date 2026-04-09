@@ -619,9 +619,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             data_cleaner_index = set()
         return df_upload, data_cleaner_fields, data_cleaner_index
 
-    def patch_request(self, ckan: CkanApi, package_id: str, *,
+    def patch_request(self, ckan: CkanApi, *,
                       df_upload: pd.DataFrame=None, reupload: bool = None, override_ckan:bool=False,
                       resources_base_dir:str=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
+        package_id = self.parent_package_builder.get_or_query_package_id(ckan)
         self._merge_resource_attributes(override_ckan=override_ckan)
         if reupload is None: reupload = self.reupload_on_update
         if df_upload is None:
@@ -701,7 +702,7 @@ class BuilderResourceIgnored(BuilderDataStoreABC):
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderResourceIgnored(parent=self.parent_package)
+            dest = BuilderResourceIgnored(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         dest.file_url = self.file_url
         return dest
@@ -737,7 +738,7 @@ class BuilderResourceIgnored(BuilderDataStoreABC):
     def upload_file_checks(self, *, resources_base_dir:str=None, ckan: CkanApi=None, **kwargs) -> Union[ContextErrorLevelMessage,None]:
         return None
 
-    def patch_request(self, ckan:CkanApi, package_id:str, *,
+    def patch_request(self, ckan:CkanApi, *,
                       reupload:bool=None, override_ckan:bool=False, resources_base_dir:str=None,
                       payload:Union[bytes, io.BufferedIOBase]=None, inhibit_datastore_patch_indexes:bool=False) -> None:
         return None

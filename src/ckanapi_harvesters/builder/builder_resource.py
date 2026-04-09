@@ -62,7 +62,7 @@ class BuilderResourceABC(ABC):
         self.comment: Union[str,None] = None
         self._user_fields_used: Set[str] = set()
         # Map information, if present
-        self.parent_package: "BuilderPackage" = parent  # BuilderPackage
+        self.parent_package_builder: "BuilderPackage" = parent  # BuilderPackage
         self.download_url: Union[str,None] = download_url
         self.known_id: Union[str,None] = resource_id  # known id is simply indicative. ckan.map is the reference. User can override CKAN API by calling BuilderPackage.update_ckan_map at his own risks.
         self.known_resource_info: Union[CkanResourceInfo,None] = None
@@ -86,11 +86,11 @@ class BuilderResourceABC(ABC):
         Setting this property only performs a check. This will be removed in future releases.
         To change package name, change the package_name attribute of the parent_package.
         """
-        return self.parent_package.package_name
+        return self.parent_package_builder.package_name
     @package_name.setter
     def package_name(self, value):
         # remove in future releases
-        assert_or_raise(value == self.parent_package.package_name, RuntimeError())
+        assert_or_raise(value == self.parent_package_builder.package_name, RuntimeError())
 
     def clear_secrets_and_disconnect(self) -> None:
         return
@@ -111,9 +111,9 @@ class BuilderResourceABC(ABC):
     @abstractmethod
     def copy(self, *, dest:"BuilderResourceABC"=None, parent:"BuilderPackage"=None):
         if parent is None:
-            parent = self.parent_package
+            parent = self.parent_package_builder
         dest.name = self.name
-        dest.parent_package = parent  # may replace parent assigned in constructor from current instance
+        dest.parent_package_builder = parent  # may replace parent assigned in constructor from current instance
         # dest.package_name = self.package_name  # double-check is not necessary, especially if parent changed
         dest.columns_sheet_name = self.columns_sheet_name
         dest.resource_attributes = self.resource_attributes.copy() if self.resource_attributes is not None else None
@@ -320,7 +320,7 @@ class BuilderResourceABC(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def patch_request(self, ckan:CkanApi, package_id:str, *,
+    def patch_request(self, ckan:CkanApi, *,
                       reupload:bool=None, override_ckan:bool=False,
                       resources_base_dir:str=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
         """
@@ -335,12 +335,12 @@ class BuilderResourceABC(ABC):
         # ckan.resource_patch
         raise NotImplementedError()
 
-    def upload_request(self, resources_base_dir:str, ckan:CkanApi, package_id:str):
+    def upload_request(self, resources_base_dir:str, ckan:CkanApi):
         # might be dead code
         # this function (patch_request) gets specialized in certain cases
         msg = "upload_request is deprecated, use patch_request instead"
         warn(msg, DeprecationWarning)
-        return self.patch_request(ckan, package_id, resources_base_dir=resources_base_dir, reupload=True)
+        return self.patch_request(ckan, resources_base_dir=resources_base_dir, reupload=True)
 
     def upload_request_final(self, ckan:CkanApi, *, force:bool=False) -> None:
         if initial_resource_building_state is not None:
@@ -447,7 +447,7 @@ class BuilderFileABC(BuilderResourceABC, ABC):
         self.file_name = _string_from_element(row["file/url"], strip=True)
         self._user_fields_used.add("file/url")
 
-    def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, override_ckan:bool=False,
+    def patch_request(self, ckan: CkanApi, *, reupload: bool = None, override_ckan:bool=False,
                       resources_base_dir:str=None,
                       payload:Union[bytes, io.BufferedIOBase]=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
         """
@@ -462,6 +462,7 @@ class BuilderFileABC(BuilderResourceABC, ABC):
         :param payload:
         :return:
         """
+        package_id = self.parent_package_builder.get_or_query_package_id(ckan)
         self._merge_resource_attributes(override_ckan=override_ckan)
         if reupload is None: reupload = self.reupload_on_update
         if payload is None:
@@ -545,7 +546,7 @@ class BuilderResourceUnmanaged(BuilderFileABC):  #, BuilderResourceUnmanagedABC)
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderResourceUnmanaged(parent=self.parent_package)
+            dest = BuilderResourceUnmanaged(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         dest.file_name = self.file_name
         dest.default_payload = copy.deepcopy(self.default_payload)
@@ -578,9 +579,10 @@ class BuilderResourceUnmanaged(BuilderFileABC):  #, BuilderResourceUnmanagedABC)
     def upload_file_checks(self, *, resources_base_dir:str=None, ckan: CkanApi=None, **kwargs) -> Union[ContextErrorLevelMessage,None]:
         return None
 
-    def patch_request(self, ckan:CkanApi, package_id:str, *,
+    def patch_request(self, ckan:CkanApi, *,
                       reupload:bool=None, override_ckan:bool=False, resources_base_dir:str=None,
                       payload:Union[bytes, io.BufferedIOBase]=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
+        package_id = self.parent_package_builder.get_or_query_package_id(ckan)
         self._merge_resource_attributes(override_ckan=override_ckan)
         if payload is None:
             payload = self.default_payload
@@ -605,7 +607,7 @@ class BuilderFileBinary(BuilderFileABC):
     """
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderFileBinary(parent=self.parent_package)
+            dest = BuilderFileBinary(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         return dest
 
@@ -701,7 +703,7 @@ class BuilderUrl(BuilderUrlABC):
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderUrl(parent=self.parent_package)
+            dest = BuilderUrl(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         return dest
 
@@ -719,9 +721,10 @@ class BuilderUrl(BuilderUrlABC):
             raise FunctionMissingArgumentError("BuilderDataStoreUrl.load_sample_data", "ckan")
         return ckan.download_url_proxy(self.url, proxies=proxies, headers=headers, auth_if_ckan=builder_request_default_auth_if_ckan).content
 
-    def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, override_ckan:bool=False,
+    def patch_request(self, ckan: CkanApi, *, reupload: bool = None, override_ckan:bool=False,
                       resources_base_dir:str=None,
                       payload:Union[bytes, io.BufferedIOBase]=None, inhibit_datastore_patch_indexes:bool=False) -> CkanResourceInfo:
+        package_id = self.parent_package_builder.get_or_query_package_id(ckan)
         self._merge_resource_attributes(override_ckan=override_ckan)
         if reupload is None: reupload = self.reupload_on_update
         if payload is not None:

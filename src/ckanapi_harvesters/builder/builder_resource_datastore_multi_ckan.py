@@ -35,7 +35,7 @@ class BuilderDataStoreCkan(BuilderDataStoreFolder):
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderDataStoreCkan(parent=self.parent_package)
+            dest = BuilderDataStoreCkan(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         dest.resource_ids = self.resource_ids
         return dest

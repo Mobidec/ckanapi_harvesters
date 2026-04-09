@@ -59,7 +59,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderMultiFile(parent=self.parent_package)
+            dest = BuilderMultiFile(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         dest.dir_name = self.dir_name
         # BuilderMultiABC:
@@ -84,7 +84,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
 
 
     ## upload --------------------------------------------------------------------
-    def patch_request(self, ckan: CkanApi, package_id: str, *, reupload: bool = None, override_ckan:bool=False,
+    def patch_request(self, ckan: CkanApi, *, reupload: bool = None, override_ckan:bool=False,
                       resources_base_dir:str=None,
                       payload:Union[bytes, io.BufferedIOBase]=None, inhibit_datastore_patch_indexes:bool=False) -> Union[None, CkanResourceInfo]:
         return None

@@ -37,7 +37,7 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderDataStoreFile(parent=self.parent_package)
+            dest = BuilderDataStoreFile(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         dest.file_name = self.file_name
         return dest
@@ -142,7 +142,7 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
     def to_builder_datastore_folder(self,
                                     *, dir_name:str=None, primary_key:List[str]=None,
                                     file_query_list:Collection[Tuple[str,dict]]=None) -> BuilderDataStoreFolder:
-        resource_folder = BuilderDataStoreFolder(parent=self.parent_package)
+        resource_folder = BuilderDataStoreFolder(parent=self.parent_package_builder)
         resource_folder._load_from_df_row(self._to_row())
         resource_folder.options_string = self.options_string
         resource_folder.data_cleaner_upload = self.data_cleaner_upload.copy()

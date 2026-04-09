@@ -42,7 +42,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
-            dest = BuilderDataStoreFolder(parent=self.parent_package)
+            dest = BuilderDataStoreFolder(parent=self.parent_package_builder)
         super().copy(dest=dest, parent=parent)
         dest.dir_name = self.dir_name
         dest.local_file_list_base_dir = self.local_file_list_base_dir
