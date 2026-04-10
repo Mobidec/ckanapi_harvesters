@@ -49,3 +49,6 @@ The package is divided in the following sections:
     See also the notebook example in the current documentation here: 
     [builder_example_notebook.ipynb](../notebooks/builder_example_notebook.ipynb).
 
+For documentation on the underlying API calls, refer to CKAN documentation:
+- Basic API: https://docs.ckan.org/en/latest/api/
+- DataStore extension API: https://docs.ckan.org/en/latest/maintaining/datastore.html

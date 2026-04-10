@@ -6,6 +6,7 @@
 from typing import List, Tuple, Generator, Any, Union, OrderedDict
 import io
 import json
+import re
 from warnings import warn
 
 import numpy as np
@@ -22,7 +23,8 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import bytes_to_megabytes
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, CkanIdFieldTreatment
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType
-from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse, CkanNotFoundError, CkanSqlCapabilityError
+from ckanapi_harvesters.auxiliary.ckan_action import (CkanActionResponse, CkanNotFoundError, CkanSqlCapabilityError,
+                                                      CkanSqlLimitOffsetError)
 from ckanapi_harvesters.auxiliary.ckan_errors import (IntegrityError, CkanServerError, CkanArgumentError, SearchAllNoCountsError,
                                                       DataStoreNotFoundError, RequestError)
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
@@ -48,6 +50,7 @@ ckan_dtype_mapper = {
 class CkanApiReadOnlyParams(CkanApiParamsBasic):
     map_all_aliases:bool = True
     default_df_download_id_field_treatment: CkanIdFieldTreatment = CkanIdFieldTreatment.SetIndex
+    apply_default_limit_to_sql_when_search_all:bool = True
 
     def __init__(self, *, proxies:Union[str,dict,ProxyConfig]=None,
                  ckan_headers:dict=None, http_headers:dict=None):
@@ -509,12 +512,22 @@ class CkanApiReadOnly(CkanApiMap):
 
 
     ### search_sql method ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    def _api_datastore_search_sql_raw(self, sql:str, *, params:dict=None, limit:int=None, offset:int=0) -> CkanActionResponse:
+    @staticmethod
+    def _datastore_search_sql_apply_default_limit(search_all:bool) -> bool:
+        if search_all:
+            return CkanApiReadOnlyParams.apply_default_limit_to_sql_when_search_all
+        else:
+            return False  # do not apply default limits when using datastore_search_sql in mode search_all=False => user can include a LIMIT statement in his query
+
+    def _api_datastore_search_sql_raw(self, sql:str, *, params:dict=None, limit:int=None, offset:int=None) -> CkanActionResponse:
         """
         API call to datastore_search_sql. Performs SQL queries on the DataStore. These queries can be more complex than
         with datastore_search. The DataStores are referenced by their resource_id, surrounded by quotes. The field names
         are referred by their name in upper case, surrounded by quotes.
         __NB__: This action is not available when ckanapi_harvesters.datastore.sqlsearch.enabled is set to false
+
+        .. note : The limit and offset parameters modify the SQL query if these statements are not already part of the query
+            (otherwise an error is raised).
 
         :param sql: SQL query e.g. f'SELECT * IN "{resource_id}" WHERE "USER_ID" < 0'
         :param limit: Limit the number of records per request
@@ -524,14 +537,21 @@ class CkanApiReadOnly(CkanApiMap):
         """
         if params is None:
             params = {}
-        params["sql"] = sql
-        if offset is None:
-            offset = 0
-        params["offset"] = offset
-        if limit is None:
+        if limit is None and not re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
             limit = self.params.default_limit_read
         if limit is not None:
-            params["limit"] = limit
+            if re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
+                raise CkanSqlLimitOffsetError("SQL LIMIT statement is already specified in query. Consider using option search_all=False.")
+            else:
+                sql = sql + f' LIMIT {limit}'
+        # if offset is None:
+        #     offset = 0
+        if offset is not None:
+            if re.search(r'\bOFFSET\b', sql, re.IGNORECASE):
+                raise CkanSqlLimitOffsetError("SQL OFFSET statement is already specified in query. Consider using option search_all=False.'")
+            else:
+                sql = sql + f' OFFSET {offset}'
+        params["sql"] = sql
         response = self._api_action_request(f"datastore_search_sql", method=RequestType.Post, params=params)
         if response.success:
             if response.dry_run:
@@ -546,7 +566,7 @@ class CkanApiReadOnly(CkanApiMap):
         else:
             raise response.default_error(self)
 
-    def _api_datastore_search_sql_df(self, sql:str, *, params:dict=None, limit:int=None, offset:int=0) -> pd.DataFrame:
+    def _api_datastore_search_sql_df(self, sql:str, *, params:dict=None, limit:int=None, offset:int=None) -> pd.DataFrame:
         """
         Convert output of _api_datastore_search_sql_raw to pandas DataFrame.
         """
@@ -559,12 +579,12 @@ class CkanApiReadOnly(CkanApiMap):
         response_df.attrs["fields"] = fields_type_dict
         # response_df.attrs["total"] = response.result["total"]
         # response_df.attrs["total_was_estimated"] = response.result["total_was_estimated"]
-        response_df.attrs["limit"] = response.result["limit"]
+        # response_df.attrs["limit"] = response.result["limit"]
         self._rx_records_df_clean(response_df)
         return response_df
 
     def _api_datastore_search_sql_all(self, sql:str, *, params:dict=None,
-                                      search_all:bool=True, limit:int=None, offset:int=0,
+                                      search_all:bool=True, limit:int=None, offset:int=None,
                                       requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None,
                                       return_df:bool=True) \
             -> Union[pd.DataFrame, ListRecords]:
@@ -582,6 +602,7 @@ class CkanApiReadOnly(CkanApiMap):
         if return_df:
             df = self._request_all_results_df(api_fun=self._api_datastore_search_sql_df, params=params,
                                               limit=limit, offset=offset,
+                                              default_limit=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all),
                                               requests_limit=requests_limit, progress_callback=progress_callback,
                                               search_all=search_all, sql=sql)
             if "fields" in df.attrs.keys():
@@ -593,6 +614,7 @@ class CkanApiReadOnly(CkanApiMap):
         else:
             responses = self._request_all_results_list(api_fun=self._api_datastore_search_sql_raw, params=params,
                                                        limit=limit, offset=offset, requests_limit=requests_limit,
+                                                       default_limit=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all),
                                                        progress_callback=progress_callback,
                                                        search_all=search_all, sql=sql)
             # TODO: test
@@ -623,11 +645,13 @@ class CkanApiReadOnly(CkanApiMap):
         if return_df:
             return self._request_all_results_page_generator(api_fun=self._api_datastore_search_sql_df, params=params,
                                                             limit=limit, offset=offset, search_all=search_all,
+                                                            default_limit=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all),
                                                             requests_limit=requests_limit, progress_callback=progress_callback,
                                                             sql=sql)
         else:
             return self._request_all_results_page_generator(api_fun=self._api_datastore_search_sql_raw, params=params,
                                                             limit=limit, offset=offset, search_all=search_all,
+                                                            default_limit=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all),
                                                             requests_limit=requests_limit, progress_callback=progress_callback,
                                                             sql=sql)
 
@@ -841,7 +865,7 @@ class CkanApiReadOnly(CkanApiMap):
                                                     search_all=search_all, search_method=search_method, format=format, bom=bom, return_df=return_df)
 
     def datastore_search_sql(self, sql:str, *, params:dict=None, search_all:bool=False,
-                             limit:int=None, offset:int=0, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None, return_df:bool=True) \
+                             limit:int=None, offset:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None, return_df:bool=True) \
             -> Union[pd.DataFrame, Tuple[ListRecords, dict]]:
         """
         Preferred entry-point for a DataStore SQL request.
@@ -863,7 +887,7 @@ class CkanApiReadOnly(CkanApiMap):
                                                   search_all=search_all, return_df=return_df)
 
     def datastore_search_sql_page_generator(self, sql:str, *, params:dict=None, search_all:bool=True,
-                                            limit:int=None, offset:int=0,
+                                            limit:int=None, offset:int=None,
                                             requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None,
                                             return_df:bool=True) \
             -> Union[Generator[pd.DataFrame, Any, None], Generator[CkanActionResponse, Any, None]]:
@@ -888,7 +912,7 @@ class CkanApiReadOnly(CkanApiMap):
                                                                  search_all=search_all, return_df=return_df)
 
     def datastore_search_sql_cursor(self, sql:str, *, params:dict=None, search_all:bool=True,
-                                    limit:int=None, offset:int=0, total_limit:int=None,
+                                    limit:int=None, offset:int=None, total_limit:int=None,
                                     requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None,
                                     return_df:bool=False) \
             -> Generator[Union[pd.Series,dict], Any, None]:

@@ -92,3 +92,5 @@ class CkanSqlCapabilityError(CkanActionError):
         response.error_message = f"sql capabilities are not activated on CKAN server. See documentation for option ckan.datastore.sqlsearch.enabled"
         super().__init__(ckan, response, display_request=display_request)
 
+class CkanSqlLimitOffsetError(Exception):
+    pass

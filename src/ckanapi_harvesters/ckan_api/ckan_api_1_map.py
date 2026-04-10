@@ -30,6 +30,10 @@ class CkanApiMap(CkanApiBase):
     """
     CKAN Database API interface to CKAN server with helper functions using pandas DataFrames.
     This class implements the resource mapping capabilities to obtain resource ids necessary for the requests.
+
+    For API reference:
+    - Basic API: https://docs.ckan.org/en/latest/api/
+    - DataStore extension API: https://docs.ckan.org/en/latest/maintaining/datastore.html
     """
 
     def __init__(self, url:str=None, *, proxies:Union[str,dict,ProxyConfig]=None,
@@ -337,7 +341,7 @@ class CkanApiMap(CkanApiBase):
         :param error_not_mapped: raise error if the resource is not mapped
         :return:
         """
-        resource_info = self.map.get_resource_info(resource_id, error_not_mapped=error_not_mapped)
+        resource_info = self.map.resources.get(resource_id, None)
         if resource_info is not None:
             if datastore_info and resource_info.datastore_info is None and resource_info.datastore_info_error is None:
                 resource_info.datastore_info = self.get_datastore_info_or_request(resource_info.id, resource_info.package_id, error_not_mapped=False)
@@ -633,7 +637,10 @@ class CkanApiMap(CkanApiBase):
         params["id"] = resource_id
         response = self._api_action_request("resource_show", method=RequestType.Get, params=params)
         if response.success:
-            return CkanResourceInfo(response.result)
+            resource_info = CkanResourceInfo(response.result)
+            # update map
+            self.map._update_resource_info(resource_info)
+            return resource_info.copy()
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
             raise CkanNotFoundError(self, "Resource", response)
         else:

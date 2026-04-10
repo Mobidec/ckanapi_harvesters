@@ -870,7 +870,7 @@ class CkanApiBase(CkanApiABC):
     ## Multiple queries with limited responses until full contents are obtained ------------------
     def _request_all_results_page_generator(self, api_fun:Callable, *, params:dict=None,
                                             limit:int=None, offset:int=0, requests_limit:int=None,
-                                            search_all:bool=True, progress_callback:CkanProgressCallbackABC=None,
+                                            search_all:bool=True, default_limit:bool=True, progress_callback:CkanProgressCallbackABC=None,
                                             **kwargs) -> Generator[Any, Any, None]:
         """
         Multiply request with a limited length until no more data is transmitted thanks to the offset parameter.
@@ -886,13 +886,13 @@ class CkanApiBase(CkanApiABC):
         """
         if params is None:
             params = {}
-        if limit is None:
+        if limit is None and default_limit:
             limit = self.params.default_limit_read
         if limit is not None:
             # params["limit"] = limit
             assert_or_raise(limit > 0, InvalidParameterError("limit"))
-        if offset is None:
-            offset = 0
+        # if offset is None:
+        #     offset = 0
         # params["offset"] = offset
         if self.params.store_last_response_debug_info:
             self.debug.multi_requests_last_successful_offset = offset
@@ -906,6 +906,8 @@ class CkanApiBase(CkanApiABC):
         if progress_callback is not None:
             progress_callback.start_task(None, level=CkanCallbackLevel.Requests, units=CkanProgressUnits.Records)  # total len is unknown here because no API call was performed
         result_add: Union[pd.DataFrame, CkanActionResponse, Collection] = api_fun(params=params, limit=limit, offset=offset, **kwargs)
+        if offset is None:
+            offset = 0  # if not specified, offset was 0 (in datastore_search_sql, do not specify offset for first request)
         if self.params.store_last_response_debug_info:
             self.debug.multi_requests_last_successful_offset = offset
             self.debug.last_response_request_count = requests_count

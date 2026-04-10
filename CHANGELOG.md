@@ -9,6 +9,16 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ## [Unreleased] - 2026-04-06
 
+### Fixed
+
+- Using `datastore_search_sql` applies default CKAN read limits (`ckan.params.default_read_limit`) if argument was left None AND the request does not contain a `LIMIT` statement.
+- The `datastore_search_sql` entry point led to an infinite loop with default option `search_all=True` because API arguments `limit` and `offset` have no effect. 
+When given, the arguments modify the SQL query. Including the `LIMIT` statement in your initial query is incompatible with default option `search_all=True`. Please specify `search_all=False`.
+
+### Changed
+
+- Refactored resource builder class: no need to specify the parent package ID when calling the patch functions, renamed attribute `parent_package_builder`.
+
 
 ## [0.0.26] - 2026-04-03
 
