@@ -537,7 +537,7 @@ class CkanApiReadOnly(CkanApiMap):
         """
         if params is None:
             params = {}
-        if limit is None and not re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
+        if limit is None and CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=False) and not re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
             limit = self.params.default_limit_read
         if limit is not None:
             if re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
