@@ -4,7 +4,7 @@
 Data model to represent a CKAN database architecture
 """
 from abc import ABC, abstractmethod
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Tuple
 from warnings import warn
 import copy
 
@@ -264,7 +264,8 @@ class CkanMap(CkanMapABC):
         else:
             return None
 
-    def get_datastore_info(self, resource_name:str, package_name:str=None, *, error_not_mapped:bool=True) -> Union[CkanDataStoreInfo,None]:
+    def get_datastore_info(self, resource_name:str, package_name:str=None, *, error_not_mapped:bool=True,
+                           return_mapped_boolean:bool=False) -> Union[CkanDataStoreInfo,None, Tuple[Union[CkanDataStoreInfo,None],bool]]:
         """
         :param resource_name: resource name or id.
         :param package_name: package name or id (required if resource_name is a resource name). An integrity check is performed if given.
@@ -272,14 +273,17 @@ class CkanMap(CkanMapABC):
         """
         resource_info = self.get_resource_info(resource_name, package_name, error_not_mapped=error_not_mapped)
         if resource_info is not None:
-            if resource_info.datastore_info is not None:
-                return resource_info.datastore_info
+            if resource_info.datastore_info is not None or resource_info.datastore_info_error is not None:
+                if return_mapped_boolean:
+                    return resource_info.datastore_info, True
+                else:
+                    return resource_info.datastore_info
             elif error_not_mapped:
                 raise NotMappedObjectNameError(f"DataStore of resource {resource_name} is not mapped or does not exist.")
             else:
-                return None
+                return None, False if return_mapped_boolean else None
         else:
-            return None
+            return None, False if return_mapped_boolean else None
 
     def get_datastore_len(self, resource_name:str, package_name:str=None, *, error_not_mapped:bool=True) -> Union[int,None]:
         """

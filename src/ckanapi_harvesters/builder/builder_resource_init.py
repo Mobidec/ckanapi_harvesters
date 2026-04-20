@@ -12,7 +12,7 @@ from ckanapi_harvesters.ckan_api import  CkanApiMap
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, _string_from_element
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
-from ckanapi_harvesters.auxiliary.ckan_errors import (UnexpectedError)
+from ckanapi_harvesters.auxiliary.ckan_errors import (UnexpectedError, IntegrityError)
 from ckanapi_harvesters.builder.builder_errors import MissingDataStoreInfoError
 from ckanapi_harvesters.builder.builder_resource import (BuilderResourceABC, BuilderFileBinary, BuilderUrl,
                                                          BuilderResourceUnmanaged)
@@ -107,33 +107,33 @@ def init_resource_from_ckan(ckan: CkanApiMap, resource_info: CkanResourceInfo, p
         if len(resource_info.download_url) > 0 and not ckan.is_url_internal(resource_info.download_url):
             d["file/url"] = resource_info.download_url
             row = pd.Series(d)
-            resource = BuilderDataStoreUrl(parent=parent)
-            resource._load_from_df_row(row=row)
+            resource_builder = BuilderDataStoreUrl(parent=parent)
+            resource_builder._load_from_df_row(row=row)
         elif resource_info.format.lower() == "csv":
             row = pd.Series(d)
-            resource = BuilderDataStoreUnmanaged(parent=parent)
-            resource._load_from_df_row(row=row)
+            resource_builder = BuilderDataStoreUnmanaged(parent=parent)
+            resource_builder._load_from_df_row(row=row)
             if import_as_folder_row_count_threshold is not None and resource_info.datastore_info.row_count > import_as_folder_row_count_threshold:
-                resource = resource.to_builder_datastore_folder()
+                resource_builder = resource_builder.to_builder_datastore_folder()
         else:
             raise UnexpectedError(f"Format of data store {resource_info.name} ({resource_info.format}) is not recognized")
         # load fields information
-        resource.field_builders = {}
+        resource_builder.field_builders = {}
         for field_id in resource_info.datastore_info.fields_id_list:
             field_info = resource_info.datastore_info.fields_dict[field_id]
-            resource.field_builders[field_id] = BuilderField._from_ckan_field(field_info)
+            resource_builder.field_builders[field_id] = BuilderField._from_ckan_field(field_info)
     elif len(resource_info.download_url) > 0 and not ckan.is_url_internal(resource_info.download_url):
-        # external resource
+        # external resource_builder
         d["file/url"] = resource_info.download_url
         row = pd.Series(d)
-        resource = BuilderUrl(parent=parent)
-        resource._load_from_df_row(row=row)
+        resource_builder = BuilderUrl(parent=parent)
+        resource_builder._load_from_df_row(row=row)
         assert_or_raise(not resource_info.datastore_active and not isinstance(resource_info.datastore_info, CkanResourceInfo), UnexpectedError())
     else:
         # file
         row = pd.Series(d)
-        resource = BuilderResourceUnmanaged(parent=parent)
-        resource._load_from_df_row(row=row)
-    resource.package_name = resource_info.package_id
-    return resource
+        resource_builder = BuilderResourceUnmanaged(parent=parent)
+        resource_builder._load_from_df_row(row=row)
+    assert_or_raise(resource_info.package_id == parent.package_attributes.id, IntegrityError("Package id is inconsistent"))
+    return resource_builder
 

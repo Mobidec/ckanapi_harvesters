@@ -27,12 +27,12 @@ from ckanapi_harvesters.auxiliary.ckan_configuration import download_external_re
     unlock_external_url_resource_download, allow_no_server_ca, unlock_no_server_ca
 from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
 from ckanapi_harvesters.auxiliary.urls import urlsep, url_join, clean_base_url, url_matches_host
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, max_len_debug_print, assert_or_raise, HTTP_STATUS_CODE_RETRY
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, max_len_debug_print, assert_or_raise, HTTP_STATUS_CODE_RETRY, LinesRequestCounter
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
-from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse, CkanNotFoundError
+from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse, CkanActionNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import (MaxRequestsCountError, UnexpectedError, InvalidParameterError,
                                                       ExternalUrlLockedError, UrlError, MaxAttemptsError, RequestError,
-                                                      HttpRetryCodeError)
+                                                      HttpRetryCodeError, IntegrityError)
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic, CkanApiDebug
 
@@ -242,6 +242,7 @@ class CkanApiBase(CkanApiABC):
         self.debug.extern_request_counter = 0
         self.debug.last_response_request_count = 0
         self.debug.multi_requests_last_successful_offset = 0
+        self.debug.multi_requests_last_counters = None
         self.debug.last_response_elapsed_time = 0.0
 
     def set_limits(self, limit_read:Union[int,None]) -> None:
@@ -860,7 +861,7 @@ class CkanApiBase(CkanApiABC):
                 print(response.result)
             return response.result
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
-            raise CkanNotFoundError(self, "Action", response)
+            raise CkanActionNotFoundError(self, "Action", response)
         else:
             if print_output:
                 print(f"No documentation found for action '{action_name}'")
@@ -869,7 +870,7 @@ class CkanApiBase(CkanApiABC):
 
     ## Multiple queries with limited responses until full contents are obtained ------------------
     def _request_all_results_page_generator(self, api_fun:Callable, *, params:dict=None,
-                                            limit:int=None, offset:int=0, requests_limit:int=None,
+                                            limit:int=None, offset:int=0, requests_limit:int=None, total_limit:int=None,
                                             search_all:bool=True, default_limit:bool=True, progress_callback:CkanProgressCallbackABC=None,
                                             **kwargs) -> Generator[Any, Any, None]:
         """
@@ -884,6 +885,10 @@ class CkanApiBase(CkanApiABC):
         :param kwargs: additional keyword arguments to pass to api_fun
         :return:
         """
+        bumped_limit = False
+        if total_limit is not None and total_limit <= 0:
+            bumped_limit = True
+            total_limit = 0
         if params is None:
             params = {}
         if limit is None and default_limit:
@@ -906,8 +911,18 @@ class CkanApiBase(CkanApiABC):
         if progress_callback is not None:
             progress_callback.start_task(None, level=CkanCallbackLevel.Requests, units=CkanProgressUnits.Records)  # total len is unknown here because no API call was performed
         result_add: Union[pd.DataFrame, CkanActionResponse, Collection] = api_fun(params=params, limit=limit, offset=offset, **kwargs)
+        if total_limit is not None and len(result_add) >= total_limit:
+            if isinstance(result_add, CkanActionResponse):
+                assert(result_add.records is not None)
+                result_add.records = result_add.records[:total_limit]
+            elif isinstance(result_add, pd.DataFrame):
+                result_add = result_add.iloc[:total_limit]
+            else:
+                result_add = result_add[:total_limit]
+            bumped_limit = True
         if offset is None:
             offset = 0  # if not specified, offset was 0 (in datastore_search_sql, do not specify offset for first request)
+        initial_offset = offset
         if self.params.store_last_response_debug_info:
             self.debug.multi_requests_last_successful_offset = offset
             self.debug.last_response_request_count = requests_count
@@ -936,7 +951,10 @@ class CkanApiBase(CkanApiABC):
         timeout = (current - start) > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
         flag = search_all and (len(result_add) > 0 and not timeout and
                 (self.params.max_requests_count == 0 or requests_count < self.params.max_requests_count) and
-                (requests_limit is None or requests_count < requests_limit))
+                (requests_limit is None or requests_count < requests_limit) and
+                (total_limit is None or n_received < total_limit))
+        if flag:
+            assert_or_raise(not bumped_limit, IntegrityError("Should not reach this line if bumped limit"))
         while flag:
             if self.params.multi_requests_time_between_requests > 0:
                 time.sleep(self.params.multi_requests_time_between_requests)
@@ -945,6 +963,15 @@ class CkanApiBase(CkanApiABC):
             if self.params.verbose_multi_requests:
                 print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit} results from {api_fun.__name__}...")
             result_add = api_fun(params=params, limit=limit, offset=offset, **kwargs)
+            if total_limit is not None and n_received + len(result_add) >= total_limit:
+                if isinstance(result_add, CkanActionResponse):
+                    assert(result_add.records is not None)
+                    result_add.records = result_add.records[:total_limit - n_received]
+                elif isinstance(result_add, pd.DataFrame):
+                    result_add = result_add.iloc[:total_limit - n_received]
+                else:
+                    result_add = result_add[:total_limit - n_received]
+                bumped_limit = True
             if self.params.store_last_response_debug_info:
                 self.debug.multi_requests_last_successful_offset = offset
                 self.debug.last_response_request_count = requests_count
@@ -954,7 +981,8 @@ class CkanApiBase(CkanApiABC):
             timeout = (current - start) > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
             flag = (len(result_add) > 0 and not timeout and
                     (self.params.max_requests_count == 0 or requests_count < self.params.max_requests_count) and
-                    (requests_limit is None or requests_count < requests_limit))
+                    (requests_limit is None or requests_count < requests_limit) and
+                    (total_limit is None or n_received < total_limit))
             if progress_callback is not None and flag:
                 progress_callback.update_task(n_received, total_len, file_index=requests_count, file_count=total_requests_estimation,
                                               level=CkanCallbackLevel.Requests)
@@ -964,6 +992,20 @@ class CkanApiBase(CkanApiABC):
         if requests_count >= self.params.max_requests_count and not self.params.max_requests_count == 0:
             raise MaxRequestsCountError()
         current = time.time()
+        if bumped_limit:
+            if self.params.multi_requests_bump_limit_warning:
+                msg = f"Full DataFrame was not transmitted due to total_limit={total_limit}"
+                warn(msg)
+        elif total_limit is not None and n_received >= total_limit:
+            raise RuntimeError("Implementation error")
+        elif requests_limit is not None and requests_count >= requests_limit:
+            bumped_limit = True
+            if self.params.multi_requests_bump_limit_warning:
+                msg = f"Full DataFrame was not transmitted due to requests_limit={requests_limit}"
+                warn(msg)
+        counters = LinesRequestCounter(lines=n_received, offset=initial_offset, pages=requests_count,
+                                       time_elapsed=current-start, bumped_limit=bumped_limit)
+        self.debug.multi_requests_last_counters = counters
         if self.params.verbose_multi_requests:
             print(f"{self.identifier} Multi-requests {api_fun.__name__} done in {requests_count} calls and {round(current - start, 2)} seconds. {n_received} lines received.")
         if progress_callback is not None:
@@ -973,7 +1015,7 @@ class CkanApiBase(CkanApiABC):
         return
 
     def _request_all_results_df(self, api_fun:Callable, *, params:dict=None, list_attrs:bool=True,
-                                limit:int=None, offset:int=0, requests_limit:int=None,
+                                limit:int=None, offset:int=0, total_limit:int=None, requests_limit:int=None,
                                 search_all:bool=True, progress_callback:CkanProgressCallbackABC=None,
                                 **kwargs) -> pd.DataFrame:
         """
@@ -992,7 +1034,7 @@ class CkanApiBase(CkanApiABC):
         start = time.time()
         page_generator = self._request_all_results_page_generator(api_fun=api_fun, params=params,
                                                                   limit=limit, offset=offset, search_all=search_all,
-                                                                  requests_limit=requests_limit,
+                                                                  total_limit=total_limit, requests_limit=requests_limit,
                                                                   progress_callback=progress_callback, **kwargs)
         requests_count = 1
         df = next(page_generator)
@@ -1012,7 +1054,7 @@ class CkanApiBase(CkanApiABC):
         return df
 
     def _request_all_results_list(self, api_fun:Callable, *, params:dict=None,
-                                  limit:int=None, offset:int=0, requests_limit:int=None,
+                                  limit:int=None, offset:int=0, total_limit:int=None, requests_limit:int=None,
                                   search_all:bool=True, progress_callback:CkanProgressCallbackABC=None,
                                   **kwargs) -> Union[List[CkanActionResponse], list]:
         """
@@ -1028,7 +1070,8 @@ class CkanApiBase(CkanApiABC):
         :return:
         """
         return list(self._request_all_results_page_generator(api_fun=api_fun, params=params, limit=limit, offset=offset,
-                                                             requests_limit=requests_limit, progress_callback=progress_callback,
+                                                             total_limit=total_limit, requests_limit=requests_limit,
+                                                             progress_callback=progress_callback,
                                                              search_all=search_all, **kwargs))
 
     def is_url_internal(self, url:str) -> bool:

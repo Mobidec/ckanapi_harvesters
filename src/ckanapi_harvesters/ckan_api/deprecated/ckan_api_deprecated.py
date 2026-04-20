@@ -9,7 +9,7 @@ from warnings import warn
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanResourceInfo, CkanViewInfo
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
-from ckanapi_harvesters.auxiliary.ckan_action import CkanNotFoundError
+from ckanapi_harvesters.auxiliary.ckan_action import CkanActionNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import ReadOnlyError
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import use_ckan_owner_org_for_requests
 
@@ -225,7 +225,7 @@ class CkanApiDeprecated(CkanApiManage):
             self.map._update_package_info(package_info_list)
             return package_info_list
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
-            raise CkanNotFoundError(self, "Group", response)
+            raise CkanActionNotFoundError(self, "Group", response)
         else:
             raise response.default_error(self)
 

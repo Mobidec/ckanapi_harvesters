@@ -3,7 +3,7 @@
 """
 Action response common treatments
 """
-from typing import Union
+from typing import Union, Collection
 import json
 
 import requests
@@ -21,6 +21,7 @@ class CkanActionResponse:
         self.success_json_loads:bool = False
         self.result:Union[dict,None] = None
         self.error_message: Union[None,str,dict] = None
+        self.records:Union[Collection,None] = None  # place holder for records, enabling restrictions in length
         self.len:Union[int,None] = None
         self.total_len:Union[int,None] = None
         self.dry_run:bool = dry_run
@@ -60,7 +61,7 @@ class CkanActionResponse:
         Raise specific error codes depending on response
         """
         if self.status_code == 404 and self.success_json_loads and self.error_message["__type"] == "Not Found Error":
-            return CkanNotFoundError(ckan, "(Generic)", self)
+            return CkanActionNotFoundError(ckan, "(Generic)", self)
         elif self.status_code == 403 and self.success_json_loads and self.error_message["__type"] == "Authorization Error":
             return CkanAuthorizationError(ckan, self)
         else:
@@ -69,7 +70,7 @@ class CkanActionResponse:
 ## action error codes
 class CkanActionError(Exception):
     def __init__(self, ckan, response: CkanActionResponse, display_request:bool=True):
-        super().__init__(response.error_message)
+        super(Exception, self).__init__(response.error_message)
         self.response = response
         self.status_code = response.status_code
         if display_request:
@@ -78,11 +79,18 @@ class CkanActionError(Exception):
     def __str__(self):
         return f"Server code [{self.status_code}]: " + super().__str__()
 
-class CkanNotFoundError(CkanActionError):
+class CkanNotFoundError(Exception):
+    def __init__(self, object_type:str, object_query:str):
+        super().__init__(f"{object_type} '{object_query}' not found")
+        self.object_type = object_type
+        self.object_query = object_query
+
+class CkanActionNotFoundError(CkanActionError, CkanNotFoundError):
     def __init__(self, ckan, object_type:str, response: CkanActionResponse, display_request:bool=True):
         response.error_message = f"{object_type} not found: {response.error_message}"
-        super().__init__(ckan, response, display_request=display_request)
         self.object_type = object_type
+        self.object_query = response.response.request.url
+        super().__init__(ckan, response, display_request=display_request)
 
 class CkanAuthorizationError(CkanActionError):
     pass

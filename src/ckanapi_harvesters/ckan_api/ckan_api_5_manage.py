@@ -23,7 +23,7 @@ from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanResour
                                                      CkanState, UpsertChoice)
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, ckan_package_name_re, datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_files_arg, RequestType
-from ckanapi_harvesters.auxiliary.ckan_action import CkanNotFoundError
+from ckanapi_harvesters.auxiliary.ckan_action import CkanActionNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import (ReadOnlyError, AdminFeatureLockedError, NoDefaultView,
                                                       InvalidParameterError, CkanMandatoryArgumentError,
                                                       IntegrityError, NameFormatError, MultipleErrors)
@@ -439,7 +439,7 @@ class CkanApiManage(CkanApiReadWrite):
             return response.result
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
             resource_info = self.resource_show(resource_id)  # will trigger another error if resource does not exist
-            raise CkanNotFoundError(self, "DataStore", response)
+            raise CkanActionNotFoundError(self, "DataStore", response)
         else:
             raise response.default_error(self)
 
@@ -486,7 +486,7 @@ class CkanApiManage(CkanApiReadWrite):
         try:
             result = self._api_datastore_delete(resource_id, params=params, force=force)
             return result
-        except CkanNotFoundError as e:
+        except CkanActionNotFoundError as e:
             if not error_not_found and e.object_type == "DataStore":
                 msg = f"Tried to delete DataStore of existing resource_id {resource_id} but there is no DataStore."
                 if self.params.verbose_request:

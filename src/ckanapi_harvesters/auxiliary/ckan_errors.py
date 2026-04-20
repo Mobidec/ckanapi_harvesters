@@ -9,8 +9,8 @@ import shlex
 import requests
 
 # import to make these error codes available from here:
-from ckanapi_harvesters.auxiliary.ckan_action import (CkanActionError, CkanAuthorizationError, CkanNotFoundError,
-                                                      CkanSqlCapabilityError)
+from ckanapi_harvesters.auxiliary.ckan_action import (CkanActionError, CkanAuthorizationError, CkanActionNotFoundError,
+                                                      CkanNotFoundError, CkanSqlCapabilityError)
 from ckanapi_harvesters.auxiliary.path import BaseDirUndefError
 
 

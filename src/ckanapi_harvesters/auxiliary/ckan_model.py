@@ -145,6 +145,9 @@ class CkanConfigurableObjectABC(ABC):
     def get_resource_type() -> str:
         raise NotImplementedError()
 
+class CkanIdentifiedObject:
+    def __init__(self):
+        self.id: Union[str,None] = None
 
 ## Field class ------------------
 class CkanField(CkanConfigurableObjectABC):
@@ -302,8 +305,9 @@ class CkanField(CkanConfigurableObjectABC):
         return CkanField.from_ckan_dict(d)
 
 
-class CkanAliasInfo:
+class CkanAliasInfo(CkanIdentifiedObject):
     def __init__(self, d:dict=None):
+        super().__init__()
         self.id: Union[str,None] = None
         self.name: str = ""
         self.alias_of: Union[str,None] = None
@@ -333,8 +337,9 @@ class CkanAliasInfo:
         return d
 
 ## Users and groups ------------------
-class CkanUserInfo:
+class CkanUserInfo(CkanIdentifiedObject):
     def __init__(self, d: dict = None):
+        super().__init__()
         self.id: Union[str,None] = None
         self.name: Union[str,None] = None
         self.display_name: Union[str,None] = None
@@ -384,8 +389,9 @@ class CkanUserInfo:
         return copy.deepcopy(self)
 
 
-class CkanGroupInfo:
+class CkanGroupInfo(CkanIdentifiedObject):
     def __init__(self, d:dict):
+        super().__init__()
         self.id:str = d["id"]
         self.name:str = d["name"]
         self.title:str = d["title"]
@@ -479,8 +485,9 @@ class CkanDataStoreInfo:
         return CkanDataStoreInfo(d)
 
 
-class CkanViewInfo:
+class CkanViewInfo(CkanIdentifiedObject):
     def __init__(self, d:dict):
+        super().__init__()
         self.id:str = d["id"]
         self.title:str = d["title"]
         self.view_type:str = d["view_type"]
@@ -506,8 +513,9 @@ class CkanViewInfo:
         return copy.deepcopy(self)
 
 
-class CkanLicenseInfo:
+class CkanLicenseInfo(CkanIdentifiedObject):
     def __init__(self, d:dict):
+        super().__init__()
         self.id:str = d["id"]
         self.title:str = d["title"]
         self.state:CkanState = CkanState.from_str(d["status"])
@@ -534,8 +542,9 @@ class CkanLicenseInfo:
         return CkanLicenseInfo(d)
 
 
-class CkanTagInfo:
+class CkanTagInfo(CkanIdentifiedObject):
     def __init__(self, d:dict):
+        super().__init__()
         self.id:str = d["id"]
         self.name:str = d["name"]
         self.display_name:str = d["display_name"]
@@ -566,12 +575,13 @@ class CkanTagInfo:
         return CkanTagInfo(d)
 
 
-class CkanResourceInfo(CkanConfigurableObjectABC):
+class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
     mandatory_attributes = {"name"}
     configurable_attributes = {"name", "state", "format", "description"}
     extra_attributes = {"download_url"}
 
     def __init__(self, d:dict=None, name:str=None, format:str=None, description:str=None, state:CkanState=None):
+        super().__init__()
         self.id:Union[str,None] = None
         self.name:Union[str,None] = name
         self.package_id:Union[str,None] = None
@@ -736,7 +746,7 @@ class CkanCollaboration:
         return d
 
 
-class CkanPackageInfo(CkanConfigurableObjectABC):
+class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
     mandatory_attributes = {"name"}
     configurable_attributes = {"name", "state", "title", "description", "private", "version",
                              "author", "author_email", "maintainer", "maintainer_email"}
@@ -745,6 +755,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC):
     def __init__(self, d:dict=None, *, package_name:str=None, package_id:str=None,
                  title:str=None, description:str=None, private:bool=None, state:CkanState=None, version:str=None,
                  url:str=None, tags:List[str]=None):
+        super().__init__()
         self.id:Union[str, None] = package_id
         self.name:Union[str, None] = package_name
         self.title:Union[str, None] = title
@@ -894,8 +905,9 @@ class CkanPackageInfo(CkanConfigurableObjectABC):
         return CkanPackageInfo(d)
 
 
-class CkanOrganizationInfo:
+class CkanOrganizationInfo(CkanIdentifiedObject):
     def __init__(self, d:dict):
+        super().__init__()
         self.id = d["id"]
         self.name = d["name"]
         self.state = CkanState.from_str(d["state"])

@@ -17,10 +17,10 @@ from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgres
 from ckanapi_harvesters.auxiliary.urls import urlsep, url_join
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
-from ckanapi_harvesters.auxiliary.ckan_action import CkanActionError, CkanNotFoundError
+from ckanapi_harvesters.auxiliary.ckan_action import CkanActionError, CkanActionNotFoundError, CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
-from ckanapi_harvesters.auxiliary.ckan_errors import IntegrityError
+from ckanapi_harvesters.auxiliary.ckan_errors import IntegrityError, NotMappedObjectNameError
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import CkanApiBase, use_ckan_owner_org_for_requests
 
@@ -245,7 +245,7 @@ class CkanApiMap(CkanApiBase):
                     or (datastore_info and not pkg_info.requested_datastore_info)):
                 try:
                     pkg_info = self.package_show(name, params=params)
-                except CkanNotFoundError as e:
+                except CkanActionNotFoundError as e:
                     if error_not_found:
                         raise e from e  # rethrow
                     else:
@@ -302,20 +302,32 @@ class CkanApiMap(CkanApiBase):
     def get_resource_id_or_request(self, resource_name:str, package_name:str, *,
                                      request_missing:bool=True, error_not_mapped:bool=False,
                                      error_not_found:bool=True) -> Union[str,None]:
+        """
+        Get resource ID if present in the map or perform request.
+
+        :param resource_name: resource name or id
+        :param package_name: package name (needs to be specified if resource_name is not an ID)
+        :param request_missing: confirm to perform the request if the information is missing
+        :param error_not_mapped: raise error if the resource was not previously mapped
+        :param error_not_found: if False, return None if resource was not found, otherwise raise CkanNotFoundError
+        :return:
+        """
         resource_id = self.map.get_resource_id(resource_name, package_name, error_not_mapped=error_not_mapped)
         if resource_id is None and request_missing:
             if package_name is not None:
                 self.map_resources(package_name)
-                resource_id = self.map.get_resource_id(resource_name, package_name, error_not_mapped=error_not_mapped)
+                resource_id = self.map.get_resource_id(resource_name, package_name, error_not_mapped=False)
             else:
                 try:
-                    resource_info = self.resource_show(resource_id)
+                    resource_info = self.resource_show(resource_name)
                     resource_id = resource_info.id
-                except CkanNotFoundError as e:
+                except CkanActionNotFoundError as e:
                     if error_not_found:
                         raise e from e
                     else:
                         resource_id = None
+        if resource_id is None and error_not_found:
+            raise CkanNotFoundError("resource", resource_name)
         return resource_id
 
     def get_resource_info_or_request(self, resource_name:str, package_name:str=None, *,
@@ -338,24 +350,30 @@ class CkanApiMap(CkanApiBase):
 
         :param resource_id: resource id
         :param request_missing: confirm to perform the request if the information is missing
-        :param error_not_mapped: raise error if the resource is not mapped
+        :param error_not_mapped: raise error if the resource was not previously mapped
+        :param error_not_found: if False, return None if resource was not found, otherwise raise CkanNotFoundError
         :return:
         """
         resource_info = self.map.resources.get(resource_id, None)
         if resource_info is not None:
-            if datastore_info and resource_info.datastore_info is None and resource_info.datastore_info_error is None:
-                resource_info.datastore_info = self.get_datastore_info_or_request(resource_info.id, resource_info.package_id, error_not_mapped=False)
-            return resource_info
+            pass
+        elif error_not_mapped:
+            raise NotMappedObjectNameError(f"Resource {resource_id} is not mapped or does not exist.")
         elif request_missing:
             try:
-                return self.resource_show(resource_id)
-            except CkanNotFoundError as e:
+                resource_info = self.resource_show(resource_id)
+            except CkanActionNotFoundError as e:
                 if error_not_found:
                     raise e from e
                 else:
-                    return None
-        else:
-            return None
+                    resource_info = None  # was already None
+        # add datastore_info if required
+        if resource_info is not None:
+            if datastore_info and resource_info.datastore_info is None and resource_info.datastore_info_error is None:
+                resource_info.datastore_info = self.get_datastore_info_or_request_of_id(resource_info.id, error_not_mapped=False)
+        elif error_not_found:
+            raise CkanNotFoundError("resource", resource_id)
+        return resource_info
 
     def get_datastore_info_or_request(self, resource_name:str, package_name:str=None, *,
                                       request_missing:bool=True, error_not_mapped:bool=False,
@@ -369,10 +387,8 @@ class CkanApiMap(CkanApiBase):
         :param error_not_mapped: raise error if the resource is not mapped
         :return:
         """
-        resource_id = self.map.get_resource_id(resource_name, package_name, error_not_mapped=error_not_mapped)
-        if resource_id is None and request_missing and package_name is not None:
-            self.map_resources(package_name, error_not_found=error_not_found)
-            resource_id = self.map.get_resource_id(resource_name, package_name, error_not_mapped=error_not_mapped)
+        resource_id = self.get_resource_id_or_request(resource_name, package_name, error_not_mapped=error_not_mapped,
+                                                      request_missing=request_missing, error_not_found=error_not_found)
         if resource_id is not None:
             return self.get_datastore_info_or_request_of_id(resource_id, request_missing=request_missing, error_not_found=error_not_found)
         else:
@@ -389,13 +405,15 @@ class CkanApiMap(CkanApiBase):
         :param error_not_mapped: raise error if the resource is not mapped
         :return:
         """
-        datastore_info = self.map.get_datastore_info(resource_id, error_not_mapped=False)
-        if datastore_info is not None:
+        datastore_info, datastore_mapped = self.map.get_datastore_info(resource_id, error_not_mapped=error_not_mapped,
+                                                                       return_mapped_boolean=True)
+        if datastore_mapped:
             return datastore_info
         elif request_missing:
             try:
-                return self.datastore_info(resource_id)
-            except CkanNotFoundError as e:
+                datastore_info = self.datastore_info(resource_id)
+                return datastore_info
+            except CkanActionNotFoundError as e:
                 if error_not_found:
                     raise e from e
                 else:
@@ -403,11 +421,11 @@ class CkanApiMap(CkanApiBase):
         else:
             return None
 
-    def get_datastore_fields_or_request(self, resource_id:str, *,
-                                        request_missing:bool=True, error_not_mapped:bool=False,
-                                        error_not_found:bool=True, return_list:bool=False) -> Union[List[dict], OrderedDict[str,CkanField],None]:
+    def get_datastore_fields_or_request_of_id(self, resource_id:str, *,
+                                              request_missing:bool=True, error_not_mapped:bool=False,
+                                              error_not_found:bool=True, return_list:bool=False) -> Union[List[dict], OrderedDict[str,CkanField],None]:
         datastore_info = self.get_datastore_info_or_request_of_id(resource_id, error_not_mapped=error_not_mapped,
-                                                            request_missing=request_missing, error_not_found=error_not_found)
+                                                                  request_missing=request_missing, error_not_found=error_not_found)
         if datastore_info is not None and datastore_info.fields_dict is not None:
             if not return_list:
                 return datastore_info.fields_dict
@@ -455,16 +473,15 @@ class CkanApiMap(CkanApiBase):
                                        datastore_info=datastore_info, resource_view_list=resource_view_list,
                                        organization_info=organization_info,
                                        license_list=license_list)  # request DataStore information if parameterized for
-                    package_info = self.map.get_package_info(package_name, error_not_mapped=error_not_mapped)
-                    return package_info
-            return package_info
+                    package_info = self.map.get_package_info(package_name, error_not_mapped=False)
         elif request_missing:
             self.map_resources(package_name, error_not_found=error_not_found,
                                datastore_info=datastore_info, resource_view_list=resource_view_list,
                                organization_info=organization_info, license_list=license_list)  # request DataStore information if parameterized for
-            return self.map.get_package_info(package_name, error_not_mapped=error_not_mapped)
-        else:
-            return None
+            package_info = self.map.get_package_info(package_name, error_not_mapped=False)
+        if package_info is None and error_not_found:
+            raise CkanNotFoundError("package", package_name)
+        return package_info
 
     def get_organization_info_or_request(self, organization_name:str, *,
                                          request_missing:bool=True, error_not_mapped:bool=False,
@@ -483,11 +500,13 @@ class CkanApiMap(CkanApiBase):
         elif request_missing:
             try:
                 return self.organization_show(organization_name)
-            except CkanNotFoundError as e:
+            except CkanActionNotFoundError as e:
                 if error_not_found:
                     raise e from e
                 else:
                     return None
+        elif error_not_found:
+            raise CkanNotFoundError("organization", organization_name)
         else:
             return None
 
@@ -617,7 +636,7 @@ class CkanApiMap(CkanApiBase):
             self.map._update_package_info(package_info)
             return package_info.copy()
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
-            raise CkanNotFoundError(self, "Package", response)
+            raise CkanActionNotFoundError(self, "Package", response)
         else:
             raise response.default_error(self)
 
@@ -642,7 +661,7 @@ class CkanApiMap(CkanApiBase):
             self.map._update_resource_info(resource_info)
             return resource_info.copy()
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
-            raise CkanNotFoundError(self, "Resource", response)
+            raise CkanActionNotFoundError(self, "Resource", response)
         else:
             raise response.default_error(self)
 
@@ -668,7 +687,7 @@ class CkanApiMap(CkanApiBase):
             self.map._update_datastore_info(datastore_info)
             return datastore_info.copy()
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
-            raise CkanNotFoundError(self, "DataStore", response, display_request=display_request_not_found)
+            raise CkanActionNotFoundError(self, "DataStore", response, display_request=display_request_not_found)
         else:
             raise response.default_error(self)
 
@@ -716,7 +735,7 @@ class CkanApiMap(CkanApiBase):
             self.map._update_organization_info(organization_info)
             return organization_info.copy()
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
-            raise CkanNotFoundError(self, "Organization", response)
+            raise CkanActionNotFoundError(self, "Organization", response)
         else:
             raise response.default_error(self)
 
@@ -829,7 +848,7 @@ class CkanApiMap(CkanApiBase):
         """
         try:
             datastore_info = self.datastore_info(resource_id, display_request_not_found=False)
-        except CkanNotFoundError as e:
+        except CkanActionNotFoundError as e:
             return False
         return True
 
@@ -906,7 +925,7 @@ class CkanApiMap(CkanApiBase):
             self.map._update_user_info(user_info)
             return user_info.copy()
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
-            raise CkanNotFoundError(self, "User", response)
+            raise CkanActionNotFoundError(self, "User", response)
         else:
             raise response.default_error(self)
 
@@ -915,7 +934,7 @@ class CkanApiMap(CkanApiBase):
             verbose = self.params.verbose_extra
         try:
             user_info = self._api_user_show()
-        except CkanNotFoundError as e:
+        except CkanActionNotFoundError as e:
             if error_not_found:
                 raise e from e
             else:

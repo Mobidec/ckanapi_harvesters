@@ -199,6 +199,46 @@ def upload_prepare_requests_files_arg(*, files:dict=None, file_path:str=None, df
         files = None
     return files
 
+class LinesRequestCounter:
+    def __init__(self, *, lines:int=0, pages:int=0, offset:int=0,
+                 time_elapsed:float=0, bumped_limit:bool=False):
+        self.lines:int = lines  # number of records exchanged (ignores offset)
+        self.pages:int = pages  # number of requests
+        self.calls:int = 1      # number of function calls (used in certain cases)
+        self.offset:int = offset  # reference to offset used
+        self.time_elapsed:float = time_elapsed
+        self.bumped_limit:bool = bumped_limit
+
+    def __copy__(self):
+        dest = LinesRequestCounter()
+        dest.lines = self.lines
+        dest.pages = self.pages
+        dest.calls = self.calls
+        dest.offset = self.offset
+        dest.time_elapsed = self.time_elapsed
+        dest.bumped_limit = self.bumped_limit
+        return dest
+
+    def __add__(self, other):
+        dest = self.__copy__()
+        dest.__iadd__(other)
+        return dest
+
+    def __iadd__(self,other):
+        self.offset = self.offset # keep offset from left term
+        self.lines += other.lines
+        self.pages += other.pages
+        self.calls += other.calls
+        self.time_elapsed += other.time_elapsed
+        self.bumped_limit = self.bumped_limit or other.bumped_limit
+        return self
+
+    @property
+    def lines_with_offset(self):
+        return self.lines + self.offset
+
+    def __str__(self):
+        return str(self.__dict__)
 
 ## Path for specific objects ------------------
 def ca_file_rel_to_dir(ca_file:Union[str,None], base_dir:str=None) -> Tuple[Union[bool,str,None], Union[str,None]]:

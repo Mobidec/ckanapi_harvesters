@@ -5,7 +5,7 @@ Tests to perform after the example package was uploaded
 """
 from ckanapi_harvesters.builder.builder_package import BuilderPackage
 from ckanapi_harvesters.ckan_api import CkanApi
-from ckanapi_harvesters.auxiliary.ckan_action import CkanNotFoundError, CkanSqlCapabilityError
+from ckanapi_harvesters.auxiliary.ckan_action import CkanActionNotFoundError, CkanSqlCapabilityError
 
 from ckanapi_harvesters.builder.example import example_package_xls
 
@@ -24,7 +24,7 @@ def run(ckan:CkanApi = None):
     capability = ckan.test_sql_capabilities()
     try:
         ckan.api_help_show("datastore_search_sql")
-    except CkanNotFoundError:
+    except CkanActionNotFoundError:
         print("No datastore_search_sql help")
 
     users_table_id = mdl.get_or_query_resource_id(ckan, "users.csv")

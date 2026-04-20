@@ -12,7 +12,7 @@ import requests
 from requests.auth import AuthBase
 
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanIdFieldTreatment
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanIdFieldTreatment, LinesRequestCounter
 from ckanapi_harvesters.auxiliary.ckan_configuration import allow_no_server_ca
 from ckanapi_harvesters.auxiliary.ckan_errors import NoCAVerificationError
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir
@@ -21,6 +21,8 @@ default_df_download_id_field_treatment: CkanIdFieldTreatment = CkanIdFieldTreatm
 
 
 class CkanApiParamsBasic:
+    multi_requests_bump_limit_warning:bool = False
+
     def __init__(self, *, proxies:Union[str,dict,ProxyConfig]=None,
                  ckan_headers:dict=None, http_headers:dict=None):
         """
@@ -197,4 +199,5 @@ class CkanApiDebug:
         self.last_response: Union[requests.Response, None] = None  # field containing the last response, for debug purposes
         self.last_response_request_count: int = 0
         self.multi_requests_last_successful_offset: int = 0  # last used offset when multiple queries are performed. This can be used in order to restart an update/download sequence in case of an error.
+        self.multi_requests_last_counters: Union[LinesRequestCounter, None] = None
 

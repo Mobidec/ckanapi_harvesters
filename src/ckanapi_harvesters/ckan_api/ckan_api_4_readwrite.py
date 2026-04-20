@@ -19,7 +19,8 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse
 from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 # from ckanapi_harvesters.auxiliary.list_records import records_to_df
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_files_arg, RequestType, json_encode_params
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import (upload_prepare_requests_files_arg, RequestType,
+                                                         json_encode_params, LinesRequestCounter)
 from ckanapi_harvesters.auxiliary.ckan_errors import (ReadOnlyError, IntegrityError, MaxRequestsCountError,
                                                       UnexpectedError, InvalidParameterError, DataStoreNotFoundError)
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
@@ -36,6 +37,7 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import df_upload_to_csv_kwargs
 class CkanApiReadWriteParams(CkanApiPolicyParams):
     # not read-only by default
     default_readonly:bool = False
+    upsert_bump_limit_warning:bool = False
 
     def __init__(self, *, proxies:Union[str,dict,ProxyConfig]=None,
                  ckan_headers:dict=None, http_headers:dict=None):
@@ -263,11 +265,15 @@ class CkanApiReadWrite(CkanApiPolicy):
         return self._api_datastore_upsert(None, resource_id=resource_id, method=None, last_insertion=True)
 
     def datastore_upsert(self, records:Union[dict, List[dict], pd.DataFrame], resource_id:str, *,
-                         dry_run:bool=False, limit:int=None, offset:int=0, force:bool=None,
+                         dry_run:bool=False, limit:int=None, offset:int=0,
+                         total_limit:int=None, requests_limit:int=None,
+                         force:bool=None,
                          method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                          always_last_condition:bool=None, return_df:bool=None,
                          data_cleaner:CkanDataCleanerABC=None,
-                         progress_callback:CkanProgressCallbackABC=None, params:dict=None) -> Union[pd.DataFrame, List[dict]]:
+                         progress_callback:CkanProgressCallbackABC=None, params:dict=None,
+                         return_counters:bool=False) \
+            -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter]]:
         """
         Encapsulation of _api_datastore_upsert to cut the requests to a limited number of rows.
 
@@ -278,6 +284,8 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
         :param limit: number of records per transaction
         :param offset: number of records to skip - use to restart the transfer
+        :param total_limit: maximum number of lines to transmit
+        :param requests_limit: maximum number of requests
         :param params: additional parameters
         :param dry_run: set to True to abort transaction instead of committing, e.g. to check for validation or type errors
         :param apply_last_condition: if True, the last upsert request applies the last insert operations (calculate_record_count and force_indexing).
@@ -285,9 +293,12 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param return_df: if True, return a pandas DataFrame or else, a list of dictionaries.
         :param data_cleaner: data cleaner instance. A data cleaner detects and changes invalid values before upload.
         :param progress_callback: progress callback function
+        :param params: additional parameters
+        :param return_counters: if True, return a dict of request counters in addition to the received records
         :return: the inserted records as a pandas DataFrame, from the server response
         """
         method_str = str(method)
+        initial_offset = offset
         if apply_last_condition is None:
             apply_last_condition = True
         if always_last_condition is None:
@@ -314,19 +325,44 @@ class CkanApiReadWrite(CkanApiPolicy):
         if limit is None: limit = self.params.default_limit_write
         if self.params.multi_requests_time_between_requests > 0:
             time.sleep(self.params.multi_requests_time_between_requests)
+        bumped_limit = False
+        if total_limit is not None and total_limit <= 0:
+            bumped_limit = True
+            total_limit = 0
+        if total_limit is not None and len(records) > total_limit:
+            if mode_df:
+                records = records.iloc[:total_limit]
+            else:
+                records = records[:total_limit]
+            bumped_limit = True
+            if self.params.upsert_bump_limit_warning:
+                msg = f"Full DataFrame was not transmitted due to total_limit={total_limit} (initial truncature)"
+                warn(msg)
+        start = time.time()
+        current = start
         if limit is None:
             # direct API call with one request
             if self.params.store_last_response_debug_info:
                 self.debug.multi_requests_last_successful_offset = offset
-            value = self._api_datastore_upsert(records, return_df=return_df,
+            if mode_df:
+                df_upsert = records.iloc[offset:]
+            else:
+                df_upsert = records[offset:]
+            value = self._api_datastore_upsert(df_upsert, return_df=return_df,
                                               method=method_str, dry_run=dry_run, resource_id=resource_id,
                                               force=force, params=params,
                                               last_insertion=apply_last_condition or always_last_condition)
+            current = time.time()
             if progress_callback is not None:
                 progress_callback.end_task(len(records), level=CkanCallbackLevel.Requests)
-            return value
+            assert_or_raise(len(value) == len(df_upsert), IntegrityError("Did not receive as much lines as transmitted"))
+            if return_counters:
+                return value, LinesRequestCounter(pages=1, lines=len(df_upsert), offset=offset,
+                                                  time_elapsed=current-start, bumped_limit=bumped_limit)
+            else:
+                return value
         assert_or_raise(limit > 0, InvalidParameterError("limit"))
-        n = len(records)
+        len_records = len(records)
         if self.params.store_last_response_debug_info:
             self.debug.multi_requests_last_successful_offset = offset
         requests_count = 0
@@ -336,13 +372,15 @@ class CkanApiReadWrite(CkanApiPolicy):
             df = None
         else:
             returned_rows = []
-        start = time.time()
-        current = start
         timeout = False
-        n_cum = 0
-        while offset < n and (requests_count < self.params.max_requests_count or self.params.max_requests_count == 0) and not timeout:
-            last_insertion = offset+limit >= n
-            i_end_add = min(n, offset+limit)
+        n_sent, n_received = 0, 0
+        flag = (offset < len_records and not timeout and
+                (total_limit is None or n_received < total_limit) and
+                (requests_limit is None or requests_count < requests_limit) and
+                (requests_count < self.params.max_requests_count or self.params.max_requests_count == 0))
+        while flag:
+            last_insertion = offset+limit >= len_records
+            i_end_add = min(len_records, offset+limit)
             n_add = i_end_add-1 - offset + 1
             if self.params.verbose_multi_requests:
                 print(f"{self.identifier} Multi-requests upsert {requests_count} to add {n_add} records ...")
@@ -354,9 +392,10 @@ class CkanApiReadWrite(CkanApiPolicy):
                                                 method=method_str, dry_run=dry_run, resource_id=resource_id,
                                                 force=force, params=params,
                                                 last_insertion=(last_insertion and apply_last_condition) or always_last_condition)
-            n_cum += len(df_add)
+            n_sent += len(df_upsert)
+            n_received += len(df_add)
             if progress_callback is not None:  # and not last_insertion
-                progress_callback.update_task(n_cum, len(records), level=CkanCallbackLevel.Requests)
+                progress_callback.update_task(n_received, len(records), level=CkanCallbackLevel.Requests)
             assert_or_raise(len(df_add) == n_add, IntegrityError("Second check on response len failed in datastore_upsert"))  # consistency check, in double of _api_datastore_upsert
             if self.params.store_last_response_debug_info:
                 self.debug.multi_requests_last_successful_offset = offset
@@ -377,32 +416,60 @@ class CkanApiReadWrite(CkanApiPolicy):
             requests_count += 1
             current = time.time()
             timeout = current - start > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
+            flag = (offset < len_records and not timeout and
+                    (total_limit is None or n_sent < total_limit) and
+                    (requests_limit is None or requests_count < requests_limit) and
+                    (requests_count < self.params.max_requests_count or self.params.max_requests_count == 0))
         if return_df:
             if df is None:
                 df = pd.DataFrame()  # always return a DataFrame object and not None
             df.attrs["requests_count"] = requests_count
             df.attrs["elapsed_time"] = current - start
-            df.attrs["offset"] = offset
+            df.attrs["offset"] = initial_offset
+        assert_or_raise(n_received == n_sent, IntegrityError("Did not receive as much lines as transmitted"))
         if self.params.verbose_multi_requests:
-            print(f"{self.identifier} Multi-requests upsert done to add {n_cum} records done in {requests_count} requests and {round(current - start, 2)} seconds.")
+            print(f"{self.identifier} Multi-requests upsert done to add {n_received} records done in {requests_count} requests and {round(current - start, 2)} seconds.")
         if timeout:
             raise TimeoutError()
         if requests_count >= self.params.max_requests_count and not self.params.max_requests_count == 0:
             raise MaxRequestsCountError()
         assert_or_raise(last_insertion, UnexpectedError("last_insertion should be True at last iteration"))
+        finished = offset >= len_records
+        if not finished:
+            if requests_limit is not None and requests_count >= requests_limit:
+                bumped_limit = True
+                if self.params.upsert_bump_limit_warning:
+                    msg = f"Full DataFrame was not transmitted due to requests_limit={requests_limit}"
+                    warn(msg)
+            elif total_limit is not None and n_sent >= total_limit:
+                bumped_limit = True
+                if self.params.upsert_bump_limit_warning:
+                    msg = f"Full DataFrame was not transmitted due to total_limit={total_limit}"
+                    warn(msg)
+            else:
+                raise IntegrityError("Full DataFrame was not transmitted")
         if progress_callback is not None:
             progress_callback.end_task(len(records), level=CkanCallbackLevel.Requests)
-        if mode_df:
-            return df
+        if return_counters:
+            counters = LinesRequestCounter(pages=requests_count, lines=n_sent, offset=initial_offset,
+                                           time_elapsed=current-start, bumped_limit=bumped_limit)
+            if mode_df:
+                return df, counters
+            else:
+                return returned_rows, counters
         else:
-            return returned_rows
+            if mode_df:
+                return df
+            else:
+                return returned_rows
 
     def datastore_upsert_generator(self, records_generator:Generator[GeneralDataFrame, None, None], resource_id:str, *,
-                                   dry_run:bool=False, limit:int=None, offset:int=0, request_threshold:int=None, force:bool=None,
+                                   dry_run:bool=False, limit:int=None, offset:int=0, request_threshold:int=None,
+                                   total_limit:int=None, requests_limit:int=None, force:bool=None,
                                    method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                                    always_last_condition:bool=None, return_df:bool=None,
                                    data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
-                                   params:dict=None) -> int:
+                                   params:dict=None) -> LinesRequestCounter:
         """
         Encapsulation of datastore_upsert to send the rows by chunks provided by records_generator.
 
@@ -411,6 +478,8 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param method: by default, set to Upsert
         :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
         :param limit: number of records per transaction
+        :param total_limit: maximum number of lines to transmit
+        :param requests_limit: maximum number of requests
         :param offset: number of records to skip - use to restart the transfer
         :param request_threshold: number of records to cumulate before sending a request
         :param params: additional parameters
@@ -422,9 +491,14 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param progress_callback: progress callback function
         :return: the number of records inserted
         """
-        line_count = 0
+        if limit is None: limit = self.params.default_limit_write
+        if request_threshold is None: request_threshold = limit
+        line_count_with_offset = 0
         records = None
         calls_count = 0
+        total_counter = LinesRequestCounter(offset=offset)
+        current_total_limit = total_limit
+        current_requests_limit = requests_limit
         for chunk_index, chunk_records in enumerate(records_generator):
             mode_df = True
             assert(chunk_records is not None)
@@ -435,6 +509,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                 mode_df = False
             else:
                 assert(isinstance(chunk_records, pd.DataFrame))
+            # accumulate request_threshold lines before performing requests
             if records is None:
                 records = chunk_records
             elif request_threshold is not None:
@@ -446,31 +521,55 @@ class CkanApiReadWrite(CkanApiPolicy):
                     records = records + chunk_records
             else:
                 raise UnexpectedError("records should be None if request_threshold is defined")
-            current_offset = max(0, offset - line_count)
+            current_offset = max(0, offset - line_count_with_offset)
+            # perform request
             if request_threshold is None or len(records) >= request_threshold:
-                self.datastore_upsert(records, resource_id=resource_id, dry_run=dry_run, limit=limit, offset=current_offset, force=force, method=method, params=params,
-                                      apply_last_condition=False, always_last_condition=always_last_condition, return_df=return_df, data_cleaner=data_cleaner,
-                                      progress_callback=progress_callback)
-                line_count += len(records)
+                _, counters = self.datastore_upsert(records, resource_id=resource_id, dry_run=dry_run,
+                                                    limit=limit, offset=current_offset,
+                                                    total_limit=current_total_limit, requests_limit=current_requests_limit,
+                                                    force=force, method=method, params=params,
+                                                    apply_last_condition=False, always_last_condition=always_last_condition,
+                                                    return_df=return_df, data_cleaner=data_cleaner,
+                                                    progress_callback=progress_callback,
+                                                    return_counters=True)
+                line_count_with_offset += len(records)
                 calls_count += 1
+                total_counter += counters
+                if total_limit is not None:
+                    current_total_limit = total_limit - total_counter.lines
+                if requests_limit is not None:
+                    current_requests_limit = requests_limit - total_counter.pages
                 records = None
-        current_offset = max(0, offset - line_count)
+                if counters.bumped_limit:
+                    return total_counter  # no need to continue iteration
+        # remaining records (if present)
+        current_offset = max(0, offset - line_count_with_offset)
         if records is not None:
-            self.datastore_upsert(records, resource_id=resource_id, dry_run=dry_run, limit=limit, offset=current_offset, force=force, method=method, params=params,
-                                  apply_last_condition=apply_last_condition, always_last_condition=always_last_condition, return_df=return_df, data_cleaner=data_cleaner,
-                                  progress_callback=progress_callback)
-            line_count += len(records)
+            _, counters = self.datastore_upsert(records, resource_id=resource_id, dry_run=dry_run,
+                                                     limit=limit, offset=current_offset,
+                                                     total_limit=current_total_limit, requests_limit=current_requests_limit,
+                                                     force=force, method=method, params=params,
+                                                     apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
+                                                     return_df=return_df, data_cleaner=data_cleaner,
+                                                     progress_callback=progress_callback, return_counters=True)
+            line_count_with_offset += len(records)
             calls_count += 1
+            total_counter += counters
+            if total_limit is not None:
+                current_total_limit = total_limit - total_counter.lines
+            if requests_limit is not None:
+                current_requests_limit = requests_limit - total_counter.pages
         elif apply_last_condition:
             self.datastore_upsert_last_line(resource_id)
-        return line_count
+        return total_counter
 
     def datastore_upsert_auto(self, records_generator:Union[pd.DataFrame, List[dict], Generator[GeneralDataFrame, None, None]], resource_id:str, *,
-                              dry_run:bool=False, limit:int=None, offset:int=0, request_threshold:int=None, force:bool=None,
+                              dry_run:bool=False, limit:int=None, offset:int=0, request_threshold:int=None,
+                              total_limit:int=None, requests_limit:int=None, force:bool=None,
                               method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                               always_last_condition:bool=None, return_df:bool=None,
                               data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
-                              params:dict=None) -> int:
+                              params:dict=None) -> LinesRequestCounter:
         """
         Version of datastore_upsert accepting generators or DataFrames.
         The call to the correct function is made upon the type of the records_generator argument.
@@ -493,14 +592,17 @@ class CkanApiReadWrite(CkanApiPolicy):
         :return: the number of records inserted
         """
         if isinstance(records_generator, pd.DataFrame) or isinstance(records_generator, list):
-            df_insert = self.datastore_upsert(records_generator, resource_id=resource_id, dry_run=dry_run,
-                                              limit=limit, offset=offset, force=force, method=method, params=params,
+            _, counters = self.datastore_upsert(records_generator, resource_id=resource_id, dry_run=dry_run,
+                                              limit=limit, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
+                                              force=force, method=method, params=params,
                                               apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
-                                              return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback)
-            return len(df_insert)
+                                              return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback,
+                                              return_counters=True)
+            return counters
         else:
             return self.datastore_upsert_generator(records_generator, resource_id=resource_id, dry_run=dry_run,
-                                                   limit=limit, offset=offset, force=force, request_threshold=request_threshold, method=method, params=params,
+                                                   limit=limit, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
+                                                   force=force, request_threshold=request_threshold, method=method, params=params,
                                                    apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
                                                    return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback)
 
