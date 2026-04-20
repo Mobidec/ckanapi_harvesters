@@ -541,6 +541,9 @@ class CkanApiReadWrite(CkanApiPolicy):
                     current_requests_limit = requests_limit - total_counter.pages
                 records = None
                 if counters.bumped_limit:
+                    if self.params.upsert_bump_limit_warning:
+                        msg = "Upsert iteration was interrupted because a limit was reached"
+                        warn(msg)
                     return total_counter  # no need to continue iteration
         # remaining records (if present)
         current_offset = max(0, offset - line_count_with_offset)

@@ -896,6 +896,8 @@ class CkanApiBase(CkanApiABC):
         if limit is not None:
             # params["limit"] = limit
             assert_or_raise(limit > 0, InvalidParameterError("limit"))
+        if total_limit is not None and limit is not None:
+            limit = min(limit, total_limit)  # do not request more lines than necessary
         # if offset is None:
         #     offset = 0
         # params["offset"] = offset
@@ -959,6 +961,9 @@ class CkanApiBase(CkanApiABC):
             if self.params.multi_requests_time_between_requests > 0:
                 time.sleep(self.params.multi_requests_time_between_requests)
             # params["offset"] = offset
+            if total_limit is not None and limit is not None:
+                limit = min(limit, total_limit - n_received)  # do not request more lines than necessary
+                assert_or_raise(limit > 0, RuntimeError())
             requests_count += 1
             if self.params.verbose_multi_requests:
                 print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit} results from {api_fun.__name__}...")
