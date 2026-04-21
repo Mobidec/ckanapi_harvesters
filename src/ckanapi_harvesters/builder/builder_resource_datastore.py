@@ -680,13 +680,13 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         df = self.download_resource_df(ckan=ckan, search_all=full_download, **kwargs)
         return self.local_file_format.write_in_memory(df, fields=self._get_fields_info())
 
-    def download_sample_df(self, ckan:CkanApi, *, limit:int=100,
+    def download_sample_df(self, ckan:CkanApi, *, limit_per_request:int=100,
                            search_all:bool=False, download_alter:bool=False, pop_id:bool=True,
                            **kwargs) -> Union[pd.DataFrame,None]:
         """
         Download the first lines of a DataStore. Extra options apply to datastore_dump API.
         """
-        df = self.download_resource_df(ckan=ckan, limit=limit, search_all=search_all, download_alter=download_alter, **kwargs)
+        df = self.download_resource_df(ckan=ckan, limit_per_request=limit_per_request, search_all=search_all, download_alter=download_alter, **kwargs)
         if pop_id:
             df.pop(datastore_id_col)
         return df

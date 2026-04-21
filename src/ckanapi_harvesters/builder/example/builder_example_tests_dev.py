@@ -37,16 +37,16 @@ def run(ckan:CkanApi = None):
         counters_total_limit = ckan.datastore_upsert(records_generator, resource_id=resource_id, request_threshold=15, offset=12, total_limit=21)
 
     # test full requests datastore_search
-    df_10 = ckan.datastore_search(resource_id, limit=10, search_all=False)
-    df_20 = ckan.datastore_search(resource_id, limit=10, total_limit=15, search_all=True)
-    responses_20 = ckan.datastore_search(resource_id, limit=10, total_limit=15, search_all=True, return_df=False)
+    df_10 = ckan.datastore_search(resource_id, limit_per_request=10, search_all=False)
+    df_20 = ckan.datastore_search(resource_id, limit_per_request=10, total_limit=15, search_all=True)
+    responses_20 = ckan.datastore_search(resource_id, limit_per_request=10, total_limit=15, search_all=True, return_df=False)
     # test page generators
-    page_20 = ckan.datastore_search_page_generator(resource_id, limit=10, total_limit=15, search_all=True)
+    page_20 = ckan.datastore_search_page_generator(resource_id, limit_per_request=10, total_limit=15, search_all=True)
     count_page_20 = 0
     for df in page_20:
         count_page_20 += len(df)
     # test cursors
-    cursor_20 = ckan.datastore_search_cursor(resource_id, limit=10, total_limit=15, search_all=True)
+    cursor_20 = ckan.datastore_search_cursor(resource_id, limit_per_request=10, total_limit=15, search_all=True)
     count_cursor_20 = 0
     for document in cursor_20:
         count_cursor_20 += 1
@@ -55,16 +55,16 @@ def run(ckan:CkanApi = None):
     # test full requests datastore_search_sql
     if ckan.test_sql_capabilities():
         query = f'SELECT * FROM "{resource_id}"'
-        df_10 = ckan.datastore_search_sql(query, limit=10, search_all=False)
-        df_20 = ckan.datastore_search_sql(query, limit=10, total_limit=15, search_all=True)
-        responses_20 = ckan.datastore_search_sql(query, limit=10, total_limit=15, search_all=True, return_df=False)
+        df_10 = ckan.datastore_search_sql(query, limit_per_request=10, search_all=False)
+        df_20 = ckan.datastore_search_sql(query, limit_per_request=10, total_limit=15, search_all=True)
+        responses_20 = ckan.datastore_search_sql(query, limit_per_request=10, total_limit=15, search_all=True, return_df=False)
         # test page generators
-        page_20 = ckan.datastore_search_sql_page_generator(query, limit=10, total_limit=15, search_all=True)
+        page_20 = ckan.datastore_search_sql_page_generator(query, limit_per_request=10, total_limit=15, search_all=True)
         count_page_20 = 0
         for df in page_20:
             count_page_20 += len(df)
         # test cursors
-        cursor_20 = ckan.datastore_search_sql_cursor(query, limit=10, total_limit=15, search_all=True)
+        cursor_20 = ckan.datastore_search_sql_cursor(query, limit_per_request=10, total_limit=15, search_all=True)
         count_cursor_20 = 0
         for document in cursor_20:
             count_cursor_20 += 1

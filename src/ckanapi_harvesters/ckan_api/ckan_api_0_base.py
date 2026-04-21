@@ -252,8 +252,8 @@ class CkanApiBase(CkanApiABC):
         :param limit_read: default limit for read requests
         :return:
         """
-        self.params.default_limit_read = limit_read
-        self.params.default_limit_list = limit_read
+        self.params.default_limit_read_per_request = limit_read
+        self.params.default_limit_list_per_request = limit_read
 
     def set_requests_delay(self, time_between_requests:int) -> None:
         """
@@ -386,8 +386,8 @@ class CkanApiBase(CkanApiABC):
         self.apikey._cli_args_apply(args, base_dir=base_dir, error_not_found=error_not_found)
         self.params._cli_ckan_args_apply(args, base_dir=base_dir, error_not_found=error_not_found,
                                          default_proxies=default_proxies, proxy_headers=proxy_headers)
-        # if args.default_limit is not None:
-        #     self.set_limits(args.default_limit)
+        # if args.default_limit_per_request is not None:
+        #     self.set_limits(args.default_limit_per_request)
         if args.verbose is not None:
             self.set_verbosity(args.verbose)
         # if args.external_code:
@@ -870,8 +870,8 @@ class CkanApiBase(CkanApiABC):
 
     ## Multiple queries with limited responses until full contents are obtained ------------------
     def _request_all_results_page_generator(self, api_fun:Callable, *, params:dict=None,
-                                            limit:int=None, offset:int=0, requests_limit:int=None, total_limit:int=None,
-                                            search_all:bool=True, default_limit:bool=True, progress_callback:CkanProgressCallbackABC=None,
+                                            limit_per_request:int=None, offset:int=0, requests_limit:int=None, total_limit:int=None,
+                                            search_all:bool=True, default_limit_per_request:bool=True, progress_callback:CkanProgressCallbackABC=None,
                                             **kwargs) -> Generator[Any, Any, None]:
         """
         Multiply request with a limited length until no more data is transmitted thanks to the offset parameter.
@@ -879,7 +879,7 @@ class CkanApiBase(CkanApiABC):
 
         :param api_fun: function to call, typically a unitary request function
         :param params: api_fun must accept params argument in order to transmit other values and enforce the offset parameter
-        :param limit: api_fun must accept limit argument in order to update the limit value. The limit represents
+        :param limit_per_request: api_fun must accept limit argument in order to update the limit value. The limit represents
             the maximum number of records per call of the api_fun (also referred as a request or page).
         :param offset: api_fun must accept offset argument in order to update the offset value
         :param total_limit: strict limitation of the total number of records received (the result is truncated
@@ -895,13 +895,13 @@ class CkanApiBase(CkanApiABC):
             total_limit = 0
         if params is None:
             params = {}
-        if limit is None and default_limit:
-            limit = self.params.default_limit_read
-        if limit is not None:
-            # params["limit"] = limit
-            assert_or_raise(limit > 0, InvalidParameterError("limit"))
-        if total_limit is not None and limit is not None:
-            limit = max(min(limit, total_limit), 1)  # do not request more lines than necessary
+        if limit_per_request is None and default_limit_per_request:
+            limit_per_request = self.params.default_limit_read_per_request
+        if limit_per_request is not None:
+            # params["limit"] = limit_per_request
+            assert_or_raise(limit_per_request > 0, InvalidParameterError("limit_per_request"))
+        if total_limit is not None and limit_per_request is not None:
+            limit_per_request = max(min(limit_per_request, total_limit), 1)  # do not request more lines than necessary
         # if offset is None:
         #     offset = 0
         # params["offset"] = offset
@@ -913,10 +913,10 @@ class CkanApiBase(CkanApiABC):
         if self.params.multi_requests_time_between_requests > 0:
             time.sleep(self.params.multi_requests_time_between_requests)
         if self.params.verbose_multi_requests:
-            print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit} results from {api_fun.__name__}...")
+            print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit_per_request} results from {api_fun.__name__}...")
         if progress_callback is not None:
             progress_callback.start_task(None, level=CkanCallbackLevel.Requests, units=CkanProgressUnits.Records)  # total len is unknown here because no API call was performed
-        result_add: Union[pd.DataFrame, CkanActionResponse, Collection] = api_fun(params=params, limit=limit, offset=offset, **kwargs)
+        result_add: Union[pd.DataFrame, CkanActionResponse, Collection] = api_fun(params=params, limit_per_request=limit_per_request, offset=offset, **kwargs)
         if total_limit is not None and len(result_add) >= total_limit:
             if isinstance(result_add, CkanActionResponse):
                 assert(result_add.records is not None)
@@ -941,8 +941,8 @@ class CkanApiBase(CkanApiABC):
             total_len = result_add.attrs.get("total", None)
         else:
             total_len = None
-        if total_len is not None and limit is not None:
-            total_requests_estimation = int(math.ceil(total_len / limit))
+        if total_len is not None and limit_per_request is not None:
+            total_requests_estimation = int(math.ceil(total_len / limit_per_request))
         else:
             total_requests_estimation = None
         if progress_callback is not None:
@@ -965,13 +965,13 @@ class CkanApiBase(CkanApiABC):
             if self.params.multi_requests_time_between_requests > 0:
                 time.sleep(self.params.multi_requests_time_between_requests)
             # params["offset"] = offset
-            if total_limit is not None and limit is not None:
-                limit = min(limit, total_limit - n_received)  # do not request more lines than necessary
-                assert_or_raise(limit > 0, RuntimeError())
+            if total_limit is not None and limit_per_request is not None:
+                limit_per_request = min(limit_per_request, total_limit - n_received)  # do not request more lines than necessary
+                assert_or_raise(limit_per_request > 0, RuntimeError())
             requests_count += 1
             if self.params.verbose_multi_requests:
-                print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit} results from {api_fun.__name__}...")
-            result_add = api_fun(params=params, limit=limit, offset=offset, **kwargs)
+                print(f"{self.identifier} Multi-requests no. {requests_count} - Requesting {limit_per_request} results from {api_fun.__name__}...")
+            result_add = api_fun(params=params, limit_per_request=limit_per_request, offset=offset, **kwargs)
             if total_limit is not None and n_received + len(result_add) >= total_limit:
                 if isinstance(result_add, CkanActionResponse):
                     assert(result_add.records is not None)
@@ -1024,7 +1024,7 @@ class CkanApiBase(CkanApiABC):
         return
 
     def _request_all_results_df(self, api_fun:Callable, *, params:dict=None, list_attrs:bool=True,
-                                limit:int=None, offset:int=0, total_limit:int=None, requests_limit:int=None,
+                                limit_per_request:int=None, offset:int=0, total_limit:int=None, requests_limit:int=None,
                                 search_all:bool=True, progress_callback:CkanProgressCallbackABC=None,
                                 **kwargs) -> pd.DataFrame:
         """
@@ -1033,7 +1033,7 @@ class CkanApiBase(CkanApiABC):
 
         :param api_fun: function to call, typically a unitary request function
         :param params: api_fun must accept params argument in order to transmit other values and enforce the offset parameter
-        :param limit: api_fun must accept limit argument in order to update the limit value
+        :param limit_per_request: api_fun must accept limit argument in order to update the limit value
         :param offset: api_fun must accept offset argument in order to update the offset value
         :param search_all: if False, only the first request is operated
         :param list_attrs: option to aggregate DataFrame attrs field into lists. # False not tested
@@ -1042,7 +1042,7 @@ class CkanApiBase(CkanApiABC):
         """
         start = time.time()
         page_generator = self._request_all_results_page_generator(api_fun=api_fun, params=params,
-                                                                  limit=limit, offset=offset, search_all=search_all,
+                                                                  limit_per_request=limit_per_request, offset=offset, search_all=search_all,
                                                                   total_limit=total_limit, requests_limit=requests_limit,
                                                                   progress_callback=progress_callback, **kwargs)
         requests_count = 1
@@ -1063,7 +1063,7 @@ class CkanApiBase(CkanApiABC):
         return df
 
     def _request_all_results_list(self, api_fun:Callable, *, params:dict=None,
-                                  limit:int=None, offset:int=0, total_limit:int=None, requests_limit:int=None,
+                                  limit_per_request:int=None, offset:int=0, total_limit:int=None, requests_limit:int=None,
                                   search_all:bool=True, progress_callback:CkanProgressCallbackABC=None,
                                   **kwargs) -> Union[List[CkanActionResponse], list]:
         """
@@ -1072,13 +1072,13 @@ class CkanApiBase(CkanApiABC):
 
         :param api_fun: function to call, typically a unitary request function
         :param params: api_fun must accept params argument in order to transmit other values and enforce the offset parameter
-        :param limit: api_fun must accept limit argument in order to update the limit value
+        :param limit_per_request: api_fun must accept limit argument in order to update the limit value
         :param offset: api_fun must accept offset argument in order to update the offset value
         :param search_all: if False, only the first request is operated
         :param kwargs: additional keyword arguments to pass to api_fun
         :return:
         """
-        return list(self._request_all_results_page_generator(api_fun=api_fun, params=params, limit=limit, offset=offset,
+        return list(self._request_all_results_page_generator(api_fun=api_fun, params=params, limit_per_request=limit_per_request, offset=offset,
                                                              total_limit=total_limit, requests_limit=requests_limit,
                                                              progress_callback=progress_callback,
                                                              search_all=search_all, **kwargs))

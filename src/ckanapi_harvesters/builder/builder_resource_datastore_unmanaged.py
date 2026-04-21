@@ -99,7 +99,7 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=False)
         if df_upload is None:
             try:
-                df_download = self.download_resource_df(ckan, search_all=False, download_alter=False, limit=1)
+                df_download = self.download_resource_df(ckan, search_all=False, download_alter=False, limit_per_request=1)
                 if df_download is None:
                     assert_or_raise(resource_id is None, RuntimeError("Unexpected: resource_id should be None"))
                     raise NotMappedObjectNameError(self.name)

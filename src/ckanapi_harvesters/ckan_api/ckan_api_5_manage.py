@@ -89,12 +89,12 @@ class CkanApiManageParams(CkanApiReadWriteParams):
         if args.admin:
             self.enable_admin = args.admin
 
-    def get_num_rows_datastore_create_partial(self, limit:int=None) -> int:
-        if limit is None:
-            limit = self.default_limit_write
+    def get_num_rows_datastore_create_partial(self, limit_per_request:int=None) -> int:
+        if limit_per_request is None:
+            limit_per_request = self.default_limit_write_per_request
         if self.num_rows_datastore_create_partial is not None:
-            if limit is not None:
-                num_rows_partial = min(self.num_rows_datastore_create_partial, limit)
+            if limit_per_request is not None:
+                num_rows_partial = min(self.num_rows_datastore_create_partial, limit_per_request)
             else:
                 num_rows_partial = self.num_rows_datastore_create_partial
         else:
@@ -943,8 +943,8 @@ class CkanApiManage(CkanApiReadWrite):
             else:
                 aliases.append(default_alias_name)
             aliases = list(set(aliases))  # keep unique values
-        limit = None
-        num_rows_partial = self.params.get_num_rows_datastore_create_partial(limit)
+        limit_per_request = None
+        num_rows_partial = self.params.get_num_rows_datastore_create_partial(limit_per_request)
         if num_rows_partial is not None and records is not None and len(records) > num_rows_partial:
             df_upload_partial = records.iloc[:num_rows_partial]
             df_upload_upsert = records.iloc[num_rows_partial:]

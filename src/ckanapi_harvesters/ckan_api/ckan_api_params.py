@@ -45,8 +45,8 @@ class CkanApiParamsBasic:
         # modes
         self.dry_run: bool = False  # if True, no requests are sent to the server (for debugging purposes)
         # limits
-        self.default_limit_list:Union[int,None] = 100   # limit the number of entries per list response (used as default value)
-        self.default_limit_read:Union[int,None] = 5000  # limit the number of entries per response (used as default value)
+        self.default_limit_list_per_request:Union[int,None] = 100   # limit the number of entries per list response (used as default value)
+        self.default_limit_read_per_request:Union[int,None] = 5000  # limit the number of entries per response (used as default value)
         self.max_requests_attempts:int = 3  # when performing an API action, retry depending on the received HTTP error code
         self.action_requests_retry_always:bool = False  # when an error occurred during an API action request, systematically retry
         self.max_requests_count:int = 0  # when automating multiple requests, the number of requests is limited by this parameter. 0 means no limit.
@@ -74,8 +74,8 @@ class CkanApiParamsBasic:
         dest.dry_run = self.dry_run
         dest.store_last_response = self.store_last_response
         dest.store_last_response_debug_info = self.store_last_response_debug_info
-        dest.default_limit_list = self.default_limit_list
-        dest.default_limit_read = self.default_limit_read
+        dest.default_limit_list_per_request = self.default_limit_list_per_request
+        dest.default_limit_read_per_request = self.default_limit_read_per_request
         dest.max_requests_count = self.max_requests_count
         dest.multi_requests_timeout = self.multi_requests_timeout
         dest.multi_requests_time_between_requests = self.multi_requests_time_between_requests
@@ -185,7 +185,7 @@ class CkanApiParamsBasic:
         if args.time_between_requests is not None:
             self.multi_requests_time_between_requests = args.time_between_requests
         if args.limit is not None:
-            self.default_limit_read = args.limit
+            self.default_limit_read_per_request = args.limit
         # if args.verbose is not None:
         #     self.set_verbosity(args.verbose)
         # if args.external_code:

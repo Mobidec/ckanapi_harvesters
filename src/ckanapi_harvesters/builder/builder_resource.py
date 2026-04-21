@@ -360,7 +360,7 @@ class BuilderResourceABC(ABC):
         """
         raise NotImplementedError()
 
-    def download_sample_df(self, ckan: CkanApi, *, limit: int = 100,
+    def download_sample_df(self, ckan: CkanApi, *, limit_per_request: int = 100,
                            search_all: bool = False, download_alter: bool = False,
                            **kwargs) -> Union[pd.DataFrame, None]:
         return None

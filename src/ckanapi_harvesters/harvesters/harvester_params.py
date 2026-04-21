@@ -55,7 +55,7 @@ class DatabaseParams:
         self.ckan_postgis: Union[bool,None] = default_ckan_has_postgis
         self.ckan_default_target_epsg:Union[int,None] = default_ckan_target_epsg
         # table arguments which can be put in common:
-        self.limit: Union[int, None] = None
+        self.limit_per_request: Union[int, None] = None
         self.single_request: bool = False
         if source is not None:
             source.copy(dest=self)
@@ -85,7 +85,7 @@ class DatabaseParams:
         dest.verbose_harvester = self.verbose_harvester
         dest.ckan_postgis = self.ckan_postgis
         # table arguments which can be put in common:
-        dest.limit = self.limit
+        dest.limit_per_request = self.limit_per_request
         dest.single_request = self.single_request
         return dest
     

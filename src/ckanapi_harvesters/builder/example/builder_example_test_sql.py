@@ -31,10 +31,10 @@ def run(ckan:CkanApi = None):
     traces_table_id = mdl.get_or_query_resource_id(ckan, "traces.csv")
 
     # datastore_search simple API
-    cursor = ckan.datastore_search_cursor(users_table_id, limit=1)
+    cursor = ckan.datastore_search_cursor(users_table_id, limit_per_request=1)
     document = next(cursor)
     user_id = document["user_id"]
-    cursor = ckan.datastore_search_cursor(traces_table_id, filters={"user_id": int(user_id)}, limit=10)
+    cursor = ckan.datastore_search_cursor(traces_table_id, filters={"user_id": int(user_id)}, limit_per_request=10)
     for document in cursor:
         print(document)
 
