@@ -69,6 +69,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         # self.datastore_attributes_data_source: Union[CkanDataStoreInfo,None] = None
         self.primary_key: Union[List[str],None] = None
         self.primary_key_user: Union[List[str],None] = None
+        self.primary_key_data_source: Union[List[str],None] = None
         self.indexes: Union[List[str],None] = None
         self.aliases: Union[List[str],None] = None
         self.aux_upload_fun_name:str = ""
@@ -94,6 +95,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         dest.field_builders_data_source = copy.deepcopy(self.field_builders_data_source)
         dest.primary_key = copy.deepcopy(self.primary_key)
         dest.primary_key_user = copy.deepcopy(self.primary_key_user)
+        dest.primary_key_data_source = copy.deepcopy(self.primary_key_data_source)
         dest.indexes = copy.deepcopy(self.indexes)
         dest.aliases = copy.deepcopy(self.aliases)
         dest.aux_upload_fun_name = self.aux_upload_fun_name
@@ -160,12 +162,14 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             self.apply_one_frame_per_primary_key(args.group_by)
         elif args.group_by is not None:
             msg = GroupByError("Argument --group-by cannot be used without option --one-frame-per-primary-key")
-            warn(msg)
+            warn(str(msg))
 
     def setup_default_file_mapper(self, *, primary_key:List[str]=None, file_query_list:Collection[Tuple[str, dict]]=None) -> None:
         if primary_key is None:
             if self.primary_key_user is not None:
                 self.primary_key = self.primary_key_user
+            elif self.primary_key_data_source is not None:
+                self.primary_key = self.primary_key_data_source
         else:
             self.primary_key = primary_key
         if self.column_enable_source_file:
@@ -209,7 +213,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             warn(msg)
             self.local_file_format.allow_chunks = False
 
-    def initialize_extra_options_string(self, extra_options_string:str, base_dir:str) -> None:
+    def initialize_extra_options_string(self, extra_options_string:Union[str,None], base_dir:str) -> None:
         self.local_file_format = init_file_format_datastore(self.resource_attributes_user.format, extra_options_string, self.aux_read_fun_name, self.aux_write_fun_name)  # default file format is CSV (user can change)
 
     def _merge_resource_attributes_from_file(self) -> None:
@@ -217,6 +221,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         This function merges metadata which could have been extracted from a file reading function into the attributes from data source.
         Call after self.local_file_format.read_file()
         """
+        if self.local_file_format.primary_key_from_file is not None:
+            self.primary_key_data_source = self.local_file_format.primary_key_from_file
         resource_attributes_from_file = self.local_file_format.resource_attributes_from_file
         if resource_attributes_from_file is not None:
             if self.resource_attributes_data_source is None:
@@ -368,7 +374,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         else:
             resource_info.datastore_info.fields_dict = None
         resource_info.datastore_info.fields_id_list = [name for name, field_builder in self.field_builders.items()] if self.field_builders is not None else []
+        if self.primary_key is not None:
+            resource_info.datastore_info.primary_key = self.primary_key.copy()
         if self.indexes is not None:
+            resource_info.datastore_info.indexes = self.indexes.copy()
             resource_info.datastore_info.index_fields = self.indexes.copy()
         aliases = self._get_alias_list(None)
         if aliases is not None:
@@ -390,7 +399,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
     def sample_file_path_is_url() -> bool:
         return False
 
-    def get_sample_file_path(self, resources_base_dir: str, ckan:Union[CkanApi,None]=None) -> None:
+    def get_sample_file_path(self, resources_base_dir: str, ckan:Union[CkanApi,None]=None) -> Union[str,None]:
         return None
 
     def load_sample_data(self, resources_base_dir:str) -> bytes:
@@ -680,13 +689,13 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         df = self.download_resource_df(ckan=ckan, search_all=full_download, **kwargs)
         return self.local_file_format.write_in_memory(df, fields=self._get_fields_info())
 
-    def download_sample_df(self, ckan:CkanApi, *, limit:int=100,
+    def download_sample_df(self, ckan:CkanApi, *, limit_per_request:int=100,
                            search_all:bool=False, download_alter:bool=False, pop_id:bool=True,
                            **kwargs) -> Union[pd.DataFrame,None]:
         """
         Download the first lines of a DataStore. Extra options apply to datastore_dump API.
         """
-        df = self.download_resource_df(ckan=ckan, limit=limit, search_all=search_all, download_alter=download_alter, **kwargs)
+        df = self.download_resource_df(ckan=ckan, limit_per_request=limit_per_request, search_all=search_all, download_alter=download_alter, **kwargs)
         if pop_id:
             df.pop(datastore_id_col)
         return df

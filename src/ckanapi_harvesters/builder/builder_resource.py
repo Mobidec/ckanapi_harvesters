@@ -360,7 +360,7 @@ class BuilderResourceABC(ABC):
         """
         raise NotImplementedError()
 
-    def download_sample_df(self, ckan: CkanApi, *, limit: int = 100,
+    def download_sample_df(self, ckan: CkanApi, *, limit_per_request: int = 100,
                            search_all: bool = False, download_alter: bool = False,
                            **kwargs) -> Union[pd.DataFrame, None]:
         return None
@@ -456,7 +456,6 @@ class BuilderFileABC(BuilderResourceABC, ABC):
         The source file of the resource is also uploaded (or a first file for large DataStores).
 
         :param ckan:
-        :param package_id:
         :param reupload:
         :param resources_base_dir:
         :param payload:
@@ -619,8 +618,8 @@ class BuilderFileBinary(BuilderFileABC):
         return resolve_rel_path(resources_base_dir, self.file_name, field=f"File/URL of resource {self.name}")
 
     def load_sample_data(self, resources_base_dir:str) -> bytes:
-        self.sample_source = self.get_sample_file_path(resources_base_dir)
-        with open(self.sample_source, "rb") as f:
+        self.sample_data_source = self.get_sample_file_path(resources_base_dir)
+        with open(self.sample_data_source, "rb") as f:
             contents = f.read()
             f.close()
         return contents
@@ -716,7 +715,7 @@ class BuilderUrl(BuilderUrlABC):
 
     def load_sample_data(self, resources_base_dir:str, *, ckan:CkanApi=None,
                          proxies:dict=None, headers:dict=None) -> bytes:
-        self.sample_source = self.url
+        self.sample_data_source = self.url
         if ckan is None:
             raise FunctionMissingArgumentError("BuilderDataStoreUrl.load_sample_data", "ckan")
         return ckan.download_url_proxy(self.url, proxies=proxies, headers=headers, auth_if_ckan=builder_request_default_auth_if_ckan).content

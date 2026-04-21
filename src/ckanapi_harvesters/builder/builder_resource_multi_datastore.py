@@ -186,7 +186,7 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
         file_path = file_chunk.file_path
         ds_builder, file_dir = self._data_store_builder_of_file(file_path=file_path)
         if file_chunk.is_first_chunk:
-            return ds_builder.patch_request(ckan=ckan, package_id=package_id, reupload=reupload,
+            return ds_builder.patch_request(ckan=ckan, reupload=reupload,
                                             resources_base_dir=file_dir, inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
         else:
             ds_builder.upsert_request_df(ckan, file_chunk.df, file_name=file_path, total_lines_read=self.read_line_counter)

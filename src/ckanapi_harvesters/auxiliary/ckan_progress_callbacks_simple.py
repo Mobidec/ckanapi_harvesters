@@ -112,6 +112,8 @@ class CkanProgressCallbackSimple(CkanProgressCallbackABC):
         :param level: the level of the progress callback
         """
         self.simple_semaphore.acquire()
+        last_position = None
+        last_file_index = None
         if level is not None:
             last_position = self.last_progress_position[level]
             last_file_index = self.last_progress_file_index[level]

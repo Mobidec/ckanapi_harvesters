@@ -15,10 +15,6 @@ class MissingDataStoreColumnsSheet(Exception):
     def __init__(self, resource_name: str, columns_sheet_name: str):
         super().__init__(f"DataStore {resource_name} specifies a DataStore Columns Sheet '{columns_sheet_name}' but it was not found in the spreadsheet.")
 
-class MissingDataStoreInfoError(Exception):
-    def __init__(self):
-        super().__init__("DataStore info must be requested to initiate resource builder. Use option datastore_info=True for the map_resources function.")
-
 class RequiredDataFrameFieldsError(Exception):
     def __init__(self, missing_fields:Iterable[str]):
         super().__init__("The following fields are required but absent from the sample DataFrame: {}".format(", ".join(missing_fields)))

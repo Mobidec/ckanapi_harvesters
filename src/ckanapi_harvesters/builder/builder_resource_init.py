@@ -12,8 +12,7 @@ from ckanapi_harvesters.ckan_api import  CkanApiMap
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, _string_from_element
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
-from ckanapi_harvesters.auxiliary.ckan_errors import (UnexpectedError, IntegrityError)
-from ckanapi_harvesters.builder.builder_errors import MissingDataStoreInfoError
+from ckanapi_harvesters.auxiliary.ckan_errors import (UnexpectedError, IntegrityError, MissingDataStoreInfoError)
 from ckanapi_harvesters.builder.builder_resource import (BuilderResourceABC, BuilderFileBinary, BuilderUrl,
                                                          BuilderResourceUnmanaged)
 from ckanapi_harvesters.builder.builder_resource_multi_file import BuilderMultiFile
@@ -98,11 +97,16 @@ def init_resource_from_ckan(ckan: CkanApiMap, resource_info: CkanResourceInfo, p
         "known id": resource_info.id,
         "known url": resource_info.download_url,
     }
-    if (isinstance(resource_info.datastore_info, CkanDataStoreInfo)
+    if (resource_info.datastore_info is not None
             and resource_info.datastore_info.row_count is not None
             and len(resource_info.datastore_info.fields_id_list) > 0):
         # DataStore
-        d["indexes"] = ckan_tags_sep.join(resource_info.datastore_info.index_fields)
+        if resource_info.datastore_info.primary_key is not None:
+            d["primary key"] = ckan_tags_sep.join(resource_info.datastore_info.primary_key)
+        if resource_info.datastore_info.indexes is not None:
+            d["indexes"] = ckan_tags_sep.join(resource_info.datastore_info.indexes)
+        else:
+            d["indexes"] = ckan_tags_sep.join(resource_info.datastore_info.index_fields)
         d["aliases"] = ckan_tags_sep.join(resource_info.datastore_info.aliases)
         if len(resource_info.download_url) > 0 and not ckan.is_url_internal(resource_info.download_url):
             d["file/url"] = resource_info.download_url

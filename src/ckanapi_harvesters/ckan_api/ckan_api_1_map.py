@@ -15,7 +15,7 @@ from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanLicens
                                                      CkanGroupInfo, CkanCollaboration, CkanCapacity)
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC, CkanProgressUnits, CkanCallbackLevel
 from ckanapi_harvesters.auxiliary.urls import urlsep, url_join
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionError, CkanActionNotFoundError, CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
@@ -70,6 +70,10 @@ class CkanApiMap(CkanApiBase):
         super().copy(new_identifier=new_identifier, dest=dest)
         dest.map = self.map.copy()
         return dest
+
+    def connect(self):
+        super().connect()
+        self.test_ckan_login(raise_error=True)
 
     def purge(self, purge_map:bool=False) -> None:
         """
@@ -370,7 +374,7 @@ class CkanApiMap(CkanApiBase):
         # add datastore_info if required
         if resource_info is not None:
             if datastore_info and resource_info.datastore_info is None and resource_info.datastore_info_error is None:
-                resource_info.datastore_info = self.get_datastore_info_or_request_of_id(resource_info.id, error_not_mapped=False)
+                resource_info.datastore_info = self.get_datastore_info_or_request_of_id(resource_info.id, error_not_mapped=False, error_not_found=False)
         elif error_not_found:
             raise CkanNotFoundError("resource", resource_id)
         return resource_info
@@ -513,7 +517,7 @@ class CkanApiMap(CkanApiBase):
     ## API calls needed to make the map and auxiliary API functions  ------------------
     def _api_package_search(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
                             include_private:bool=True, include_drafts:bool=True, sort:str=None,
-                            facet:bool=None, limit:int=None, offset:int=None) -> List[CkanPackageInfo]:
+                            facet:bool=None, limit_per_request:int=None, offset:int=None) -> List[CkanPackageInfo]:
         """
         API call to package_search.
 
@@ -525,15 +529,15 @@ class CkanApiMap(CkanApiBase):
         :param include_drafts:  if True, draft datasets will be included in the results. A user will only be returned their own draft datasets, and a sysadmin will be returned all draft datasets. Optional, the default is False.
         :param sort: sorting of the search results. Optional. Default: 'score desc, metadata_modified desc'. As per the solr documentation, this is a comma-separated string of field names and sort-orderings.
         :param facet:  whether to enable faceted results. Default: True in API.
-        :param limit: maximum number of results to return. Translatees to the API rows argument.
+        :param limit_per_request: maximum number of results to return. Translatees to the API rows argument.
         :param offset: the offset in the complete result for where the set of returned datasets should begin. Translatees to the API start argument.
         :param params: other parameters to pass to package_search
         :return:
         """
         if params is None: params = {}
-        if limit is None: limit = self.params.default_limit_list
-        if limit is not None:
-            params["rows"] = limit
+        if limit_per_request is None: limit_per_request = self.params.default_limit_list_per_request
+        if limit_per_request is not None:
+            params["rows"] = limit_per_request
         if offset is not None:
             params["start"] = offset
         if owner_org is None and use_ckan_owner_org_for_requests:
@@ -567,7 +571,7 @@ class CkanApiMap(CkanApiBase):
 
     def _api_package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
                                 include_private:bool=True, include_drafts:bool=True, sort:str=None,
-                                facet:bool=None, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
+                                facet:bool=None, limit_per_request:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
         """
         API call to package_search until an empty list is received.
 
@@ -580,13 +584,13 @@ class CkanApiMap(CkanApiBase):
         :param include_drafts:  if True, draft datasets will be included in the results. A user will only be returned their own draft datasets, and a sysadmin will be returned all draft datasets. Optional, the default is False.
         :param sort: sorting of the search results. Optional. Default: 'score desc, metadata_modified desc'. As per the solr documentation, this is a comma-separated string of field names and sort-orderings.
         :param facet:  whether to enable faceted results. Default: True in API.
-        :param limit: maximum number of results to return. Translatees to the API rows argument.
+        :param limit_per_request: maximum number of results to return. Translatees to the API rows argument.
         :param offset: the offset in the complete result for where the set of returned datasets should begin. Translatees to the API start argument.
         :param params: other parameters to pass to package_search
         :return:
         """
         if params is None: params = {}
-        responses = self._request_all_results_list(self._api_package_search, params=params, limit=limit, offset=offset,
+        responses = self._request_all_results_list(self._api_package_search, params=params, limit_per_request=limit_per_request, offset=offset,
                                                    owner_org=owner_org, filter=filter, q=q, sort=sort, facet=facet,
                                                    include_private=include_private, include_drafts=include_drafts,
                                                    search_all=search_all)
@@ -594,11 +598,11 @@ class CkanApiMap(CkanApiBase):
 
     def package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
                                 include_private:bool=True, include_drafts:bool=True, sort:str=None,
-                                facet:bool=None, limit:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
+                                facet:bool=None, limit_per_request:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
         # function alias
         return self._api_package_search_all(params=params, owner_org=owner_org, filter=filter, q=q,
                                             include_private=include_private, include_drafts=include_drafts, sort=sort,
-                                            facet=facet, limit=limit, offset=offset, search_all=search_all)
+                                            facet=facet, limit_per_request=limit_per_request, offset=offset, search_all=search_all)
 
     def check_package_name_arg(self, *, package_name: str, package_id: str, raise_error:bool=True) -> bool:
         """
@@ -684,12 +688,16 @@ class CkanApiMap(CkanApiBase):
         response = self._api_action_request("datastore_info", method=RequestType.Post, json=params)
         if response.success:
             datastore_info = CkanDataStoreInfo(response.result)
-            self.map._update_datastore_info(datastore_info)
+            self.map._update_datastore_info(resource_id, datastore_info)
             return datastore_info.copy()
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
-            raise CkanActionNotFoundError(self, "DataStore", response, display_request=display_request_not_found)
+            e = CkanActionNotFoundError(self, "DataStore", response, display_request=display_request_not_found)
+            self.map._update_datastore_info(resource_id, None, e)
+            raise e
         else:
-            raise response.default_error(self)
+            e = response.default_error(self)
+            self.map._update_datastore_info(resource_id, None, e)
+            raise e
 
     def datastore_info(self, resource_id:str, *, params:dict=None, display_request_not_found:bool=True) -> CkanDataStoreInfo:
         # function alias
@@ -745,7 +753,7 @@ class CkanApiMap(CkanApiBase):
 
     def _api_organization_list(self, *, params:dict=None, all_fields:bool=True,
                                include_users:bool=False,
-                               limit:int=None, offset:int=None) -> Union[List[CkanOrganizationInfo], List[str]]:
+                               limit_per_request:int=None, offset:int=None) -> Union[List[CkanOrganizationInfo], List[str]]:
         """
         API call to organization_list.
 
@@ -754,9 +762,9 @@ class CkanApiMap(CkanApiBase):
         :return:
         """
         if params is None: params = {}
-        if limit is None: limit = self.params.default_limit_list
-        if limit is not None:
-            params["limit"] = limit
+        if limit_per_request is None: limit_per_request = self.params.default_limit_list_per_request
+        if limit_per_request is not None:
+            params["limit"] = limit_per_request
         if offset is not None:
             params["offset"] = offset
         params["all_fields"] = all_fields
@@ -777,7 +785,7 @@ class CkanApiMap(CkanApiBase):
 
     def _api_organization_list_all(self, *, params:dict=None, all_fields:bool=True,
                                    include_users:bool=False,
-                                   limit:int=None, offset:int=None) -> Union[List[CkanOrganizationInfo], List[str]]:
+                                   limit_per_request:int=None, offset:int=None) -> Union[List[CkanOrganizationInfo], List[str]]:
         """
         API call to organization_list until an empty list is received.
 
@@ -786,7 +794,7 @@ class CkanApiMap(CkanApiBase):
         :return:
         """
         if params is None: params = {}
-        responses = self._request_all_results_list(self._api_organization_list, params=params, limit=limit, offset=offset,
+        responses = self._request_all_results_list(self._api_organization_list, params=params, limit_per_request=limit_per_request, offset=offset,
                                                    all_fields=all_fields, include_users=include_users)
         self.map.organizations_listed_all = True
         self.map.organizations_listed_all_users = include_users
@@ -794,7 +802,7 @@ class CkanApiMap(CkanApiBase):
 
     def organization_list_all(self, *, cancel_if_present:bool=False, params:dict=None,
                               all_fields:bool=True, include_users:bool=False,
-                              limit:int=None, offset:int=None) -> Union[List[CkanOrganizationInfo], List[str]]:
+                              limit_per_request:int=None, offset:int=None) -> Union[List[CkanOrganizationInfo], List[str]]:
         """
         API call to license_list.
         The call can be canceled if the list is already present (not recommended, rather use get_organization_info_or_request).
@@ -807,7 +815,7 @@ class CkanApiMap(CkanApiBase):
                 and self.map.organizations_listed_all_users == include_users:
             return list(self.map.organizations.values())
         else:
-            return self._api_organization_list_all(params=params, all_fields=all_fields, include_users=include_users, limit=limit, offset=offset)
+            return self._api_organization_list_all(params=params, all_fields=all_fields, include_users=include_users, limit_per_request=limit_per_request, offset=offset)
 
     def _api_license_list(self, *, params:dict=None) -> List[CkanLicenseInfo]:
         """
@@ -846,11 +854,9 @@ class CkanApiMap(CkanApiBase):
         :param resource_id:
         :return:
         """
-        try:
-            datastore_info = self.datastore_info(resource_id, display_request_not_found=False)
-        except CkanActionNotFoundError as e:
-            return False
-        return True
+        resource_info = self.get_resource_info_or_request_of_id(resource_id, datastore_info=True)
+        assert_or_raise(resource_info.datastore_queried(), RuntimeError("Implementation error: DataStore info should have been queried at this point"))
+        return resource_info.is_datastore()
 
     def get_package_page_url(self, package_name:str, *, error_not_found:bool=True, default_url:bool=False) -> str:
         """
@@ -901,7 +907,7 @@ class CkanApiMap(CkanApiBase):
         This does not check authentication.
         """
         try:
-            self.package_search_all(limit=1, search_all=False)
+            self.package_search_all(limit_per_request=1, search_all=False)
         except CkanActionError as e:
             if e.status_code == 220:
                 if raise_error:
@@ -1041,7 +1047,7 @@ class CkanApiMap(CkanApiBase):
         return self._api_package_collaborator_list(package_id=package_id, params=params,
                                                    cancel_if_present=cancel_if_present)
 
-    def _api_group_list(self, *, limit:int=None, offset:int=0, groups:List[str]=None,
+    def _api_group_list(self, *, limit_per_request:int=None, offset:int=0, groups:List[str]=None,
                         all_fields:bool=True, include_users:bool=True,
                         params:dict=None) -> Union[List[CkanGroupInfo], List[str]]:
         """
@@ -1051,10 +1057,10 @@ class CkanApiMap(CkanApiBase):
         :return:
         """
         if params is None: params = {}
-        if limit is None:
-            limit = self.params.default_limit_list
-        if limit is not None:
-            params["limit"] = limit
+        if limit_per_request is None:
+            limit_per_request = self.params.default_limit_list_per_request
+        if limit_per_request is not None:
+            params["limit"] = limit_per_request
         if offset is not None:
             params["offset"] = offset
         if groups is not None:
@@ -1079,15 +1085,15 @@ class CkanApiMap(CkanApiBase):
         else:
             raise response.default_error(self)
 
-    def group_list(self, *, limit:int=None, offset:int=0, groups:List[str]=None,
+    def group_list(self, *, limit_per_request:int=None, offset:int=0, groups:List[str]=None,
                         all_fields:bool=True, include_users:bool=True,
                         params:dict=None) -> List[CkanGroupInfo]:
         # function alias
         return self._api_group_list(groups=groups, all_fields=all_fields, include_users=include_users,
-                                    limit=limit, offset=offset, params=params)
+                                    limit_per_request=limit_per_request, offset=offset, params=params)
 
     def _api_group_list_all(self, *, all_fields:bool=True, include_users:bool=True, params:dict=None,
-                            limit:int=None, offset:int=None) -> Union[List[CkanUserInfo], List[str]]:
+                            limit_per_request:int=None, offset:int=None) -> Union[List[CkanUserInfo], List[str]]:
         """
         API call to group_list until an empty list is received.
 
@@ -1096,14 +1102,14 @@ class CkanApiMap(CkanApiBase):
         :return:
         """
         if params is None: params = {}
-        responses = self._request_all_results_list(self._api_group_list, params=params, limit=limit, offset=offset,
+        responses = self._request_all_results_list(self._api_group_list, params=params, limit_per_request=limit_per_request, offset=offset,
                                                    all_fields=all_fields, include_users=include_users)
         self.map.groups_listed_all = True
         return sum(responses, [])
 
     def group_list_all(self, *, all_fields:bool=True, include_users:bool=True,
                        cancel_if_present:bool=False, params:dict=None,
-                       limit:int=None, offset:int=None) -> Union[List[CkanGroupInfo], List[str]]:
+                       limit_per_request:int=None, offset:int=None) -> Union[List[CkanGroupInfo], List[str]]:
         """
         API call to group_list.
         The call can be canceled if the list is already present (not recommended, rather use get_organization_info_or_request).
@@ -1115,7 +1121,7 @@ class CkanApiMap(CkanApiBase):
         if self.map.groups_listed_all and cancel_if_present:
             return list(self.map.groups.values())
         else:
-            return self._api_group_list_all(params=params, all_fields=all_fields, include_users=include_users, limit=limit, offset=offset)
+            return self._api_group_list_all(params=params, all_fields=all_fields, include_users=include_users, limit_per_request=limit_per_request, offset=offset)
 
     def map_user_rights(self, *, cancel_if_present:bool=True, progress_callback: CkanProgressCallbackABC=None) -> CkanMap:
         """

@@ -3,7 +3,7 @@
 """
 
 """
-from typing import List, Union
+from typing import List, Union, Any, Generator, Tuple, Iterable
 import copy
 from warnings import warn
 
@@ -11,9 +11,10 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanResourceInfo, CkanViewInfo
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
-from ckanapi_harvesters.auxiliary.ckan_action import CkanActionNotFoundError
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise, LinesRequestCounter
+from ckanapi_harvesters.auxiliary.ckan_action import CkanActionNotFoundError, CkanActionResponse
 from ckanapi_harvesters.auxiliary.ckan_errors import ReadOnlyError
+from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import use_ckan_owner_org_for_requests
@@ -40,13 +41,86 @@ class CkanApiDeprecated(CkanApiManage):
         df_row = self.datastore_search_sql_find_one(sql, offset=0, params=params, return_df=True)
         return df_row.attrs["total"]
 
+    ## Not recommended read functions ------------------
+    def datastore_dump(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+                       distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0,
+                       total_limit:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None,
+                       params:dict=None, search_all:bool=True, search_method:bool=True, format:str=None,
+                       return_df:bool=True, limit:int=None) \
+            -> Union[pd.DataFrame, ListRecords, Any, List[CkanActionResponse]]:
+        """
+        Alias of datastore_search with search_all=True by default.
+        Uses the API datastore_search
+
+        :see: datastore_search()
+        :param resource_id: resource id.
+        :param filters: The base argument to filter values in a table (optional)
+        :param q: Full text query (optional)
+        :param fields: The base argument to filter columns (optional)
+        :param distinct: return only distinct rows (optional, default: false) e.g. to return distinct ids: fields="id", distinct=True
+        :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
+        :param limit_per_request: Limit the number of records per request
+        :param offset: Offset in the returned records
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
+        :param requests_limit: Limit the number of requests
+        :param progress_callback: Progress callback function
+        :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
+        :param search_all: Option to renew the request until there are no more records.
+        :param search_method: API method selection (True=datastore_search, False=datastore_dump)
+        :param return_df: Return pandas DataFrame (True) or dict (False)
+        :return:
+        """
+        msg = "datastore_dump is deprecated. Use datastore_search() instead. To enforce usage of API datastore/dump, use option search_method=False"
+        warn(msg, DeprecationWarning)
+        return self.datastore_search(resource_id, filters=filters, q=q, fields=fields,
+                                     distinct=distinct, sort=sort, limit_per_request=limit_per_request, offset=offset,
+                                     total_limit=total_limit, requests_limit=requests_limit, limit=limit,
+                                     progress_callback=progress_callback, params=params, search_all=search_all,
+                                     search_method=search_method, format=format,
+                                     return_df=return_df)
+
+    def datastore_dump_page_generator(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+                                      distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0,
+                                      total_limit:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None, params:dict=None,
+                                      search_all:bool=True, search_method:bool=True, format:str=None, bom:bool=None, return_df:bool=True, limit:int=None) \
+            -> Union[Generator[pd.DataFrame, Any, None], Generator[CkanActionResponse, Any, None]]:
+        """
+        Function alias to datastore_search_generator with search_all=True by default.
+        Uses the API datastore_search
+
+        :see: datastore_search_generator
+        :param resource_id: resource id.
+        :param filters: The base argument to filter values in a table (optional)
+        :param q: Full text query (optional)
+        :param fields: The base argument to filter columns (optional)
+        :param distinct: return only distinct rows (optional, default: false) e.g. to return distinct ids: fields="id", distinct=True
+        :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
+        :param limit_per_request: Limit the number of records per request
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
+        :param requests_limit: Limit the number of requests
+        :param progress_callback: Progress callback function
+        :param offset: Offset in the returned records
+        :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
+        :param search_all: Option to renew the request until there are no more records.
+        :param search_method: API method selection (True=datastore_search, False=datastore_dump)
+        :return:
+        """
+        msg = "datastore_dump is deprecated. Use datastore_search() instead. To enforce usage of API datastore/dump, use option search_method=False"
+        warn(msg, DeprecationWarning)
+        return self.datastore_search_page_generator(resource_id, filters=filters, q=q, fields=fields,
+                                                    distinct=distinct, sort=sort, limit_per_request=limit_per_request, offset=offset,
+                                                    total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback, params=params,
+                                                    search_all=search_all, search_method=search_method, format=format, bom=bom, return_df=return_df, limit=limit)
+
     ## Not recommended write functions ------------------
-    def datastore_insert(self, records:Union[pd.DataFrame, List[dict]], resource_id:str, *,
-                         dry_run:bool=False, limit:int=None, offset:int=0,
+    def datastore_insert(self, records_generator:Union[pd.DataFrame, List[dict], Iterable[GeneralDataFrame]], resource_id:str, *,
+                         dry_run:bool=False, limit_per_request:int=None, offset:int=0,
                          total_limit:int=None, requests_limit:int=None, force:bool=None,
                          apply_last_condition:bool=True, always_last_condition:bool=None, return_df:bool=None,
                          data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
-                         params:dict=None) -> pd.DataFrame:
+                         params:dict=None, records:Union[pd.DataFrame, List[dict]]=None,
+                         return_documents:bool=True, return_counters:bool=False, limit:int=None) \
+            -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter], LinesRequestCounter, None]:
         """
         Alias function to insert data in a DataStore using datastore_upsert.
 
@@ -54,7 +128,7 @@ class CkanApiDeprecated(CkanApiManage):
         :param records: generator of records, e.g. chunks from a CSV file generated with pandas.read_csv(.., chunksize=1000)
         :param resource_id: destination resource id
         :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
-        :param limit: number of records per transaction
+        :param limit_per_request: number of records per transaction
         :param offset: number of records to skip - use to restart the transfer
         :param total_limit: maximum number of lines to transmit, counting from the initial offset
         :param requests_limit: maximum number of requests
@@ -69,19 +143,22 @@ class CkanApiDeprecated(CkanApiManage):
         """
         msg = "datastore_insert is deprecated, use datastore_upsert with argument `method=UpsertChoice.Insert` instead"
         warn(msg, DeprecationWarning)
-        return self.datastore_upsert(records, resource_id, dry_run=dry_run, limit=limit, offset=offset,
+        return self.datastore_upsert(records_generator, resource_id, dry_run=dry_run, limit_per_request=limit_per_request, offset=offset,
                                      total_limit=total_limit, requests_limit=requests_limit,
                                      method=UpsertChoice.Insert, apply_last_condition=apply_last_condition, return_df=return_df,
+                                     return_documents=return_documents, return_counters=return_counters,
                                      always_last_condition=always_last_condition, data_cleaner=data_cleaner,
                                      progress_callback=progress_callback,
-                                     force=force, params=params)
+                                     force=force, params=params, limit=limit, records=records)
 
-    def datastore_update(self, records:Union[pd.DataFrame, List[dict]], resource_id:str, *,
-                         dry_run:bool=False, limit:int=None, offset:int=0,
+    def datastore_update(self, records_generator:Union[pd.DataFrame, List[dict], Iterable[GeneralDataFrame]], resource_id:str, *,
+                         dry_run:bool=False, limit_per_request:int=None, offset:int=0,
                          total_limit:int=None, requests_limit:int=None, force:bool=None,
                          apply_last_condition:bool=True, always_last_condition:bool=None, return_df:bool=None,
                          data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
-                         params:dict=None) -> pd.DataFrame:
+                         params:dict=None, records:Union[pd.DataFrame, List[dict]]=None,
+                         return_documents:bool=True, return_counters:bool=False, limit:int=None) \
+            -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter], LinesRequestCounter, None]:
         """
         Alias function to update data in a DataStore using datastore_upsert.
         The update is performed based on the DataStore primary keys
@@ -90,7 +167,7 @@ class CkanApiDeprecated(CkanApiManage):
         :param records: generator of records, e.g. chunks from a CSV file generated with pandas.read_csv(.., chunksize=1000)
         :param resource_id: destination resource id
         :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
-        :param limit: number of records per transaction
+        :param limit_per_request: number of records per transaction
         :param offset: number of records to skip - use to restart the transfer
         :param total_limit: maximum number of lines to transmit, counting from the initial offset
         :param requests_limit: maximum number of requests
@@ -105,12 +182,13 @@ class CkanApiDeprecated(CkanApiManage):
         """
         msg = "datastore_update is deprecated, use datastore_upsert with argument `method=UpsertChoice.Update` instead"
         warn(msg, DeprecationWarning)
-        return self.datastore_upsert(records, resource_id, dry_run=dry_run, limit=limit, offset=offset,
+        return self.datastore_upsert(records_generator, resource_id, dry_run=dry_run, limit_per_request=limit_per_request, offset=offset,
                                      total_limit=total_limit, requests_limit=requests_limit,
                                      method=UpsertChoice.Update, apply_last_condition=apply_last_condition, return_df=return_df,
+                                     return_documents=return_documents, return_counters=return_counters,
                                      always_last_condition=always_last_condition, data_cleaner=data_cleaner,
                                      progress_callback=progress_callback,
-                                     force=force, params=params)
+                                     force=force, params=params, limit=limit, records=records)
 
     ## Not recommended manage functions ------------------
     def resource_move(self, resource_id: str, package_name: str, dest_package_name:str, params:dict=None):
@@ -135,7 +213,7 @@ class CkanApiDeprecated(CkanApiManage):
         self.resource_patch(resource_id, params=params)
 
     ## Not recommended mapping functions ------------------
-    def _api_package_list(self, *, params:dict=None, owner_org:str=None, limit:int=None, offset:int=None) -> List[str]:
+    def _api_package_list(self, *, params:dict=None, owner_org:str=None, limit_per_request:int=None, offset:int=None) -> List[str]:
         """
         __Not recommended__
         API call to package_list.
@@ -145,9 +223,9 @@ class CkanApiDeprecated(CkanApiManage):
         msg = "Prefer using package_search rather than package_list because this API does not list private packages"
         warn(msg, DeprecationWarning)
         if params is None: params = {}
-        if limit is None: limit = self.params.default_limit_list
-        if limit is not None:
-            params["limit"] = limit
+        if limit_per_request is None: limit_per_request = self.params.default_limit_list_per_request
+        if limit_per_request is not None:
+            params["limit"] = limit_per_request
         if offset is not None:
             params["offset"] = offset
         if owner_org is None and use_ckan_owner_org_for_requests:
@@ -160,7 +238,7 @@ class CkanApiDeprecated(CkanApiManage):
         else:
             raise response.default_error(self)
 
-    def _api_package_list_all(self, *, params:dict=None, owner_org:str=None, limit:int=None, offset:int=None) -> List[str]:
+    def _api_package_list_all(self, *, params:dict=None, owner_org:str=None, limit_per_request:int=None, offset:int=None) -> List[str]:
         """
         __Not recommended__
         API call to package_list until an empty list is received.
@@ -171,13 +249,13 @@ class CkanApiDeprecated(CkanApiManage):
         msg = "Prefer using package_search rather than package_list because this API does not list private packages"
         warn(msg, DeprecationWarning)
         if params is None: params = {}
-        responses = self._request_all_results_list(self._api_package_list, params=params, owner_org=owner_org, limit=limit, offset=offset)
+        responses = self._request_all_results_list(self._api_package_list, params=params, owner_org=owner_org, limit_per_request=limit_per_request, offset=offset)
         return sum(responses, [])
 
     package_list_all = _api_package_list_all  # function alias
 
 
-    def _api_resource_search(self, query:str=None, *, order_by:str=None, limit:int=None, offset:int=None,
+    def _api_resource_search(self, query:str=None, *, order_by:str=None, limit_per_request:int=None, offset:int=None,
                              resource_name:str=None,
                              datastore_info:bool=None, resource_view_list:bool=None,
                              params:dict=None) -> List[CkanResourceInfo]:
@@ -188,7 +266,7 @@ class CkanApiDeprecated(CkanApiManage):
         :see: map_resources()
         :param query: (string or list of strings of the form {field}:{term1}) – The search criteria. See above for description.
         :param order_by: A field on the Resource model that orders the results.
-        :param limit:
+        :param limit_per_request:
         :param offset:
         :param resource_name: a shortcut to add the filter "name:{resource_name}"
         :param datastore_info: an option to query the datastore info for all the resources found.
@@ -205,9 +283,9 @@ class CkanApiDeprecated(CkanApiManage):
         if resource_view_list is None:
             resource_view_list = self.map._mapping_query_resource_view_list
         if params is None: params = {}
-        if limit is None: limit = self.params.default_limit_list
-        if limit is not None:
-            params["limit"] = limit
+        if limit_per_request is None: limit_per_request = self.params.default_limit_list_per_request
+        if limit_per_request is not None:
+            params["limit"] = limit_per_request
         if offset is not None:
             params["offset"] = offset
         if query is None:
@@ -231,7 +309,7 @@ class CkanApiDeprecated(CkanApiManage):
         else:
             raise response.default_error(self)
 
-    def _api_resource_search_all(self, query: str = None, *, order_by: str = None, limit: int = None, offset: int = None,
+    def _api_resource_search_all(self, query: str = None, *, order_by: str = None, limit_per_request: int = None, offset: int = None,
                                  resource_name: str = None,
                                  datastore_info: bool = None, resource_view_list: bool = None,
                                  params: dict = None) -> List[CkanResourceInfo]:
@@ -243,7 +321,7 @@ class CkanApiDeprecated(CkanApiManage):
         :see: _api_resource_search()
         :param query: (string or list of strings of the form {field}:{term1}) – The search criteria. See above for description.
         :param order_by: A field on the Resource model that orders the results.
-        :param limit: maximum number of results to return.
+        :param limit_per_request: maximum number of results to return.
         :param offset: the offset in the complete result for where the set of returned datasets should begin.
         :param resource_name: a shortcut to add the filter "name:{resource_name}"
         :param datastore_info: an option to query the datastore info for all the resources found.
@@ -256,7 +334,7 @@ class CkanApiDeprecated(CkanApiManage):
         msg = "Prefer using package_search rather than resource_search because resource_search cannot filter per package"
         warn(msg, DeprecationWarning)
         if params is None: params = {}
-        responses = self._request_all_results_list(self._api_resource_search, params=params, limit=limit, offset=offset,
+        responses = self._request_all_results_list(self._api_resource_search, params=params, limit_per_request=limit_per_request, offset=offset,
                                                    query=query, order_by=order_by,
                                                    resource_name=resource_name,
                                                    datastore_info=datastore_info, resource_view_list=resource_view_list)
@@ -267,7 +345,7 @@ class CkanApiDeprecated(CkanApiManage):
 
     def _api_group_package_show(self, group_name: str, *, params:dict=None, owner_org:str=None,
                                 include_private:bool=True, include_drafts:bool=False, sort:str=None,
-                                limit:int=None, offset:int=None) -> List[CkanPackageInfo]:
+                                limit_per_request:int=None, offset:int=None) -> List[CkanPackageInfo]:
         """
         __Not recommended__
         API call to group_package_show. Return the datasets (packages) of a group.
@@ -276,7 +354,7 @@ class CkanApiDeprecated(CkanApiManage):
         :param include_private: if True, private datasets will be included in the results. Only private datasets from the user’s organizations will be returned and sysadmins will be returned all private datasets. Optional, the default is False in the API
         :param include_drafts:  if True, draft datasets will be included in the results. A user will only be returned their own draft datasets, and a sysadmin will be returned all draft datasets. Optional, the default is False.
         :param sort: sorting of the search results. Optional. Default: 'score desc, metadata_modified desc'. As per the solr documentation, this is a comma-separated string of field names and sort-orderings.
-        :param limit: maximum number of results to return. Translatees to the API rows argument.
+        :param limit_per_request: maximum number of results to return. Translatees to the API rows argument.
         :param offset: the offset in the complete result for where the set of returned datasets should begin. Translatees to the API start argument.
         :param params: other parameters to pass to package_search
         :return:
@@ -285,9 +363,9 @@ class CkanApiDeprecated(CkanApiManage):
         warn(msg, DeprecationWarning)
         if params is None: params = {}
         params["id"] = group_name
-        if limit is None: limit = self.params.default_limit_list
-        if limit is not None:
-            params["limit"] = limit
+        if limit_per_request is None: limit_per_request = self.params.default_limit_list_per_request
+        if limit_per_request is not None:
+            params["limit"] = limit_per_request
         if offset is not None:
             params["offset"] = offset
         if owner_org is None and use_ckan_owner_org_for_requests:
@@ -314,7 +392,7 @@ class CkanApiDeprecated(CkanApiManage):
 
     def _api_group_package_show_all(self, group_name: str, *, params:dict=None, owner_org:str=None,
                                     include_private:bool=True, include_drafts:bool=False, sort:str=None,
-                                    limit:int=None, offset:int=None) -> List[CkanPackageInfo]:
+                                    limit_per_request:int=None, offset:int=None) -> List[CkanPackageInfo]:
         """
         __Not recommended__
         API call to group_package_show until an empty list is received.
@@ -324,7 +402,7 @@ class CkanApiDeprecated(CkanApiManage):
         :param include_private: if True, private datasets will be included in the results. Only private datasets from the user’s organizations will be returned and sysadmins will be returned all private datasets. Optional, the default is False in the API
         :param include_drafts:  if True, draft datasets will be included in the results. A user will only be returned their own draft datasets, and a sysadmin will be returned all draft datasets. Optional, the default is False.
         :param sort: sorting of the search results. Optional. Default: 'score desc, metadata_modified desc'. As per the solr documentation, this is a comma-separated string of field names and sort-orderings.
-        :param limit: maximum number of results to return. Translatees to the API rows argument.
+        :param limit_per_request: maximum number of results to return. Translatees to the API rows argument.
         :param offset: the offset in the complete result for where the set of returned datasets should begin. Translatees to the API start argument.
         :param params: other parameters to pass to API
         :return:
@@ -332,7 +410,7 @@ class CkanApiDeprecated(CkanApiManage):
         msg = "Prefer using package_search rather than group_package_show knowing the name of the package because this API does not list private packages"
         warn(msg, DeprecationWarning)
         if params is None: params = {}
-        responses = self._request_all_results_list(self._api_group_package_show, params=params, limit=limit, offset=offset,
+        responses = self._request_all_results_list(self._api_group_package_show, params=params, limit_per_request=limit_per_request, offset=offset,
                                                    group_name=group_name, owner_org=owner_org,
                                                    include_private=include_private, include_drafts=include_drafts)
         return sum(responses, [])

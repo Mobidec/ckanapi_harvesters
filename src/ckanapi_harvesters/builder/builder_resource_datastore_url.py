@@ -71,7 +71,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
 
     def load_sample_data(self, resources_base_dir:str, *, ckan:CkanApi=None,
                          proxies:dict=None, headers:dict=None) -> bytes:
-        self.sample_source = self.url
+        self.sample_data_source = self.url
         if ckan is None:
             raise FunctionMissingArgumentError("BuilderDataStoreUrl.load_sample_data", "ckan")
         return ckan.download_url_proxy(self.url, proxies=proxies, headers=headers, auth_if_ckan=builder_request_default_auth_if_ckan).content
@@ -148,7 +148,6 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
 
         :param resources_base_dir:
         :param ckan:
-        :param package_id:
         :param reupload:
         :return:
         """
@@ -159,7 +158,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
             raise CkanArgumentError("payload", "datastore defined from URL patch")
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=False)
         try:
-            df_download = self.download_resource_df(ckan, download_alter=False, search_all=False, limit=1)
+            df_download = self.download_resource_df(ckan, download_alter=False, search_all=False, limit_per_request=1)
             if df_download is None:
                 assert_or_raise(resource_id is None, RuntimeError("Unexpected: resource_id should be None"))
                 raise NotMappedObjectNameError(self.name)

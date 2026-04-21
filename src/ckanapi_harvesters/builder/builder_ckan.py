@@ -43,7 +43,7 @@ class BuilderCkan:
         self._ckan_ca_src: Union[str, None] = None
         self._extern_ca_src: Union[str, None] = None
         self.options_string: Union[str, None] = None
-        self.limit: Union[int, None] = None
+        self.limit_per_request: Union[int, None] = None
         self.time_between_requests: Union[float, None] = None
         self.default_thread_count: int = 1
         self.comment: Union[str, None] = None
@@ -68,7 +68,7 @@ class BuilderCkan:
         dest._ckan_ca_src = self._ckan_ca_src
         dest._extern_ca_src = self._extern_ca_src
         dest.options_string = self.options_string
-        dest.limit = self.limit
+        dest.limit_per_request = self.limit_per_request
         dest.time_between_requests = self.time_between_requests
         dest.default_thread_count = self.default_thread_count
         dest.comment = self.comment
@@ -162,7 +162,7 @@ class BuilderCkan:
             number_str = _string_from_element(ckan_df.pop("limit"))
             self._user_fields_used.add("limit")
             if number_str is not None:
-                self.limit = int(number_str)
+                self.limit_per_request = int(number_str)
         if "time between requests" in ckan_df.columns:
             number_str = _string_from_element(ckan_df.pop("time between requests"))
             self._user_fields_used.add("time between requests")
@@ -194,7 +194,7 @@ class BuilderCkan:
         ckan_dict["External remote CA"] = ca_arg_to_str(self.extern_ca, base_dir=base_dir, source_string=self._extern_ca_src)
         ckan_dict["Data format policy file"] = make_path_relative(self.policy_file, base_dir)
         ckan_dict["Options"] = self.options_string
-        ckan_dict["Limit"] = self.limit
+        ckan_dict["Limit"] = self.limit_per_request
         ckan_dict["Time between requests"] = self.time_between_requests
         ckan_dict["Thread count"] = self.default_thread_count
         ckan_dict["Comment"] = self.comment
@@ -285,8 +285,8 @@ class BuilderCkan:
         if self.options_string is not None:
             ckan.initialize_from_options_string(self.options_string,
                                                 base_dir=base_dir, default_proxies=default_proxies)
-        if self.limit is not None:
-            ckan.set_limits(self.limit)
+        if self.limit_per_request is not None:
+            ckan.set_limits(self.limit_per_request)
         if self.time_between_requests is not None:
             ckan.params.multi_requests_time_between_requests = self.time_between_requests
         return ckan

@@ -6,7 +6,7 @@ File format base class
 import argparse
 import shlex
 from abc import ABC, abstractmethod
-from typing import Union, Dict
+from typing import Union, Dict, List
 import io
 
 import pandas as pd
@@ -32,8 +32,13 @@ class FileFormatABC(ABC):
         self.write_kwargs:dict = write_kwargs
         self.extra_args: Union[list,None] = None
         self.resource_attributes_from_file: Union[CkanResourceInfo,None] = None  # destination for resource attributes extracted from data source, if any
+        self.primary_key_from_file: Union[List[str],None] = None
         self._apply_options_string()
         self.allow_chunks = self.allow_chunks and self.read_by_chunks_allowed()  # override
+
+    def _clear_user_metadata(self):
+        self.primary_key_from_file = None
+        self.resource_attributes_from_file = None
 
     def _get_read_kwargs(self, allow_chunks:bool=True) -> dict:
         kwargs = self.default_read_kwargs.copy()

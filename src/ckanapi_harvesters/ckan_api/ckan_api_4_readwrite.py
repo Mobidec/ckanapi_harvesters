@@ -3,7 +3,7 @@
 """
 
 """
-from typing import List, Union, Tuple, Generator
+from typing import List, Union, Tuple, Iterable
 import time
 from warnings import warn
 import io
@@ -16,6 +16,7 @@ from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanState
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import _reassign_limit_argument
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse
 from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 # from ckanapi_harvesters.auxiliary.list_records import records_to_df
@@ -42,7 +43,7 @@ class CkanApiReadWriteParams(CkanApiPolicyParams):
     def __init__(self, *, proxies:Union[str,dict,ProxyConfig]=None,
                  ckan_headers:dict=None, http_headers:dict=None):
         super().__init__(proxies=proxies, ckan_headers=ckan_headers, http_headers=http_headers)
-        self.default_limit_write: Union[int,None] = self.default_limit_read  # limit the number of entries per upsert (used as default value)
+        self.default_limit_write_per_request: Union[int,None] = self.default_limit_read_per_request  # limit the number of entries per upsert (used as default value)
         self.num_rows_datastore_create_partial: Union[int,None] = 50  # number of lines transmitted through datastore_create (None means full DataFrame)
         self.default_force: bool = True  # set to True to edit a read-only resource
         self.read_only: bool = self.default_readonly
@@ -53,7 +54,7 @@ class CkanApiReadWriteParams(CkanApiPolicyParams):
         if dest is None:
             dest = CkanApiReadWriteParams()
         super().copy(dest=dest)
-        dest.default_limit_write = self.default_limit_write
+        dest.default_limit_write_per_request = self.default_limit_write_per_request
         dest.default_force = self.default_force
         dest.read_only = self.read_only
         dest.submit_delay = self.submit_delay
@@ -67,7 +68,7 @@ class CkanApiReadWriteParams(CkanApiPolicyParams):
         super()._cli_ckan_args_apply(args=args, base_dir=base_dir, error_not_found=error_not_found,
                                      default_proxies=default_proxies, proxy_headers=proxy_headers)
         if args.limit is not None:
-            self.default_limit_write = args.limit
+            self.default_limit_write_per_request = args.limit
 
 
 class CkanApiReadWrite(CkanApiPolicy):
@@ -137,9 +138,9 @@ class CkanApiReadWrite(CkanApiPolicy):
         """
         super().set_limits(limit_read)
         if limit_write is not None:
-            self.params.default_limit_write = limit_write
+            self.params.default_limit_write_per_request = limit_write
         else:
-            self.params.default_limit_write = limit_read
+            self.params.default_limit_write_per_request = limit_read
 
     def set_submit_timeout(self, submit_timeout:float, submit_delay:float=None) -> None:
         """
@@ -265,7 +266,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         return self._api_datastore_upsert(None, resource_id=resource_id, method=None, last_insertion=True)
 
     def _datastore_upsert_df(self, records:Union[dict, List[dict], pd.DataFrame], resource_id:str, *,
-                             dry_run:bool=False, limit:int=None, offset:int=0,
+                             dry_run:bool=False, limit_per_request:int=None, offset:int=0,
                              total_limit:int=None, requests_limit:int=None,
                              force:bool=None,
                              method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
@@ -282,7 +283,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param resource_id: destination resource id
         :param method: by default, set to Upsert
         :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
-        :param limit: number of records per transaction
+        :param limit_per_request: number of records per transaction
         :param offset: number of records to skip - use to restart the transfer
         :param total_limit: maximum number of lines to transmit, counting from the initial offset
         :param requests_limit: maximum number of requests
@@ -327,7 +328,7 @@ class CkanApiReadWrite(CkanApiPolicy):
             data_cleaner.apply_new_fields_request(self, resource_id=resource_id)
         if return_df is None:
             return_df = mode_df
-        if limit is None: limit = self.params.default_limit_write
+        if limit_per_request is None: limit_per_request = self.params.default_limit_write_per_request
         if self.params.multi_requests_time_between_requests > 0:
             time.sleep(self.params.multi_requests_time_between_requests)
         limit_reached = False
@@ -345,7 +346,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                 warn(msg)
         start = time.time()
         current = start
-        if limit is None:
+        if limit_per_request is None:
             # direct API call with one request
             if self.params.store_last_response_debug_info:
                 self.debug.multi_requests_last_successful_offset = offset
@@ -372,7 +373,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                 return counters
             else:
                 return None
-        assert_or_raise(limit > 0, InvalidParameterError("limit"))
+        assert_or_raise(limit_per_request > 0, InvalidParameterError("limit_per_request"))
         len_records = len(records)
         if self.params.store_last_response_debug_info:
             self.debug.multi_requests_last_successful_offset = offset
@@ -390,8 +391,8 @@ class CkanApiReadWrite(CkanApiPolicy):
                 (requests_limit is None or requests_count < requests_limit) and
                 (requests_count < self.params.max_requests_count or self.params.max_requests_count == 0))
         while flag:
-            last_insertion = offset+limit >= len_records
-            i_end_add = min(len_records, offset+limit)
+            last_insertion = offset+limit_per_request >= len_records
+            i_end_add = min(len_records, offset+limit_per_request)
             n_add = i_end_add-1 - offset + 1
             if self.params.verbose_multi_requests:
                 print(f"{self.identifier} Multi-requests upsert {requests_count} to add {n_add} records ...")
@@ -423,11 +424,11 @@ class CkanApiReadWrite(CkanApiPolicy):
             if self.params.multi_requests_time_between_requests > 0 and not last_insertion:
                 time.sleep(self.params.multi_requests_time_between_requests)
             if not last_insertion:
-                assert_or_raise(n_add == limit, IntegrityError("datastore_upsert implementation is wrong"))
-            offset += limit
+                assert_or_raise(n_add == limit_per_request, IntegrityError("datastore_upsert implementation is wrong"))
+            offset += limit_per_request
             requests_count += 1
             current = time.time()
-            timeout = current - start > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
+            timeout = (current - start > self.params.multi_requests_timeout) and (self.params.multi_requests_timeout > 0)
             flag = (offset < len_records and not timeout and
                     (total_limit is None or n_sent < total_limit) and
                     (requests_limit is None or requests_count < requests_limit) and
@@ -480,8 +481,8 @@ class CkanApiReadWrite(CkanApiPolicy):
         else:
             return None
 
-    def _datastore_upsert_generator(self, records_generator:Generator[GeneralDataFrame, None, None], resource_id:str, *,
-                                    dry_run:bool=False, limit:int=None, offset:int=0, request_threshold:int=None,
+    def _datastore_upsert_generator(self, records_generator:Iterable[GeneralDataFrame], resource_id:str, *,
+                                    dry_run:bool=False, limit_per_request:int=None, offset:int=0, request_threshold:int=None,
                                     total_limit:int=None, requests_limit:int=None, force:bool=None,
                                     method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                                     always_last_condition:bool=None, return_df:bool=None,
@@ -498,7 +499,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
         :param request_threshold: number of records to cumulate before sending a request (argument specific to this method).
             If not specified, chunks are sent to _datastore_upsert_df at each new iteration.
-        :param limit: number of records per transaction
+        :param limit_per_request: number of records per transaction
         :param offset: number of records to skip - use to restart the transfer
         :param total_limit: maximum number of lines to transmit, counting from the initial offset
         :param requests_limit: maximum number of requests
@@ -517,8 +518,8 @@ class CkanApiReadWrite(CkanApiPolicy):
             This represents the order of the return arguments with return_documents=True and return_counters=True.
             The presence of respective return values is controlled by these arguments.
         """
-        if limit is None: limit = self.params.default_limit_write
-        if request_threshold is None: request_threshold = limit
+        if limit_per_request is None: limit_per_request = self.params.default_limit_write_per_request
+        if request_threshold is None: request_threshold = limit_per_request
         line_count_with_offset = 0
         records = None
         calls_count = 0
@@ -556,7 +557,7 @@ class CkanApiReadWrite(CkanApiPolicy):
             # perform request
             if request_threshold is None or len(records) >= request_threshold:
                 rows_inserted, counters = self._datastore_upsert_df(records, resource_id=resource_id, dry_run=dry_run,
-                                                                    limit=limit, offset=current_offset,
+                                                                    limit_per_request=limit_per_request, offset=current_offset,
                                                                     total_limit=current_total_limit, requests_limit=current_requests_limit,
                                                                     force=force, method=method, params=params,
                                                                     apply_last_condition=False, always_last_condition=always_last_condition,
@@ -591,7 +592,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         current_offset = max(0, offset - line_count_with_offset)
         if records is not None:
             rows_inserted, counters = self._datastore_upsert_df(records, resource_id=resource_id, dry_run=dry_run,
-                                                                limit=limit, offset=current_offset,
+                                                                limit_per_request=limit_per_request, offset=current_offset,
                                                                 total_limit=current_total_limit, requests_limit=current_requests_limit,
                                                                 force=force, method=method, params=params,
                                                                 apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
@@ -619,12 +620,12 @@ class CkanApiReadWrite(CkanApiPolicy):
             self.datastore_upsert_last_line(resource_id)
         self.debug.multi_requests_last_counters = total_counter
         if return_documents and return_counters:
-            if mode_df:
+            if return_df:
                 return df, total_counter
             else:
                 return returned_rows, total_counter
         elif return_documents:
-            if mode_df:
+            if return_df:
                 return df
             else:
                 return returned_rows
@@ -633,15 +634,16 @@ class CkanApiReadWrite(CkanApiPolicy):
         else:
             return None
 
-    def datastore_upsert(self, records_generator:Union[pd.DataFrame, List[dict], Generator[GeneralDataFrame, None, None]], resource_id:str, *,
-                         dry_run:bool=False, limit:int=None, offset:int=0, request_threshold:int=None,
+    def datastore_upsert(self, records_generator:Union[pd.DataFrame, List[dict], Iterable[GeneralDataFrame]], resource_id:str, *,
+                         dry_run:bool=False, limit_per_request:int=None, offset:int=0, request_threshold:int=None,
                          total_limit:int=None, requests_limit:int=None, force:bool=None,
                          method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                          always_last_condition:bool=None, return_df:bool=None,
                          return_documents:bool=False, return_counters:bool=True,
                          data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
-                         params:dict=None, exclude_generator_mode:bool=False,
-                         records:Union[pd.DataFrame, List[dict]]=None) -> LinesRequestCounter:
+                         params:dict=None, limit:int=None, exclude_generator_mode:bool=False,
+                         records:Union[pd.DataFrame, List[dict]]=None) \
+            -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter], LinesRequestCounter, None]:
         """
         Main entry point for datastore_upsert accepting generators or DataFrames.
         The call to the correct function is made upon the type of the records_generator argument.
@@ -655,10 +657,11 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
         :param request_threshold: number of records to cumulate before sending a request, in case of the use of a DataFrame generator.
             If not specified, chunks are sent to _datastore_upsert_df at each new iteration.
-        :param limit: number of records per transaction
+        :param limit_per_request: number of records per transaction
         :param offset: number of records to skip - use to restart the transfer
         :param total_limit: maximum number of lines to transmit, counting from the initial offset
         :param requests_limit: maximum number of requests
+        :param limit: previously limit_per_request, now stands for total_limit. This parameter is deprecated and will be removed in a future release.
         :param params: additional parameters
         :param dry_run: set to True to abort transaction instead of committing, e.g. to check for validation or type errors
         :param apply_last_condition: if True, the last upsert request applies the last insert operations (calculate_record_count and force_indexing).
@@ -670,6 +673,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param return_counters: if True, return a dict of request counters in addition to the received records
         :return: the number of records inserted
         """
+        if limit is not None: locals().update(_reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request))
         if records is not None:
             assert(records_generator is None)
             # exclude_generator_mode = True  # records argument cannot accept generators
@@ -677,7 +681,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         if isinstance(records_generator, pd.DataFrame) or isinstance(records_generator, list):
             # direct call to function
             return self._datastore_upsert_df(records_generator, resource_id=resource_id, dry_run=dry_run,
-                                             limit=limit, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
+                                             limit_per_request=limit_per_request, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
                                              force=force, method=method, params=params,
                                              apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
                                              return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback,
@@ -689,7 +693,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                 msg = "return_documents is not recommended with generator implementation, especially for large datasets"
                 warn(msg)
             return self._datastore_upsert_generator(records_generator, resource_id=resource_id, dry_run=dry_run,
-                                                    limit=limit, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
+                                                    limit_per_request=limit_per_request, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
                                                     force=force, request_threshold=request_threshold, method=method, params=params,
                                                     apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
                                                     return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback,
@@ -813,7 +817,7 @@ class CkanApiReadWrite(CkanApiPolicy):
             # resource_info = self.resource_show(resource_id)
             # current_timestamp = resource_info.last_modified
             try:
-                df = self.datastore_search(resource_id, limit=1, search_all=False, search_method=True)
+                df = self.datastore_search(resource_id, limit_per_request=1, search_all=False, search_method=True)
             except DataStoreNotFoundError:
                 pass
             current = time.time()

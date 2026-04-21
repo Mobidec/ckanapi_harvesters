@@ -60,8 +60,9 @@ class DatabaseParams:
         if source is not None:
             source.copy(dest=self)
 
-    @abstractmethod
     def copy(self, *, dest=None):
+        if dest is None:
+            dest = DatabaseParams()
         dest.options_string = self.options_string
         dest.file_url_attr = self.file_url_attr
         dest.base_dir = self.base_dir
@@ -253,6 +254,11 @@ class DatabaseParams:
                 msg = "CA verification has been disabled. Only allow in a local environment!"
                 warn(msg)
         self._verify_server_ca = ca_cert
+
+    def set_verify_ca(self, ca_cert: Union[bool, str, None], enforce_ca_safety: bool = None) -> None:
+        msg = "set_verify_ca is marked as deprecated; use set_verify_server_ca instead"
+        warn(msg, DeprecationWarning)
+        return self.set_verify_server_ca(ca_cert, enforce_ca_safety)
 
     @staticmethod
     def unlock_no_server_ca(value: bool = True):

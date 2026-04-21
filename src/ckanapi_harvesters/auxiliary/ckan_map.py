@@ -281,9 +281,9 @@ class CkanMap(CkanMapABC):
             elif error_not_mapped:
                 raise NotMappedObjectNameError(f"DataStore of resource {resource_name} is not mapped or does not exist.")
             else:
-                return None, False if return_mapped_boolean else None
+                return (None, False) if return_mapped_boolean else None
         else:
-            return None, False if return_mapped_boolean else None
+            return (None, False) if return_mapped_boolean else None
 
     def get_datastore_len(self, resource_name:str, package_name:str=None, *, error_not_mapped:bool=True) -> Union[int,None]:
         """
@@ -313,16 +313,20 @@ class CkanMap(CkanMapABC):
         self.packages[package_id].package_resources[resource_id].datastore_info.row_count = new_len
         self.packages[package_id].package_resources[resource_id].datastore_info.details["meta"]["count"] = new_len
 
-    def _update_datastore_info(self, datastore_info:CkanDataStoreInfo) -> None:
+    def _update_datastore_info(self, resource_id:str, datastore_info:Union[CkanDataStoreInfo,None], datastore_error:Exception=None) -> None:
         """
         Internal function to update the length of a DataStore without making a request.
         """
-        resource_id = datastore_info.resource_id
+        if datastore_info is not None:
+            assert_or_raise(resource_id == datastore_info.resource_id, IntegrityError("resource ids do not match"))
+        datastore_error_dict = {"error": str(datastore_error)} if datastore_error is not None else None
         if resource_id in self.resources.keys():
             resource_info = self.resources[resource_id]
             package_id = resource_info.package_id
             self.resources[resource_id].datastore_info = datastore_info
+            self.resources[resource_id].datastore_info_error = datastore_error_dict
             self.packages[package_id].package_resources[resource_id].datastore_info = datastore_info
+            self.packages[package_id].package_resources[resource_id].datastore_info_error = datastore_error_dict
             self.packages[package_id].resources_id_index[resource_info.name] = resource_id
         if datastore_info is not None and datastore_info.aliases is not None:
             self.resource_alias_index.update({alias: resource_id for alias in datastore_info.aliases})

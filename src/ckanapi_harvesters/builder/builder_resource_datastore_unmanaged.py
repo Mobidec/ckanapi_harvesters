@@ -61,7 +61,8 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
 
     def get_local_df_chunk_generator(self, resources_base_dir:str, ckan:CkanApi, **kwargs) -> Generator[Tuple[GeneralDataFrame,int], None, None]:
         if False:
-            yield None
+            yield None  # generator will not iterate once
+        return
 
     def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True, file_index:int=0, allow_chunks:bool=True, **kwargs) -> Union[pd.DataFrame,None]:
         return None
@@ -87,7 +88,6 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
 
         :param resources_base_dir:
         :param ckan:
-        :param package_id:
         :param reupload:
         :return:
         """
@@ -99,7 +99,7 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=False)
         if df_upload is None:
             try:
-                df_download = self.download_resource_df(ckan, search_all=False, download_alter=False, limit=1)
+                df_download = self.download_resource_df(ckan, search_all=False, download_alter=False, limit_per_request=1)
                 if df_download is None:
                     assert_or_raise(resource_id is None, RuntimeError("Unexpected: resource_id should be None"))
                     raise NotMappedObjectNameError(self.name)

@@ -14,8 +14,10 @@ from collections import OrderedDict
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, _bool_from_string, bytes_to_megabytes
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanFieldInternalAttrs
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import dict_recursive_update, str_is_not_empty
+from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_field_types import CkanFieldType, field_type_synonyms
-from ckanapi_harvesters.auxiliary.ckan_errors import IntegrityError, MissingIdError
+from ckanapi_harvesters.auxiliary.ckan_errors import IntegrityError, MissingIdError, MissingDataStoreInfoError
+
 
 ## Enumerations ------------------
 class UpsertChoice(IntEnum):
@@ -431,7 +433,9 @@ class CkanDataStoreInfo:
         self.row_count: Union[int,None] = None
         self.fields_id_list:Union[List[str],None] = None
         self.fields_dict:Union[OrderedDict[str,CkanField],None] = None
-        self.index_fields:Union[List[str],None] = None
+        self.primary_key:Union[List[str],None] = None
+        self.indexes:Union[List[str],None] = None
+        self.index_fields:Union[List[str],None] = None  # reconstructed - usage not recommended
         self.aliases:Union[List[str],None] = None
         self.table_size_mb:Union[float,None] = None
         self.index_size_mb:Union[float,None] = None
@@ -444,6 +448,10 @@ class CkanDataStoreInfo:
                 self.row_count:int = d["meta"]["count"]
             self.table_size_mb = bytes_to_megabytes(d["meta"].get("size", None))
             self.index_size_mb = bytes_to_megabytes(d["meta"].get("idx_size", None))
+            if "primary_key" in d.keys():
+                self.primary_key = d["primary_key"].split(ckan_tags_sep)
+            if "indexes" in d.keys():
+                self.indexes = d["indexes"].split(ckan_tags_sep)
             # what does the field meta.db_size represent?
             if "fields" in d.keys():
                 self.fields_id_list:List[str] = [e["id"] for e in d["fields"]]
@@ -478,6 +486,10 @@ class CkanDataStoreInfo:
         d["meta"]["id"] = self.resource_id
         if self.row_count is not None:
             d["meta"]["count"] = self.row_count
+        if self.primary_key is not None:
+            d["primary_key"] = self.primary_key
+        if self.indexes is not None:
+            d["indexes"] = self.indexes
         return d
 
     @staticmethod
@@ -640,13 +652,17 @@ class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
     def copy(self) -> "CkanResourceInfo":
         return copy.deepcopy(self)
 
-    def datastore_queried(self) -> bool:
-        return self.datastore_info is not None or self.datastore_info_error is not None
+    def datastore_queried(self, *, error_not_queried:bool=False) -> bool:
+        ds_was_queried = self.datastore_info is not None or self.datastore_info_error is not None
+        if error_not_queried and not ds_was_queried:
+            raise MissingDataStoreInfoError()
+        return ds_was_queried
 
-    def is_datastore(self) -> Union[bool,None]:
-        if self.datastore_queried():
+    def is_datastore(self, *, error_not_queried:bool=False) -> Union[bool,None]:
+        if self.datastore_queried(error_not_queried=error_not_queried):
             return self.datastore_info is not None
         else:
+            # return self.datastore_active  # not always correct
             return None
 
     def update_view(self, view_info: Union[CkanViewInfo, List[CkanViewInfo]], view_list:bool=False) -> None:

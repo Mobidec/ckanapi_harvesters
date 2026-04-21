@@ -62,26 +62,19 @@ class UserFileFormat(FileFormatABC):
         if self.df_read_fun is None:
             raise MissingIOFunctionError("Read function")
         read_kwargs = self._get_read_kwargs(allow_chunks=allow_chunks)
-        self.resource_attributes_from_file = None
+        self._clear_user_metadata()
         output = self.df_read_fun(file_path, fields=fields, allow_chunks=self.read_by_chunks_enabled(allow_chunks=allow_chunks), params=self, **read_kwargs)
-        if isinstance(output, tuple):
-            self.resource_attributes_from_file = output[1]
-            return output[0]
-        else:
-            return output
+        # NB: metadata attributes as well (resource_attributes_from_file, primary_key_from_file) can be returned using the params argument
+        return output
 
     def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
         if self.df_read_fun is None:
             raise MissingIOFunctionError("Read function")
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
-        self.resource_attributes_from_file = None
+        self._clear_user_metadata()
         output = self.df_read_fun(buffer, fields=fields, allow_chunks=False, params=self, **read_kwargs)
-        if isinstance(output, tuple):
-            assert(isinstance(output[1], CkanResourceInfo))
-            self.resource_attributes_from_file = output[1]
-            return output[0]
-        else:
-            return output
+        # NB: metadata attributes as well (resource_attributes_from_file, primary_key_from_file) can be returned using the params argument
+        return output
 
     # write ------------------
     def write_file(self, df: pd.DataFrame, file_path: str, fields: Union[Dict[str, CkanField],None]) -> None:
