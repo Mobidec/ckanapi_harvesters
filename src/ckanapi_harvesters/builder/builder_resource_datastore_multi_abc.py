@@ -14,6 +14,7 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanCallbackLevel
 from ckanapi_harvesters.builder.builder_resource_datastore import BuilderDataStoreABC
+from ckanapi_harvesters.auxiliary.ckan_field_types import CkanFieldType
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
 from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name, datastore_default_source_file_col_name
 from ckanapi_harvesters.ckan_api import CkanApi
@@ -43,6 +44,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         self.setup_default_file_mapper()
         self.reupload_if_needed = False  # do not reupload if needed because this could cause data loss (the upload function only uploads the first table)
         self.upsert_method: UpsertChoice = UpsertChoice.Upsert
+        self.downloaded_file_query_list:Collection[Tuple[str,dict]] = None
         # BuilderMultiABC:
         self.stop_event = threading.Event()
         self.thread_ckan: Dict[str, CkanApi] = {}
@@ -81,7 +83,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
             if self.field_builders_user is None:
                 self.field_builders_user = OrderedDict()
             if datastore_default_upload_index_col_name not in self.field_builders_user.keys():
-                self.field_builders_user[datastore_default_upload_index_col_name] = BuilderField(name=datastore_default_upload_index_col_name, type_override="int8")
+                self.field_builders_user[datastore_default_upload_index_col_name] = BuilderField(name=datastore_default_upload_index_col_name, type_override=CkanFieldType("int8"))
             field_builder = self.field_builders_user[datastore_default_upload_index_col_name]
             known_field = None
             if self.known_resource_info is not None and self.known_resource_info.datastore_info is not None and self.known_resource_info.datastore_info.fields_dict is not None:
@@ -181,7 +183,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         file_index = file_chunk.file_index
         if file_index == 0 and file_chunk.chunk_index == 0 and self.upsert_method == UpsertChoice.Insert:
             return  # do not reupload the first document, which was used for the initialization of the dataset
-        process_upsert = start_index <= file_index and file_index < end_index and file_chunk.read_line_counter - len(file_chunk.df) >= self.upload_start_line
+        process_upsert = (start_index <= file_index) and (file_index < end_index) and file_chunk.read_line_counter - len(file_chunk.df) >= self.upload_start_line
         self.progress_callback.update_task(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(),
                                            info=file_chunk, level=self.process_level,
                                            file_index=file_index, file_count=file_count,
@@ -318,7 +320,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         """
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=self.download_error_not_found)
         if resource_id is None and not self.download_error_not_found:
-            return None
+            return
         download_generator = self.df_mapper.download_file_query(ckan=ckan, resource_id=resource_id, file_query=file_query,
                                                                 progress_callback=self.progress_callback)
         for df_download in download_generator:
@@ -328,7 +330,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     def _unit_download_apply(self, ckan:CkanApi, file_query_item:Any, out_dir:str,
                             index:int, start_index:int, end_index:int, total:int,
                             **kwargs) -> Any:
-        if start_index <= index and index < end_index:
+        if (start_index <= index) and (index < end_index):
             self.progress_callback.update_task(index, total, info=file_query_item, level=self.process_level,
                                                file_index=index, file_count=total,
                                                total_lines_read=self.read_line_counter,

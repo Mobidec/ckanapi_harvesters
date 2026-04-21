@@ -71,7 +71,7 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
 
     def load_sample_data(self, resources_base_dir:str, *, ckan:CkanApi=None,
                          proxies:dict=None, headers:dict=None) -> bytes:
-        self.sample_source = self.url
+        self.sample_data_source = self.url
         if ckan is None:
             raise FunctionMissingArgumentError("BuilderDataStoreUrl.load_sample_data", "ckan")
         return ckan.download_url_proxy(self.url, proxies=proxies, headers=headers, auth_if_ckan=builder_request_default_auth_if_ckan).content
@@ -148,7 +148,6 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
 
         :param resources_base_dir:
         :param ckan:
-        :param package_id:
         :param reupload:
         :return:
         """

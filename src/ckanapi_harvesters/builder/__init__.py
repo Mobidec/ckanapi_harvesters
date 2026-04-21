@@ -28,8 +28,8 @@ from . import builder_resource_init
 from . import builder_ckan
 from . import builder_package_1_basic
 from . import builder_package_2_harvesters
-from . import builder_package_3_multi_threaded
 from . import builder_package
+from . import deprecated
 
 from . import specific
 from . import example

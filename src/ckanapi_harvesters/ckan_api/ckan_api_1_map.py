@@ -71,6 +71,10 @@ class CkanApiMap(CkanApiBase):
         dest.map = self.map.copy()
         return dest
 
+    def connect(self):
+        super().connect()
+        self.test_ckan_login(raise_error=True)
+
     def purge(self, purge_map:bool=False) -> None:
         """
         Erase temporary data stored in this object

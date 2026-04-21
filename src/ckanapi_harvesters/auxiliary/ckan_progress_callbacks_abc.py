@@ -45,7 +45,7 @@ class CkanProgressUnits(IntEnum):
         elif self == CkanProgressUnits.Items:
             return "It"
         else:
-            return {self.name}
+            return self.name
 
 
 class CkanProgressCallbackABC(ABC):

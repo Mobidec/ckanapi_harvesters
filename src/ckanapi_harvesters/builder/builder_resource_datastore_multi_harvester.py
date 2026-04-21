@@ -293,7 +293,7 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
                                            data_cleaner=self.data_cleaner_upload,
                                            progress_callback=self.progress_callback,
                                            return_documents=True, return_counters=False, exclude_generator_mode=True)
-        elif 0 <= row_count and row_count < len(df_row):
+        elif (0 <= row_count) and (row_count < len(df_row)):
             msg = f"Sending full dataframe because is was shorter on server side"
             warn(msg)
             ret_df = ckan.datastore_upsert(df_upload_transformed, resource_id, method=method,

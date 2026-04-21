@@ -162,7 +162,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             self.apply_one_frame_per_primary_key(args.group_by)
         elif args.group_by is not None:
             msg = GroupByError("Argument --group-by cannot be used without option --one-frame-per-primary-key")
-            warn(msg)
+            warn(str(msg))
 
     def setup_default_file_mapper(self, *, primary_key:List[str]=None, file_query_list:Collection[Tuple[str, dict]]=None) -> None:
         if primary_key is None:
@@ -213,7 +213,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             warn(msg)
             self.local_file_format.allow_chunks = False
 
-    def initialize_extra_options_string(self, extra_options_string:str, base_dir:str) -> None:
+    def initialize_extra_options_string(self, extra_options_string:Union[str,None], base_dir:str) -> None:
         self.local_file_format = init_file_format_datastore(self.resource_attributes_user.format, extra_options_string, self.aux_read_fun_name, self.aux_write_fun_name)  # default file format is CSV (user can change)
 
     def _merge_resource_attributes_from_file(self) -> None:
@@ -396,7 +396,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
     def sample_file_path_is_url() -> bool:
         return False
 
-    def get_sample_file_path(self, resources_base_dir: str, ckan:Union[CkanApi,None]=None) -> None:
+    def get_sample_file_path(self, resources_base_dir: str, ckan:Union[CkanApi,None]=None) -> Union[str,None]:
         return None
 
     def load_sample_data(self, resources_base_dir:str) -> bytes:

@@ -3,7 +3,7 @@
 """
 
 """
-from typing import List, Union, Tuple, Generator
+from typing import List, Union, Tuple, Iterable
 import time
 from warnings import warn
 import io
@@ -427,7 +427,7 @@ class CkanApiReadWrite(CkanApiPolicy):
             offset += limit_per_request
             requests_count += 1
             current = time.time()
-            timeout = current - start > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
+            timeout = (current - start > self.params.multi_requests_timeout) and (self.params.multi_requests_timeout > 0)
             flag = (offset < len_records and not timeout and
                     (total_limit is None or n_sent < total_limit) and
                     (requests_limit is None or requests_count < requests_limit) and
@@ -480,7 +480,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         else:
             return None
 
-    def _datastore_upsert_generator(self, records_generator:Generator[GeneralDataFrame, None, None], resource_id:str, *,
+    def _datastore_upsert_generator(self, records_generator:Iterable[GeneralDataFrame], resource_id:str, *,
                                     dry_run:bool=False, limit_per_request:int=None, offset:int=0, request_threshold:int=None,
                                     total_limit:int=None, requests_limit:int=None, force:bool=None,
                                     method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
@@ -619,12 +619,12 @@ class CkanApiReadWrite(CkanApiPolicy):
             self.datastore_upsert_last_line(resource_id)
         self.debug.multi_requests_last_counters = total_counter
         if return_documents and return_counters:
-            if mode_df:
+            if return_df:
                 return df, total_counter
             else:
                 return returned_rows, total_counter
         elif return_documents:
-            if mode_df:
+            if return_df:
                 return df
             else:
                 return returned_rows
@@ -633,7 +633,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         else:
             return None
 
-    def datastore_upsert(self, records_generator:Union[pd.DataFrame, List[dict], Generator[GeneralDataFrame, None, None]], resource_id:str, *,
+    def datastore_upsert(self, records_generator:Union[pd.DataFrame, List[dict], Iterable[GeneralDataFrame]], resource_id:str, *,
                          dry_run:bool=False, limit_per_request:int=None, offset:int=0, request_threshold:int=None,
                          total_limit:int=None, requests_limit:int=None, force:bool=None,
                          method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,

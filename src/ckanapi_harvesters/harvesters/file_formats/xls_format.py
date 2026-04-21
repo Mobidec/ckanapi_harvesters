@@ -20,6 +20,7 @@ class ExcelFileFormat(FileFormatABC):
 
     Recommended: use with CLI argument `--read-kwargs sheet_name=your_sheet` (default is 0 i.e. the first sheet)
     """
+
     def __init__(self, options_string: str, *, read_kwargs: dict=None, write_kwargs: dict=None) -> None:
         super().__init__(options_string=options_string, read_kwargs=read_kwargs, write_kwargs=write_kwargs)
         self.allow_chunks = False  # override: reading by chunks is not possible
@@ -45,6 +46,9 @@ class ExcelFileFormat(FileFormatABC):
     def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
         return pd.read_excel(buffer, **read_kwargs)
+
+    def read_by_chunks_allowed(self) -> bool:
+        return False
 
     # write ------------------
     def write_file(self, df: pd.DataFrame, file_path: str, fields: Union[Dict[str, CkanField],None]) -> None:

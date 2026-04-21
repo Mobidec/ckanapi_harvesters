@@ -38,7 +38,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         self.local_file_list:Union[List[str],None] = None
         self.local_file_size:Union[List[int],None] = None
         self.local_file_size_sum:Union[int,None] = None
-        self.downloaded_file_query_list:Collection[Tuple[str,dict]] = file_query_list
+        self.downloaded_file_query_list:Collection[Tuple[str,dict]] = file_query_list  # update value from BuilderDataStoreMultiABC
 
     def copy(self, *, dest=None, parent=None):
         if dest is None:
@@ -205,7 +205,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
                                            data_cleaner=self.data_cleaner_upload,
                                            progress_callback=self.progress_callback,
                                            return_documents=True, return_counters=False, exclude_generator_mode=True)
-        elif 0 <= row_count and row_count < len(df_row):
+        elif (0 <= row_count) and (row_count < len(df_row)):
             msg = f"Sending full dataframe because it was shorter on server side"
             warn(msg)
             ret_df = ckan.datastore_upsert(df_upload_transformed, resource_id, method=method,

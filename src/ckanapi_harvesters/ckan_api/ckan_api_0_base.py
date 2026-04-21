@@ -194,7 +194,7 @@ class CkanApiBase(CkanApiABC):
                 # self.extern_session.headers = self.params.http_headers
 
     def connect(self):
-        self.test_ckan_login(raise_error=True)
+        pass
 
     def disconnect(self):
         if self.ckan_session is not None:
@@ -234,8 +234,6 @@ class CkanApiBase(CkanApiABC):
     def purge(self) -> None:
         """
         Erase temporary data stored in this object
-
-        :param purge_map: whether to purge the map created with map_resources
         """
         self.debug.last_response = None
         self.debug.ckan_request_counter = 0
@@ -434,7 +432,6 @@ class CkanApiBase(CkanApiABC):
         """
         Ask user information in the console window.
 
-        :param input_owner_org: option to ask for the owner organization.
         :return:
         """
         if input_args or input_args_if_necessary:
@@ -954,7 +951,7 @@ class CkanApiBase(CkanApiABC):
             #                                 level=CkanCallbackLevel.Requests)
         yield result_add
         current = time.time()
-        timeout = (current - start) > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
+        timeout = ((current - start) > self.params.multi_requests_timeout) and (self.params.multi_requests_timeout > 0)
         flag = search_all and (len(result_add) > 0 and not timeout and
                 (self.params.max_requests_count == 0 or requests_count < self.params.max_requests_count) and
                 (requests_limit is None or requests_count < requests_limit) and
@@ -987,7 +984,7 @@ class CkanApiBase(CkanApiABC):
             offset += len(result_add)
             n_received += len(result_add)
             current = time.time()
-            timeout = (current - start) > self.params.multi_requests_timeout and self.params.multi_requests_timeout > 0
+            timeout = ((current - start) > self.params.multi_requests_timeout) and (self.params.multi_requests_timeout > 0)
             flag = (len(result_add) > 0 and not timeout and
                     (self.params.max_requests_count == 0 or requests_count < self.params.max_requests_count) and
                     (requests_limit is None or requests_count < requests_limit) and

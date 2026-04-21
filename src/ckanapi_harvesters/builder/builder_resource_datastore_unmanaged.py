@@ -61,7 +61,8 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
 
     def get_local_df_chunk_generator(self, resources_base_dir:str, ckan:CkanApi, **kwargs) -> Generator[Tuple[GeneralDataFrame,int], None, None]:
         if False:
-            yield None
+            yield None  # generator will not iterate once
+        return
 
     def load_sample_df(self, resources_base_dir:str, *, upload_alter:bool=True, file_index:int=0, allow_chunks:bool=True, **kwargs) -> Union[pd.DataFrame,None]:
         return None
@@ -87,7 +88,6 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
 
         :param resources_base_dir:
         :param ckan:
-        :param package_id:
         :param reupload:
         :return:
         """

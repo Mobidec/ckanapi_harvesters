@@ -74,7 +74,7 @@ class BuilderDataStoreCkan(BuilderDataStoreFolder):
         else:
             return ResourceFileNotExistMessage(self.name, ErrorLevel.Error, f"Missing source resources for {self.name}: {','.join(missing_resources)}")
 
-    def get_sample_file_path(self, resources_base_dir:str, ckan:Union[CkanApi,None]=None, file_index:int=0) -> str:
+    def get_sample_file_path(self, resources_base_dir:str, ckan:Union[CkanApi,None]=None, file_index:int=0) -> Union[str,None]:
         return None
 
     def list_local_files(self, resources_base_dir:str, ckan:CkanApi, cancel_if_present:bool=True) -> List[str]:

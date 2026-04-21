@@ -43,34 +43,6 @@ class BuilderMultiABC(ABC):
         # do not copy stop_event
         return dest
 
-    def _call_progress_callback(self, position:int, total:int, *, info:Any=None, context:str=None,
-                                file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
-                                canceled_request: bool=False, end_message: bool=False, level:int=0) -> None:
-        """
-        Progress callback function. Use to implement a progress indication for the user.
-
-        :param position: the position within the resource (usually, in bytes or line count)
-        :param total: the total size of the resource
-        :param info: an object from which more information can be extracted, typically, the DataFrame itself, with an indication of the data origin.
-        :param context: the context of the call (ckan instance, upload/download, single/multi-threaded)
-        :param file_index: the index of the file in the list
-        :param file_count: the number of files in the list
-        :param lines_chunk: the number of lines in the chunk currently being processed
-        :param total_lines_read: the total number of lines read, including the current chunk
-        :param canceled_request: this callback is also called when a line is ignored
-        :param end_message: boolean indicating of the work in progress
-        :param level: the level of the progress callback (1: package/dataset, 2: resource builder, 3: used for multi-file resources)
-        """
-        if self.progress_callback is not None:
-            if end_message:
-                position = total
-                file_index = file_count
-            self.progress_callback(position, total, info=info, context=context,
-                                   file_index=file_index, file_count=file_count,
-                                   lines_chunk=lines_chunk, total_lines_read=total_lines_read,
-                                   canceled_upload=canceled_request, end_message=end_message,
-                                   **self.progress_callback_kwargs)
-
     def _prepare_for_multithreading(self, ckan: CkanApi):
         self.stop_event.clear()
         self.thread_ckan.clear()
@@ -173,7 +145,7 @@ class BuilderMultiABC(ABC):
             for overall_chunk_index, file_chunk in enumerate(self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, ckan=ckan, allow_chunks=allow_chunks, **kwargs)):
                 if external_stop_event is not None and external_stop_event.is_set():
                     print(f"{ckan.identifier} Interrupted")
-                    return
+                    return None
                 self._unit_upload_apply(ckan=ckan, file_chunk=file_chunk, overall_chunk_index=overall_chunk_index,
                                         start_index=start_index, end_index=end_index, file_count=total,
                                         inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes, **kwargs)
@@ -321,7 +293,7 @@ class BuilderMultiABC(ABC):
             for index, file_query_item in enumerate(self.get_file_query_generator()):
                 if external_stop_event is not None and external_stop_event.is_set():
                     print(f"{ckan.identifier} Interrupted")
-                    return
+                    return None
                 self._unit_download_apply(ckan=ckan, file_query_item=file_query_item, out_dir=out_dir,
                                           index=index, start_index=start_index, end_index=end_index, total=total, **kwargs)
             self.progress_callback.end_task(total, file_count=total, context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.ResourceChunks)
