@@ -374,7 +374,7 @@ class CkanApiMap(CkanApiBase):
         # add datastore_info if required
         if resource_info is not None:
             if datastore_info and resource_info.datastore_info is None and resource_info.datastore_info_error is None:
-                resource_info.datastore_info = self.get_datastore_info_or_request_of_id(resource_info.id, error_not_mapped=False)
+                resource_info.datastore_info = self.get_datastore_info_or_request_of_id(resource_info.id, error_not_mapped=False, error_not_found=False)
         elif error_not_found:
             raise CkanNotFoundError("resource", resource_id)
         return resource_info
@@ -688,12 +688,16 @@ class CkanApiMap(CkanApiBase):
         response = self._api_action_request("datastore_info", method=RequestType.Post, json=params)
         if response.success:
             datastore_info = CkanDataStoreInfo(response.result)
-            self.map._update_datastore_info(datastore_info)
+            self.map._update_datastore_info(resource_id, datastore_info)
             return datastore_info.copy()
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
-            raise CkanActionNotFoundError(self, "DataStore", response, display_request=display_request_not_found)
+            e = CkanActionNotFoundError(self, "DataStore", response, display_request=display_request_not_found)
+            self.map._update_datastore_info(resource_id, None, e)
+            raise e
         else:
-            raise response.default_error(self)
+            e = response.default_error(self)
+            self.map._update_datastore_info(resource_id, None, e)
+            raise e
 
     def datastore_info(self, resource_id:str, *, params:dict=None, display_request_not_found:bool=True) -> CkanDataStoreInfo:
         # function alias

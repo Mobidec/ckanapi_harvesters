@@ -921,15 +921,35 @@ class CkanApiManage(CkanApiReadWrite):
                 if indexes is None:
                     indexes = list(data_cleaner.field_suggested_index)
                 fields = data_cleaner.merge_field_changes(fields)
+        auto_inhibit_datastore_patch_indexes = not inhibit_datastore_patch_indexes
         if inhibit_datastore_patch_indexes:
             # do not apply indexes and primary_key arguments if DataStore exists
             resource_info = self.get_resource_info_or_request_of_id(resource_id, error_not_found=False, datastore_info=True)
-            if resource_info is not None and resource_info.datastore_info is not None:
+            if resource_info is not None and resource_info.is_datastore(error_not_queried=True):
                 if primary_key is not None or indexes is not None:
+                    if resource_info.datastore_info.primary_key is not None and primary_key is not None:
+                        if not set(resource_info.datastore_info.primary_key) == set(primary_key):
+                            msg = "datastore_create in patch mode with option inhibit_datastore_patch_indexes warning: primary key specified differs from primary key in database"
+                            warn(msg)
+                    if resource_info.datastore_info.indexes is not None and indexes is not None:
+                        if not set(resource_info.datastore_info.indexes) == set(indexes):
+                            msg = "datastore_create in patch mode with option inhibit_datastore_patch_indexes warning: indexes specified differ from indexes in database"
+                            warn(msg)
                     # msg = f"datastore_create in patch mode with option inhibit_datastore_patch_indexes: ignored arguments: primary_key={primary_key}, indexes={indexes}"
                     # warn(msg)
                     primary_key = None
                     indexes = None
+        elif auto_inhibit_datastore_patch_indexes:
+            resource_info = self.get_resource_info_or_request_of_id(resource_id, error_not_found=False, datastore_info=True)
+            if resource_info is not None and resource_info.is_datastore(error_not_queried=True):
+                if resource_info.datastore_info.primary_key is not None and primary_key is not None:
+                    if not set(resource_info.datastore_info.primary_key) == set(primary_key):
+                        # auto inhibit: do not pass primary_key if already correct on CKAN side
+                        primary_key = None
+                if resource_info.datastore_info.indexes is not None and indexes is not None:
+                    if not set(resource_info.datastore_info.indexes) == set(indexes):
+                        # auto inhibit: do not pass indexes if already correct on CKAN side
+                        indexes = None
         if self.params.default_alias_enforce:
             resource_info = self.get_resource_info_or_request_of_id(resource_id, error_not_found=False)
             package_info = self.get_package_info_or_request(resource_info.package_id)

@@ -101,7 +101,12 @@ def init_resource_from_ckan(ckan: CkanApiMap, resource_info: CkanResourceInfo, p
             and resource_info.datastore_info.row_count is not None
             and len(resource_info.datastore_info.fields_id_list) > 0):
         # DataStore
-        d["indexes"] = ckan_tags_sep.join(resource_info.datastore_info.index_fields)
+        if resource_info.datastore_info.primary_key is not None:
+            d["primary key"] = ckan_tags_sep.join(resource_info.datastore_info.primary_key)
+        if resource_info.datastore_info.indexes is not None:
+            d["indexes"] = ckan_tags_sep.join(resource_info.datastore_info.indexes)
+        else:
+            d["indexes"] = ckan_tags_sep.join(resource_info.datastore_info.index_fields)
         d["aliases"] = ckan_tags_sep.join(resource_info.datastore_info.aliases)
         if len(resource_info.download_url) > 0 and not ckan.is_url_internal(resource_info.download_url):
             d["file/url"] = resource_info.download_url

@@ -374,7 +374,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         else:
             resource_info.datastore_info.fields_dict = None
         resource_info.datastore_info.fields_id_list = [name for name, field_builder in self.field_builders.items()] if self.field_builders is not None else []
+        if self.primary_key is not None:
+            resource_info.datastore_info.primary_key = self.primary_key.copy()
         if self.indexes is not None:
+            resource_info.datastore_info.indexes = self.indexes.copy()
             resource_info.datastore_info.index_fields = self.indexes.copy()
         aliases = self._get_alias_list(None)
         if aliases is not None:
