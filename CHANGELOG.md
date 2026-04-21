@@ -7,17 +7,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 When publishing a new release, copy the relevant section on the [Github release page](https://github.com/Mobidec/ckanapi_harvesters/releases).
 
 
-## [Unreleased] - 2026-04-06
+## [Unreleased] - 2026-04-22
+
+### Added
+
+- `total_limit` argument to restrict the number of records exchanged within the read/write queries.
 
 ### Fixed
 
-- Using `datastore_search_sql` applies default CKAN read limits (`ckan.params.default_read_limit`) if argument was left None AND the request does not contain a `LIMIT` statement.
-- The `datastore_search_sql` entry point led to an infinite loop with default option `search_all=True` because API arguments `limit` and `offset` have no effect. 
-When given, the arguments modify the SQL query. Including the `LIMIT` statement in your initial query is incompatible with default option `search_all=True`. Please specify `search_all=False`.
+- Taking into account `offset` and `limit_per_request` arguments in `datastore_search_sql`:
+  - Using `datastore_search_sql` applies default CKAN read limits (`ckan.params.default_read_limit`) if argument was left None AND the request does not contain a `LIMIT` statement.
+  - The `datastore_search_sql` entry point led to an infinite loop with default option `search_all=True` because API arguments `limit` and `offset` have no effect. 
+  When given, the arguments modify the SQL query. Including the `LIMIT` statement in your initial query is incompatible with default option `search_all=True`. Please specify `search_all=False`.
+- `get_resource_id_or_request` must raise an exception and never return `None` with option `error_not_found=True` (default option).
+- `datastore_upsert` did not apply `offset` argument if `limit_per_request` was `None`.
 
 ### Changed
 
 - Refactored resource builder class: no need to specify the parent package ID when calling the patch functions, renamed attribute `parent_package_builder`.
+
+### Deprecated
+
+- Argument `limit` is ambiguous when requesting/uploading lines to DataStores. 
+Argument `total_limit` replaces it for its main usage (limiting the total number of lines read) and `limit` now is an alias of this argument.
+To limit the number of lines per request/page, the argument `limit_per_request` was introduced.
+
+### Removed
+
+- Alias functions of `datastore_search`: `datastore_dump*`. To explicitly use API datastore_dump, use option `search_method=False`.
+- Alias functions of `datastore_upsert`: `datastore_insert`, `datastore_update`.
 
 
 ## [0.0.26] - 2026-04-03
