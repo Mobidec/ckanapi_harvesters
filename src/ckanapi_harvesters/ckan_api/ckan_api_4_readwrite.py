@@ -16,6 +16,7 @@ from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice, CkanState
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import _reassign_limit_argument
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionResponse
 from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 # from ckanapi_harvesters.auxiliary.list_records import records_to_df
@@ -640,7 +641,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                          always_last_condition:bool=None, return_df:bool=None,
                          return_documents:bool=False, return_counters:bool=True,
                          data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
-                         params:dict=None, exclude_generator_mode:bool=False,
+                         params:dict=None, limit:int=None, exclude_generator_mode:bool=False,
                          records:Union[pd.DataFrame, List[dict]]=None) -> LinesRequestCounter:
         """
         Main entry point for datastore_upsert accepting generators or DataFrames.
@@ -659,6 +660,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param offset: number of records to skip - use to restart the transfer
         :param total_limit: maximum number of lines to transmit, counting from the initial offset
         :param requests_limit: maximum number of requests
+        :param limit: previously limit_per_request, now stands for total_limit. This parameter is deprecated and will be removed in a future release.
         :param params: additional parameters
         :param dry_run: set to True to abort transaction instead of committing, e.g. to check for validation or type errors
         :param apply_last_condition: if True, the last upsert request applies the last insert operations (calculate_record_count and force_indexing).
@@ -670,6 +672,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param return_counters: if True, return a dict of request counters in addition to the received records
         :return: the number of records inserted
         """
+        if limit is not None: locals().update(_reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request))
         if records is not None:
             assert(records_generator is None)
             # exclude_generator_mode = True  # records argument cannot accept generators

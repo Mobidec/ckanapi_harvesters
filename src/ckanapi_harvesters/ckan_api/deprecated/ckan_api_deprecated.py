@@ -3,7 +3,7 @@
 """
 
 """
-from typing import List, Union
+from typing import List, Union, Any, Generator, Tuple, Iterable
 import copy
 from warnings import warn
 
@@ -11,9 +11,10 @@ import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanResourceInfo, CkanViewInfo
 from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
-from ckanapi_harvesters.auxiliary.ckan_action import CkanActionNotFoundError
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise, LinesRequestCounter
+from ckanapi_harvesters.auxiliary.ckan_action import CkanActionNotFoundError, CkanActionResponse
 from ckanapi_harvesters.auxiliary.ckan_errors import ReadOnlyError
+from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import use_ckan_owner_org_for_requests
@@ -40,13 +41,86 @@ class CkanApiDeprecated(CkanApiManage):
         df_row = self.datastore_search_sql_find_one(sql, offset=0, params=params, return_df=True)
         return df_row.attrs["total"]
 
+    ## Not recommended read functions ------------------
+    def datastore_dump(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+                       distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0,
+                       total_limit:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None,
+                       params:dict=None, search_all:bool=True, search_method:bool=True, format:str=None,
+                       return_df:bool=True, limit:int=None) \
+            -> Union[pd.DataFrame, ListRecords, Any, List[CkanActionResponse]]:
+        """
+        Alias of datastore_search with search_all=True by default.
+        Uses the API datastore_search
+
+        :see: datastore_search()
+        :param resource_id: resource id.
+        :param filters: The base argument to filter values in a table (optional)
+        :param q: Full text query (optional)
+        :param fields: The base argument to filter columns (optional)
+        :param distinct: return only distinct rows (optional, default: false) e.g. to return distinct ids: fields="id", distinct=True
+        :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
+        :param limit_per_request: Limit the number of records per request
+        :param offset: Offset in the returned records
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
+        :param requests_limit: Limit the number of requests
+        :param progress_callback: Progress callback function
+        :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
+        :param search_all: Option to renew the request until there are no more records.
+        :param search_method: API method selection (True=datastore_search, False=datastore_dump)
+        :param return_df: Return pandas DataFrame (True) or dict (False)
+        :return:
+        """
+        msg = "datastore_dump is deprecated. Use datastore_search() instead. To enforce usage of API datastore/dump, use option search_method=False"
+        warn(msg, DeprecationWarning)
+        return self.datastore_search(resource_id, filters=filters, q=q, fields=fields,
+                                     distinct=distinct, sort=sort, limit_per_request=limit_per_request, offset=offset,
+                                     total_limit=total_limit, requests_limit=requests_limit, limit=limit,
+                                     progress_callback=progress_callback, params=params, search_all=search_all,
+                                     search_method=search_method, format=format,
+                                     return_df=return_df)
+
+    def datastore_dump_page_generator(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+                                      distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0,
+                                      total_limit:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None, params:dict=None,
+                                      search_all:bool=True, search_method:bool=True, format:str=None, bom:bool=None, return_df:bool=True, limit:int=None) \
+            -> Union[Generator[pd.DataFrame, Any, None], Generator[CkanActionResponse, Any, None]]:
+        """
+        Function alias to datastore_search_generator with search_all=True by default.
+        Uses the API datastore_search
+
+        :see: datastore_search_generator
+        :param resource_id: resource id.
+        :param filters: The base argument to filter values in a table (optional)
+        :param q: Full text query (optional)
+        :param fields: The base argument to filter columns (optional)
+        :param distinct: return only distinct rows (optional, default: false) e.g. to return distinct ids: fields="id", distinct=True
+        :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
+        :param limit_per_request: Limit the number of records per request
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
+        :param requests_limit: Limit the number of requests
+        :param progress_callback: Progress callback function
+        :param offset: Offset in the returned records
+        :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
+        :param search_all: Option to renew the request until there are no more records.
+        :param search_method: API method selection (True=datastore_search, False=datastore_dump)
+        :return:
+        """
+        msg = "datastore_dump is deprecated. Use datastore_search() instead. To enforce usage of API datastore/dump, use option search_method=False"
+        warn(msg, DeprecationWarning)
+        return self.datastore_search_page_generator(resource_id, filters=filters, q=q, fields=fields,
+                                                    distinct=distinct, sort=sort, limit_per_request=limit_per_request, offset=offset,
+                                                    total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback, params=params,
+                                                    search_all=search_all, search_method=search_method, format=format, bom=bom, return_df=return_df, limit=limit)
+
     ## Not recommended write functions ------------------
-    def datastore_insert(self, records:Union[pd.DataFrame, List[dict]], resource_id:str, *,
+    def datastore_insert(self, records_generator:Union[pd.DataFrame, List[dict], Iterable[GeneralDataFrame]], resource_id:str, *,
                          dry_run:bool=False, limit_per_request:int=None, offset:int=0,
                          total_limit:int=None, requests_limit:int=None, force:bool=None,
                          apply_last_condition:bool=True, always_last_condition:bool=None, return_df:bool=None,
                          data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
-                         params:dict=None) -> pd.DataFrame:
+                         params:dict=None, records:Union[pd.DataFrame, List[dict]]=None,
+                         return_documents:bool=True, return_counters:bool=False, limit:int=None) \
+            -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter], LinesRequestCounter, None]:
         """
         Alias function to insert data in a DataStore using datastore_upsert.
 
@@ -69,19 +143,22 @@ class CkanApiDeprecated(CkanApiManage):
         """
         msg = "datastore_insert is deprecated, use datastore_upsert with argument `method=UpsertChoice.Insert` instead"
         warn(msg, DeprecationWarning)
-        return self.datastore_upsert(records, resource_id, dry_run=dry_run, limit_per_request=limit_per_request, offset=offset,
+        return self.datastore_upsert(records_generator, resource_id, dry_run=dry_run, limit_per_request=limit_per_request, offset=offset,
                                      total_limit=total_limit, requests_limit=requests_limit,
                                      method=UpsertChoice.Insert, apply_last_condition=apply_last_condition, return_df=return_df,
+                                     return_documents=return_documents, return_counters=return_counters,
                                      always_last_condition=always_last_condition, data_cleaner=data_cleaner,
                                      progress_callback=progress_callback,
-                                     force=force, params=params)
+                                     force=force, params=params, limit=limit, records=records)
 
-    def datastore_update(self, records:Union[pd.DataFrame, List[dict]], resource_id:str, *,
+    def datastore_update(self, records_generator:Union[pd.DataFrame, List[dict], Iterable[GeneralDataFrame]], resource_id:str, *,
                          dry_run:bool=False, limit_per_request:int=None, offset:int=0,
                          total_limit:int=None, requests_limit:int=None, force:bool=None,
                          apply_last_condition:bool=True, always_last_condition:bool=None, return_df:bool=None,
                          data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
-                         params:dict=None) -> pd.DataFrame:
+                         params:dict=None, records:Union[pd.DataFrame, List[dict]]=None,
+                         return_documents:bool=True, return_counters:bool=False, limit:int=None) \
+            -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter], LinesRequestCounter, None]:
         """
         Alias function to update data in a DataStore using datastore_upsert.
         The update is performed based on the DataStore primary keys
@@ -105,12 +182,13 @@ class CkanApiDeprecated(CkanApiManage):
         """
         msg = "datastore_update is deprecated, use datastore_upsert with argument `method=UpsertChoice.Update` instead"
         warn(msg, DeprecationWarning)
-        return self.datastore_upsert(records, resource_id, dry_run=dry_run, limit_per_request=limit_per_request, offset=offset,
+        return self.datastore_upsert(records_generator, resource_id, dry_run=dry_run, limit_per_request=limit_per_request, offset=offset,
                                      total_limit=total_limit, requests_limit=requests_limit,
                                      method=UpsertChoice.Update, apply_last_condition=apply_last_condition, return_df=return_df,
+                                     return_documents=return_documents, return_counters=return_counters,
                                      always_last_condition=always_last_condition, data_cleaner=data_cleaner,
                                      progress_callback=progress_callback,
-                                     force=force, params=params)
+                                     force=force, params=params, limit=limit, records=records)
 
     ## Not recommended manage functions ------------------
     def resource_move(self, resource_id: str, package_name: str, dest_package_name:str, params:dict=None):

@@ -20,6 +20,7 @@ from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanAliasInfo
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import bytes_to_megabytes
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import _reassign_limit_argument
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, CkanIdFieldTreatment
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType
@@ -678,7 +679,7 @@ class CkanApiReadOnly(CkanApiMap):
     def datastore_search(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
                          distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0,
                          total_limit:int=None, requests_limit:int=None, search_all:bool=False,
-                         search_method:bool=True, params:dict=None,
+                         search_method:bool=True, params:dict=None, limit:int=None,
                          progress_callback:CkanProgressCallbackABC=None,
                          format:str=None, bom:bool=None, return_df:bool=True) \
             -> Union[pd.DataFrame, ListRecords, Any, List[CkanActionResponse]]:
@@ -696,12 +697,14 @@ class CkanApiReadOnly(CkanApiMap):
         :param offset: Offset in the returned records
         :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
+        :param limit: previously limit_per_request, now stands for total_limit. This parameter is deprecated and will be removed in a future release.
         :param progress_callback: Progress callback function
         :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
         :param search_all: Option to renew the request until there are no more records.
         :param search_method: API method selection (True=datastore_search, False=datastore_dump)
         :return:
         """
+        if limit is not None: locals().update(_reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request))
         if search_method:
             if return_df and format is None: format = "csv"
             return self._api_datastore_search_all(resource_id, filters=filters, q=q, fields=fields, distinct=distinct, sort=sort,
@@ -717,45 +720,10 @@ class CkanApiReadOnly(CkanApiMap):
                                                 progress_callback=progress_callback,
                                                 format=format, bom=bom, params=params, search_all=search_all, return_df=return_df)
 
-    def datastore_dump(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
-                       distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0,
-                       total_limit:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None,
-                       params:dict=None, search_all:bool=True, search_method:bool=True, format:str=None,
-                       return_df:bool=True) \
-            -> Union[pd.DataFrame, ListRecords, Any, List[CkanActionResponse]]:
-        """
-        Alias of datastore_search with search_all=True by default.
-        Uses the API datastore_search
-
-        :see: datastore_search()
-        :param resource_id: resource id.
-        :param filters: The base argument to filter values in a table (optional)
-        :param q: Full text query (optional)
-        :param fields: The base argument to filter columns (optional)
-        :param distinct: return only distinct rows (optional, default: false) e.g. to return distinct ids: fields="id", distinct=True
-        :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
-        :param limit_per_request: Limit the number of records per request
-        :param offset: Offset in the returned records
-        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
-        :param requests_limit: Limit the number of requests
-        :param progress_callback: Progress callback function
-        :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
-        :param search_all: Option to renew the request until there are no more records.
-        :param search_method: API method selection (True=datastore_search, False=datastore_dump)
-        :param return_df: Return pandas DataFrame (True) or dict (False)
-        :return:
-        """
-        return self.datastore_search(resource_id, filters=filters, q=q, fields=fields,
-                                     distinct=distinct, sort=sort, limit_per_request=limit_per_request, offset=offset,
-                                     total_limit=total_limit, requests_limit=requests_limit,
-                                     progress_callback=progress_callback, params=params, search_all=search_all,
-                                     search_method=search_method, format=format,
-                                     return_df=return_df)
-
     def datastore_search_page_generator(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
                                         distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0,
                                         total_limit:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None, params:dict=None,
-                                        search_all:bool=True, search_method:bool=True, format:str=None, bom:bool=None, return_df:bool=True) \
+                                        search_all:bool=True, search_method:bool=True, format:str=None, bom:bool=None, return_df:bool=True, limit:int=None) \
             -> Union[Generator[pd.DataFrame, Any, None], Generator[CkanActionResponse, Any, None], Generator[requests.Response, Any, None]]:
         """
         Preferred entry-point for a DataStore read request.
@@ -771,6 +739,7 @@ class CkanApiReadOnly(CkanApiMap):
         :param offset: Offset in the returned records
         :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
+        :param limit: previously limit_per_request, now stands for total_limit. This parameter is deprecated and will be removed in a future release.
         :param progress_callback: Progress callback function
         :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
         :param search_all: Option to renew the request until there are no more records.
@@ -778,6 +747,7 @@ class CkanApiReadOnly(CkanApiMap):
         :param return_df: Return pandas DataFrame (True) or dict (False)
         :return:
         """
+        if limit is not None: locals().update(_reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request))
         if search_method:
             if return_df and format is None: format = "csv"
             return self._api_datastore_search_all_page_generator(resource_id, filters=filters, q=q, fields=fields, distinct=distinct, sort=sort,
@@ -794,7 +764,7 @@ class CkanApiReadOnly(CkanApiMap):
     def datastore_search_cursor(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
                                 distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0,
                                 total_limit:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None, params:dict=None,
-                                search_all:bool=True, search_method:bool=True, format:str=None, bom:bool=None, return_df:bool=False) \
+                                search_all:bool=True, search_method:bool=True, format:str=None, bom:bool=None, return_df:bool=False, limit:int=None) \
             -> Generator[Union[pd.Series, dict, list, str], Any, None]:
         """
         Cursor on rows of datastore_search
@@ -809,6 +779,7 @@ class CkanApiReadOnly(CkanApiMap):
         :param offset: Offset in the returned records
         :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
+        :param limit: previously limit_per_request, now stands for total_limit. This parameter is deprecated and will be removed in a future release.
         :param progress_callback: Progress callback function
         :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
         :param search_all: Option to renew the request until there are no more records.
@@ -825,7 +796,7 @@ class CkanApiReadOnly(CkanApiMap):
         page_generator = self.datastore_search_page_generator(resource_id, filters=filters, q=q, fields=fields,
                                                               distinct=distinct, sort=sort, limit_per_request=limit_per_request, offset=offset,
                                                               total_limit=total_limit, requests_limit=requests_limit,
-                                                              progress_callback=progress_callback, params=params,
+                                                              progress_callback=progress_callback, params=params, limit=limit,
                                                               search_all=search_all, search_method=search_method, format=format, bom=bom, return_df=return_df)
         if return_df:
             df: pd.DataFrame
@@ -863,39 +834,9 @@ class CkanApiReadOnly(CkanApiMap):
         else:
             raise TypeError("dumping datastore without parsing with a DataFrame does not return an iterable object")
 
-    def datastore_dump_page_generator(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
-                                      distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0,
-                                      total_limit:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None, params:dict=None,
-                                      search_all:bool=True, search_method:bool=True, format:str=None, bom:bool=None, return_df:bool=True) \
-            -> Union[Generator[pd.DataFrame, Any, None], Generator[CkanActionResponse, Any, None]]:
-        """
-        Function alias to datastore_search_generator with search_all=True by default.
-        Uses the API datastore_search
-
-        :see: datastore_search_generator
-        :param resource_id: resource id.
-        :param filters: The base argument to filter values in a table (optional)
-        :param q: Full text query (optional)
-        :param fields: The base argument to filter columns (optional)
-        :param distinct: return only distinct rows (optional, default: false) e.g. to return distinct ids: fields="id", distinct=True
-        :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
-        :param limit_per_request: Limit the number of records per request
-        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
-        :param requests_limit: Limit the number of requests
-        :param progress_callback: Progress callback function
-        :param offset: Offset in the returned records
-        :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
-        :param search_all: Option to renew the request until there are no more records.
-        :param search_method: API method selection (True=datastore_search, False=datastore_dump)
-        :return:
-        """
-        return self.datastore_search_page_generator(resource_id, filters=filters, q=q, fields=fields,
-                                                    distinct=distinct, sort=sort, limit_per_request=limit_per_request, offset=offset,
-                                                    total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback, params=params,
-                                                    search_all=search_all, search_method=search_method, format=format, bom=bom, return_df=return_df)
-
     def datastore_search_sql(self, sql:str, *, params:dict=None, search_all:bool=False,
-                             limit_per_request:int=None, offset:int=None, total_limit:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None, return_df:bool=True) \
+                             limit_per_request:int=None, offset:int=None, total_limit:int=None, requests_limit:int=None,
+                             progress_callback:CkanProgressCallbackABC=None, return_df:bool=True, limit:int=None) \
             -> Union[pd.DataFrame, Tuple[ListRecords, dict]]:
         """
         Preferred entry-point for a DataStore SQL request.
@@ -909,12 +850,14 @@ class CkanApiReadOnly(CkanApiMap):
             in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
         :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
+        :param limit: previously limit_per_request, now stands for total_limit. This parameter is deprecated and will be removed in a future release.
         :param progress_callback: Progress callback function
         :param params: N/A
         :param search_all: Option to renew the request until there are no more records.
         :param return_df: Return pandas DataFrame (True) or dict (False)
         :return:
         """
+        if limit is not None: locals().update(_reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request))
         return self._api_datastore_search_sql_all(sql, params=params, limit_per_request=limit_per_request, offset=offset,
                                                   total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback,
                                                   search_all=search_all, return_df=return_df)
@@ -922,7 +865,7 @@ class CkanApiReadOnly(CkanApiMap):
     def datastore_search_sql_page_generator(self, sql:str, *, params:dict=None, search_all:bool=True,
                                             limit_per_request:int=None, offset:int=None,
                                             total_limit:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None,
-                                            return_df:bool=True) \
+                                            return_df:bool=True, limit:int=None) \
             -> Union[Generator[pd.DataFrame, Any, None], Generator[CkanActionResponse, Any, None]]:
         """
         Preferred entry-point for a DataStore SQL request.
@@ -937,12 +880,14 @@ class CkanApiReadOnly(CkanApiMap):
             in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
         :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
+        :param limit: previously limit_per_request, now stands for total_limit. This parameter is deprecated and will be removed in a future release.
         :param progress_callback: Progress callback function
         :param params: N/A
         :param search_all: Option to renew the request until there are no more records.
         :param return_df: Return pandas DataFrame (True) or dict (False)
         :return:
         """
+        if limit is not None: locals().update(_reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request))
         return self._api_datastore_search_sql_all_page_generator(sql, params=params, limit_per_request=limit_per_request, offset=offset,
                                                                  total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback,
                                                                  search_all=search_all, return_df=return_df)
@@ -950,7 +895,7 @@ class CkanApiReadOnly(CkanApiMap):
     def datastore_search_sql_cursor(self, sql:str, *, params:dict=None, search_all:bool=True,
                                     limit_per_request:int=None, offset:int=None, total_limit:int=None,
                                     requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None,
-                                    return_df:bool=False) \
+                                    return_df:bool=False, limit:int=None) \
             -> Generator[Union[pd.Series,dict], Any, None]:
         """
         Preferred entry-point for a DataStore SQL request, to iterate over records.
@@ -965,6 +910,7 @@ class CkanApiReadOnly(CkanApiMap):
             in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
         :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
+        :param limit: previously limit_per_request, now stands for total_limit. This parameter is deprecated and will be removed in a future release.
         :param progress_callback: Progress callback function
         :param params: N/A
         :param search_all: Option to renew the request until there are no more records.
@@ -978,7 +924,7 @@ class CkanApiReadOnly(CkanApiMap):
         row_index = 0
         page_generator = self.datastore_search_sql_page_generator(sql, params=params, search_all=search_all,
                                                                   limit_per_request=limit_per_request, offset=offset,
-                                                                  total_limit=total_limit, requests_limit=requests_limit,
+                                                                  total_limit=total_limit, requests_limit=requests_limit, limit=limit,
                                                                   progress_callback=progress_callback,
                                                                   return_df=return_df)
         if return_df:

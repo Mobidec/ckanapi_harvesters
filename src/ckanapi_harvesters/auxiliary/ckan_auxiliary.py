@@ -5,6 +5,7 @@ Data model to represent a CKAN database architecture
 """
 from typing import Iterable, Union, Tuple, Any, List
 from enum import IntEnum
+from warnings import warn
 import json
 import numbers
 import os
@@ -16,6 +17,7 @@ import re
 import pandas as pd
 import numpy as np
 
+from ckanapi_harvesters.auxiliary.ckan_errors import ArgumentError
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir, make_path_relative
 from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame, ListRecords
 
@@ -111,6 +113,25 @@ class CkanFieldInternalAttrs:
         if self.epsg_source is not None:
             self.epsg_target = ckan.params.ckan_default_target_epsg
 
+
+def _reassign_limit_argument(limit:int=None, *, total_limit:int=None, limit_per_request:int=None) -> dict:
+    """
+    Central point to reassign usage of limit argument before deprecation.
+    Limit argument is deprecated because its name leads to confusions.
+
+    Usage:
+    ```
+    if limit is not None: locals().update(_reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request))
+    ```
+    """
+    if limit is not None:
+        msg = "limit argument is deprecated and will be removed in a future release. Use total_limit instead."
+        # Previously, the limit argument was used to assign limit_per_request.
+        warn(msg, DeprecationWarning)
+        if total_limit is not None:
+            raise ArgumentError("total_limit cannot be used in combination with deprecated argument limit")
+        total_limit = limit
+    return dict(total_limit=total_limit, limit_per_request=limit_per_request)
 
 ## Requests ------------------
 HTTP_STATUS_CODE_RETRY = {500: "Internal Server Error",
