@@ -160,7 +160,7 @@ class RequestFileMapperLimit(RequestFileMapperABC):
         return [{"offset": self.limit*counter, "limit": self.limit} for counter in range(row_count // self.limit + 1)]
 
     def download_file_query(self, ckan: CkanApi, resource_id: str, file_query:dict, *, progress_callback:CkanProgressCallbackABC) -> Generator[pd.DataFrame, Any, None]:
-        return ckan.datastore_search_page_generator(resource_id=resource_id, offset=file_query["offset"], limit=file_query["limit"],
+        return ckan.datastore_search_page_generator(resource_id=resource_id, offset=file_query["offset"], limit_per_request=file_query["limit"],
                                                     search_all=True, progress_callback=progress_callback)
 
 
@@ -213,7 +213,7 @@ class RequestFileMapperIndexKeys(RequestFileMapperABC):
             return None
         else:
             df = ckan.datastore_search(resource_id, filters=file_query["filters"], sort=ckan_tags_sep.join(self.sort_by_keys) + " desc",
-                                       limit=self.last_rows_limit, search_all=False)  #, fields=self.file_keys + self.index_keys)
+                                       limit_per_request=self.last_rows_limit, search_all=False)  #, fields=self.file_keys + self.index_keys)
             return df
 
     def last_inserted_index_request(self, ckan:CkanApi, resource_id:str, file_query:dict, df_upload:pd.DataFrame) -> Tuple[int, bool, int, pd.DataFrame]:
