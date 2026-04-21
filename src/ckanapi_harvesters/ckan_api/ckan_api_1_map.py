@@ -15,7 +15,7 @@ from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanLicens
                                                      CkanGroupInfo, CkanCollaboration, CkanCapacity)
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC, CkanProgressUnits, CkanCallbackLevel
 from ckanapi_harvesters.auxiliary.urls import urlsep, url_join
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionError, CkanActionNotFoundError, CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
@@ -850,11 +850,9 @@ class CkanApiMap(CkanApiBase):
         :param resource_id:
         :return:
         """
-        try:
-            datastore_info = self.datastore_info(resource_id, display_request_not_found=False)
-        except CkanActionNotFoundError as e:
-            return False
-        return True
+        resource_info = self.get_resource_info_or_request_of_id(resource_id, datastore_info=True)
+        assert_or_raise(resource_info.datastore_queried(), RuntimeError("Implementation error: DataStore info should have been queried at this point"))
+        return resource_info.is_datastore()
 
     def get_package_page_url(self, package_name:str, *, error_not_found:bool=True, default_url:bool=False) -> str:
         """

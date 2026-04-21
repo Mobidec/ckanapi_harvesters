@@ -640,13 +640,17 @@ class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
     def copy(self) -> "CkanResourceInfo":
         return copy.deepcopy(self)
 
-    def datastore_queried(self) -> bool:
-        return self.datastore_info is not None or self.datastore_info_error is not None
+    def datastore_queried(self, *, error_not_queried:bool=False) -> bool:
+        ds_was_queried = self.datastore_info is not None or self.datastore_info_error is not None
+        if error_not_queried and not ds_was_queried:
+            raise MissingDataStoreInfoError()
+        return ds_was_queried
 
-    def is_datastore(self) -> Union[bool,None]:
-        if self.datastore_queried():
+    def is_datastore(self, *, error_not_queried:bool=False) -> Union[bool,None]:
+        if self.datastore_queried(error_not_queried=error_not_queried):
             return self.datastore_info is not None
         else:
+            # return self.datastore_active  # not always correct
             return None
 
     def update_view(self, view_info: Union[CkanViewInfo, List[CkanViewInfo]], view_list:bool=False) -> None:

@@ -68,6 +68,10 @@ class DataStoreNotFoundError(Exception):
     def __init__(self, resource_id:str, error_message: str):
         super().__init__(f"DataStore not found for resource id {resource_id}. This could mean the DataStore was not initialized. Server message: {error_message}")
 
+class MissingDataStoreInfoError(Exception):
+    def __init__(self):
+        super().__init__("DataStore info was not requested. Use option datastore_info=True for the map_resources function.")
+
 class DuplicateNameError(Exception):
     def __init__(self, object_type:str, names:Iterable[str]):
         super().__init__(f"Duplicate names were found for {object_type}: {','.join(names)}")

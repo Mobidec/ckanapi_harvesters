@@ -642,7 +642,8 @@ class CkanApiReadWrite(CkanApiPolicy):
                          return_documents:bool=False, return_counters:bool=True,
                          data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
                          params:dict=None, limit:int=None, exclude_generator_mode:bool=False,
-                         records:Union[pd.DataFrame, List[dict]]=None) -> LinesRequestCounter:
+                         records:Union[pd.DataFrame, List[dict]]=None) \
+            -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter], LinesRequestCounter, None]:
         """
         Main entry point for datastore_upsert accepting generators or DataFrames.
         The call to the correct function is made upon the type of the records_generator argument.

@@ -31,6 +31,7 @@ def run(ckan:CkanApi = None):
 
     # Test sending the traces in a generator mode
     resource_id = mdl.get_or_query_resource_id(ckan, resource_name="traces.csv")
+    is_datastore = ckan.resource_is_datastore(resource_id)
     with traces_chunks_generator(chunksize=6) as records_generator:
         counters = ckan.datastore_upsert(records_generator, resource_id=resource_id, request_threshold=15, offset=12)
     with (traces_chunks_generator(chunksize=6) as records_generator):
