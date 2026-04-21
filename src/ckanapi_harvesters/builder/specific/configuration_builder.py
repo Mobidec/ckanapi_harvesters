@@ -52,7 +52,7 @@ class ConfigurationBuilder(SpecificBuilderABC):
         if policy is not None:
             payload = policy.to_jsons(reduced_size=reduced_size).encode()
             policy_builder: BuilderResourceUnmanaged = self.resource_builders[ckan_configuration.policy_resource]
-            policy_builder.patch_request(ckan, package_id, payload=payload, reupload=True)
+            policy_builder.patch_request(ckan, payload=payload, reupload=True)
         else:
             # delete data format policy
             self.resource_builders[ckan_configuration.policy_resource].delete_request(ckan)

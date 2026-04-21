@@ -281,9 +281,9 @@ class CkanMap(CkanMapABC):
             elif error_not_mapped:
                 raise NotMappedObjectNameError(f"DataStore of resource {resource_name} is not mapped or does not exist.")
             else:
-                return None, False if return_mapped_boolean else None
+                return (None, False) if return_mapped_boolean else None
         else:
-            return None, False if return_mapped_boolean else None
+            return (None, False) if return_mapped_boolean else None
 
     def get_datastore_len(self, resource_name:str, package_name:str=None, *, error_not_mapped:bool=True) -> Union[int,None]:
         """

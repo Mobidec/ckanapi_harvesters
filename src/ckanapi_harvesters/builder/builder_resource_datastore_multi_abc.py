@@ -101,6 +101,8 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         if primary_key is None:
             if self.primary_key_user is not None:
                 self.primary_key = self.primary_key_user
+            elif self.primary_key_data_source is not None:
+                self.primary_key = self.primary_key_data_source
         else:
             self.primary_key = primary_key
         if (self.primary_key is None or len(self.primary_key) == 0) and self.column_enable_upload_index:

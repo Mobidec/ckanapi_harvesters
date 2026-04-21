@@ -62,10 +62,10 @@ class UserFileFormat(FileFormatABC):
         if self.df_read_fun is None:
             raise MissingIOFunctionError("Read function")
         read_kwargs = self._get_read_kwargs(allow_chunks=allow_chunks)
-        self.resource_attributes_from_file = None
+        self._clear_user_metadata()
         output = self.df_read_fun(file_path, fields=fields, allow_chunks=self.read_by_chunks_enabled(allow_chunks=allow_chunks), params=self, **read_kwargs)
         if isinstance(output, tuple):
-            self.resource_attributes_from_file = output[1]
+            self.resource_attributes_from_file = output[1]  # NB: this attribute as well as the primary_key_from_file can also be returned using the params argument
             return output[0]
         else:
             return output
@@ -74,7 +74,7 @@ class UserFileFormat(FileFormatABC):
         if self.df_read_fun is None:
             raise MissingIOFunctionError("Read function")
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
-        self.resource_attributes_from_file = None
+        self._clear_user_metadata()
         output = self.df_read_fun(buffer, fields=fields, allow_chunks=False, params=self, **read_kwargs)
         if isinstance(output, tuple):
             assert(isinstance(output[1], CkanResourceInfo))

@@ -69,6 +69,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         # self.datastore_attributes_data_source: Union[CkanDataStoreInfo,None] = None
         self.primary_key: Union[List[str],None] = None
         self.primary_key_user: Union[List[str],None] = None
+        self.primary_key_data_source: Union[List[str],None] = None
         self.indexes: Union[List[str],None] = None
         self.aliases: Union[List[str],None] = None
         self.aux_upload_fun_name:str = ""
@@ -94,6 +95,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         dest.field_builders_data_source = copy.deepcopy(self.field_builders_data_source)
         dest.primary_key = copy.deepcopy(self.primary_key)
         dest.primary_key_user = copy.deepcopy(self.primary_key_user)
+        dest.primary_key_data_source = copy.deepcopy(self.primary_key_data_source)
         dest.indexes = copy.deepcopy(self.indexes)
         dest.aliases = copy.deepcopy(self.aliases)
         dest.aux_upload_fun_name = self.aux_upload_fun_name
@@ -166,6 +168,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         if primary_key is None:
             if self.primary_key_user is not None:
                 self.primary_key = self.primary_key_user
+            elif self.primary_key_data_source is not None:
+                self.primary_key = self.primary_key_data_source
         else:
             self.primary_key = primary_key
         if self.column_enable_source_file:
@@ -217,6 +221,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         This function merges metadata which could have been extracted from a file reading function into the attributes from data source.
         Call after self.local_file_format.read_file()
         """
+        if self.local_file_format.primary_key_from_file is not None:
+            self.primary_key_data_source = self.local_file_format.primary_key_from_file
         resource_attributes_from_file = self.local_file_format.resource_attributes_from_file
         if resource_attributes_from_file is not None:
             if self.resource_attributes_data_source is None:

@@ -75,8 +75,8 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
             self.df_mapper.df_upload_fun = self.harvester.get_default_df_upload_fun()
         if self.data_cleaner_upload is None:
             self.data_cleaner_upload = self.harvester.get_default_data_cleaner()
-        if self.primary_key is None:
-            self.primary_key = self.harvester.get_default_primary_key()
+        if self.primary_key_data_source is None:
+            self.primary_key_data_source = self.harvester.get_default_primary_key()
         if self.indexes is None:
             self.indexes = table_metadata.indexes
         self.resource_attributes_data_source = CkanResourceInfo()
