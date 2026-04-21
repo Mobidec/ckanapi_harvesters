@@ -879,15 +879,19 @@ class CkanApiBase(CkanApiABC):
 
         :param api_fun: function to call, typically a unitary request function
         :param params: api_fun must accept params argument in order to transmit other values and enforce the offset parameter
-        :param limit: api_fun must accept limit argument in order to update the limit value
+        :param limit: api_fun must accept limit argument in order to update the limit value. The limit represents
+            the maximum number of records per call of the api_fun (also referred as a request or page).
         :param offset: api_fun must accept offset argument in order to update the offset value
+        :param total_limit: strict limitation of the total number of records received (the result is truncated
+            if it exceeds the limit). The count starts after the initial offset.
+        :param requests_limit: limit the number of requests (pages) of the api_fun.
         :param search_all: if False, only the first request is operated
         :param kwargs: additional keyword arguments to pass to api_fun
         :return:
         """
-        bumped_limit = False
+        limit_reached = False
         if total_limit is not None and total_limit <= 0:
-            bumped_limit = True
+            limit_reached = True
             total_limit = 0
         if params is None:
             params = {}
@@ -897,7 +901,7 @@ class CkanApiBase(CkanApiABC):
             # params["limit"] = limit
             assert_or_raise(limit > 0, InvalidParameterError("limit"))
         if total_limit is not None and limit is not None:
-            limit = min(limit, total_limit)  # do not request more lines than necessary
+            limit = max(min(limit, total_limit), 1)  # do not request more lines than necessary
         # if offset is None:
         #     offset = 0
         # params["offset"] = offset
@@ -921,7 +925,7 @@ class CkanApiBase(CkanApiABC):
                 result_add = result_add.iloc[:total_limit]
             else:
                 result_add = result_add[:total_limit]
-            bumped_limit = True
+            limit_reached = True
         if offset is None:
             offset = 0  # if not specified, offset was 0 (in datastore_search_sql, do not specify offset for first request)
         initial_offset = offset
@@ -956,7 +960,7 @@ class CkanApiBase(CkanApiABC):
                 (requests_limit is None or requests_count < requests_limit) and
                 (total_limit is None or n_received < total_limit))
         if flag:
-            assert_or_raise(not bumped_limit, IntegrityError("Should not reach this line if bumped limit"))
+            assert_or_raise(not limit_reached, IntegrityError("Should not reach this line if reached limit"))
         while flag:
             if self.params.multi_requests_time_between_requests > 0:
                 time.sleep(self.params.multi_requests_time_between_requests)
@@ -976,7 +980,7 @@ class CkanApiBase(CkanApiABC):
                     result_add = result_add.iloc[:total_limit - n_received]
                 else:
                     result_add = result_add[:total_limit - n_received]
-                bumped_limit = True
+                limit_reached = True
             if self.params.store_last_response_debug_info:
                 self.debug.multi_requests_last_successful_offset = offset
                 self.debug.last_response_request_count = requests_count
@@ -997,19 +1001,19 @@ class CkanApiBase(CkanApiABC):
         if requests_count >= self.params.max_requests_count and not self.params.max_requests_count == 0:
             raise MaxRequestsCountError()
         current = time.time()
-        if bumped_limit:
-            if self.params.multi_requests_bump_limit_warning:
+        if limit_reached:
+            if self.params.multi_requests_limit_reached_warning:
                 msg = f"Full DataFrame was not transmitted due to total_limit={total_limit}"
                 warn(msg)
         elif total_limit is not None and n_received >= total_limit:
             raise RuntimeError("Implementation error")
         elif requests_limit is not None and requests_count >= requests_limit:
-            bumped_limit = True
-            if self.params.multi_requests_bump_limit_warning:
+            limit_reached = True
+            if self.params.multi_requests_limit_reached_warning:
                 msg = f"Full DataFrame was not transmitted due to requests_limit={requests_limit}"
                 warn(msg)
         counters = LinesRequestCounter(lines=n_received, offset=initial_offset, pages=requests_count,
-                                       time_elapsed=current-start, bumped_limit=bumped_limit)
+                                       time_elapsed=current-start, limit_reached=limit_reached)
         self.debug.multi_requests_last_counters = counters
         if self.params.verbose_multi_requests:
             print(f"{self.identifier} Multi-requests {api_fun.__name__} done in {requests_count} calls and {round(current - start, 2)} seconds. {n_received} lines received.")

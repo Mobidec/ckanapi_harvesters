@@ -201,13 +201,13 @@ def upload_prepare_requests_files_arg(*, files:dict=None, file_path:str=None, df
 
 class LinesRequestCounter:
     def __init__(self, *, lines:int=0, pages:int=0, offset:int=0,
-                 time_elapsed:float=0, bumped_limit:bool=False):
+                 time_elapsed:float=0, limit_reached:bool=False):
         self.lines:int = lines  # number of records exchanged (ignores offset)
         self.pages:int = pages  # number of requests
         self.calls:int = 1      # number of function calls (used in certain cases)
         self.offset:int = offset  # reference to offset used
         self.time_elapsed:float = time_elapsed
-        self.bumped_limit:bool = bumped_limit
+        self.limit_reached:bool = limit_reached
 
     def __copy__(self):
         dest = LinesRequestCounter()
@@ -216,7 +216,7 @@ class LinesRequestCounter:
         dest.calls = self.calls
         dest.offset = self.offset
         dest.time_elapsed = self.time_elapsed
-        dest.bumped_limit = self.bumped_limit
+        dest.limit_reached = self.limit_reached
         return dest
 
     def __add__(self, other):
@@ -230,7 +230,7 @@ class LinesRequestCounter:
         self.pages += other.pages
         self.calls += other.calls
         self.time_elapsed += other.time_elapsed
-        self.bumped_limit = self.bumped_limit or other.bumped_limit
+        self.limit_reached = self.limit_reached or other.limit_reached
         return self
 
     @property

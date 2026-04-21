@@ -32,9 +32,9 @@ def run(ckan:CkanApi = None):
     # Test sending the traces in a generator mode
     resource_id = mdl.get_or_query_resource_id(ckan, resource_name="traces.csv")
     with traces_chunks_generator(chunksize=6) as records_generator:
-        counters = ckan.datastore_upsert_generator(records_generator, resource_id=resource_id, request_threshold=15, offset=12)
-    with traces_chunks_generator(chunksize=6) as records_generator:
-        counters_total_limit = ckan.datastore_upsert_generator(records_generator, resource_id=resource_id, request_threshold=15, offset=12, total_limit=21)
+        counters = ckan.datastore_upsert(records_generator, resource_id=resource_id, request_threshold=15, offset=12)
+    with (traces_chunks_generator(chunksize=6) as records_generator):
+        counters_total_limit = ckan.datastore_upsert(records_generator, resource_id=resource_id, request_threshold=15, offset=12, total_limit=21)
 
     # test full requests datastore_search
     df_10 = ckan.datastore_search(resource_id, limit=10, search_all=False)

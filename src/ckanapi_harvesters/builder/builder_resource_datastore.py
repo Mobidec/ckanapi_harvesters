@@ -418,7 +418,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                                        apply_last_condition=apply_last_condition,
                                        always_last_condition=always_last_condition,
                                        data_cleaner=self.data_cleaner_upload,
-                                       progress_callback=self.progress_callback)
+                                       progress_callback=self.progress_callback,
+                                       return_documents=True, return_counters=False, exclude_generator_mode=True)
         return df_upload_transformed, ret_df
 
     def upsert_request_final(self, ckan: CkanApi, *, force:bool=False) -> None:

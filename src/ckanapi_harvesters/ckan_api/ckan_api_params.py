@@ -21,7 +21,7 @@ default_df_download_id_field_treatment: CkanIdFieldTreatment = CkanIdFieldTreatm
 
 
 class CkanApiParamsBasic:
-    multi_requests_bump_limit_warning:bool = False
+    multi_requests_limit_reached_warning:bool = False
 
     def __init__(self, *, proxies:Union[str,dict,ProxyConfig]=None,
                  ckan_headers:dict=None, http_headers:dict=None):

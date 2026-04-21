@@ -3,14 +3,19 @@
 """
 
 """
-from typing import List
+from typing import List, Union
 import copy
 from warnings import warn
 
+import pandas as pd
+
 from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanResourceInfo, CkanViewInfo
+from ckanapi_harvesters.auxiliary.ckan_model import UpsertChoice
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import ReadOnlyError
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC
+from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import use_ckan_owner_org_for_requests
 
 from ckanapi_harvesters.ckan_api.ckan_api_5_manage import CkanApiManage
@@ -28,6 +33,84 @@ class CkanApiDeprecated(CkanApiManage):
             dest = CkanApiDeprecated()
         super().copy(new_identifier=new_identifier, dest=dest)
         return dest
+
+    ## Not working read functions ------------------
+    def datastore_search_sql_row_count(self, sql:str, *, params:dict=None) -> int:
+        raise NotImplementedError("API does not return total number of rows")
+        df_row = self.datastore_search_sql_find_one(sql, offset=0, params=params, return_df=True)
+        return df_row.attrs["total"]
+
+    ## Not recommended write functions ------------------
+    def datastore_insert(self, records:Union[pd.DataFrame, List[dict]], resource_id:str, *,
+                         dry_run:bool=False, limit:int=None, offset:int=0,
+                         total_limit:int=None, requests_limit:int=None, force:bool=None,
+                         apply_last_condition:bool=True, always_last_condition:bool=None, return_df:bool=None,
+                         data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
+                         params:dict=None) -> pd.DataFrame:
+        """
+        Alias function to insert data in a DataStore using datastore_upsert.
+
+        :see: datastore_upsert()
+        :param records: generator of records, e.g. chunks from a CSV file generated with pandas.read_csv(.., chunksize=1000)
+        :param resource_id: destination resource id
+        :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
+        :param limit: number of records per transaction
+        :param offset: number of records to skip - use to restart the transfer
+        :param total_limit: maximum number of lines to transmit, counting from the initial offset
+        :param requests_limit: maximum number of requests
+        :param params: additional parameters
+        :param dry_run: set to True to abort transaction instead of committing, e.g. to check for validation or type errors
+        :param apply_last_condition: if True, the last upsert request applies the last insert operations (calculate_record_count and force_indexing).
+        :param always_last_condition: if True, each request applies the last insert operations - default is False
+        :param return_df: if True, return a pandas DataFrame or else, a list of dictionaries.
+        :param data_cleaner: data cleaner instance. A data cleaner detects and changes invalid values before upload.
+        :param progress_callback: progress callback function
+        :return: the inserted records as a pandas DataFrame, from the server response
+        """
+        msg = "datastore_insert is deprecated, use datastore_upsert with argument `method=UpsertChoice.Insert` instead"
+        warn(msg, DeprecationWarning)
+        return self.datastore_upsert(records, resource_id, dry_run=dry_run, limit=limit, offset=offset,
+                                     total_limit=total_limit, requests_limit=requests_limit,
+                                     method=UpsertChoice.Insert, apply_last_condition=apply_last_condition, return_df=return_df,
+                                     always_last_condition=always_last_condition, data_cleaner=data_cleaner,
+                                     progress_callback=progress_callback,
+                                     force=force, params=params)
+
+    def datastore_update(self, records:Union[pd.DataFrame, List[dict]], resource_id:str, *,
+                         dry_run:bool=False, limit:int=None, offset:int=0,
+                         total_limit:int=None, requests_limit:int=None, force:bool=None,
+                         apply_last_condition:bool=True, always_last_condition:bool=None, return_df:bool=None,
+                         data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
+                         params:dict=None) -> pd.DataFrame:
+        """
+        Alias function to update data in a DataStore using datastore_upsert.
+        The update is performed based on the DataStore primary keys
+
+        :see: datastore_upsert()
+        :param records: generator of records, e.g. chunks from a CSV file generated with pandas.read_csv(.., chunksize=1000)
+        :param resource_id: destination resource id
+        :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
+        :param limit: number of records per transaction
+        :param offset: number of records to skip - use to restart the transfer
+        :param total_limit: maximum number of lines to transmit, counting from the initial offset
+        :param requests_limit: maximum number of requests
+        :param params: additional parameters
+        :param dry_run: set to True to abort transaction instead of committing, e.g. to check for validation or type errors
+        :param apply_last_condition: if True, the last upsert request applies the last insert operations (calculate_record_count and force_indexing).
+        :param always_last_condition: if True, each request applies the last insert operations - default is False
+        :param return_df: if True, return a pandas DataFrame or else, a list of dictionaries.
+        :param data_cleaner: data cleaner instance. A data cleaner detects and changes invalid values before upload.
+        :param progress_callback: progress callback function
+        :return: the inserted records as a pandas DataFrame, from the server response
+        """
+        msg = "datastore_update is deprecated, use datastore_upsert with argument `method=UpsertChoice.Update` instead"
+        warn(msg, DeprecationWarning)
+        return self.datastore_upsert(records, resource_id, dry_run=dry_run, limit=limit, offset=offset,
+                                     total_limit=total_limit, requests_limit=requests_limit,
+                                     method=UpsertChoice.Update, apply_last_condition=apply_last_condition, return_df=return_df,
+                                     always_last_condition=always_last_condition, data_cleaner=data_cleaner,
+                                     progress_callback=progress_callback,
+                                     force=force, params=params)
 
     ## Not recommended manage functions ------------------
     def resource_move(self, resource_id: str, package_name: str, dest_package_name:str, params:dict=None):

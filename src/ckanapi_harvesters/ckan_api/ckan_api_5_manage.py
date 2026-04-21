@@ -960,7 +960,8 @@ class CkanApiManage(CkanApiReadWrite):
         if df_upload_upsert is not None:
             self.datastore_upsert(df_upload_upsert, resource_id, method=UpsertChoice.Insert,
                                   always_last_condition=None, data_cleaner=self.data_cleaner_upload,
-                                  progress_callback=progress_callback)
+                                  progress_callback=progress_callback,
+                                  exclude_generator_mode=True)
             # # case where a reupload was needed but is not permitted by self.reupload_if_needed
             # msg = f"Did not upload the remaining part of the resource {self.name}."
             # raise IncompletePatchError(msg)

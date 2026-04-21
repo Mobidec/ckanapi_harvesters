@@ -291,7 +291,8 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
                                            apply_last_condition=apply_last_condition,
                                            always_last_condition=always_last_condition,
                                            data_cleaner=self.data_cleaner_upload,
-                                           progress_callback=self.progress_callback)
+                                           progress_callback=self.progress_callback,
+                                           return_documents=True, return_counters=False, exclude_generator_mode=True)
         elif 0 <= row_count and row_count < len(df_row):
             msg = f"Sending full dataframe because is was shorter on server side"
             warn(msg)
@@ -299,7 +300,8 @@ class BuilderDataStoreHarvester(BuilderDataStoreFolder):
                                            apply_last_condition=apply_last_condition,
                                            always_last_condition=always_last_condition,
                                            data_cleaner=self.data_cleaner_upload,
-                                           progress_callback=self.progress_callback)
+                                           progress_callback=self.progress_callback,
+                                           return_documents=True, return_counters=False, exclude_generator_mode=True)
         else:
             if ckan.params.verbose_extra:
                 print(f"File up to date on server side")

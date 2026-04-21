@@ -607,6 +607,8 @@ class CkanApiReadOnly(CkanApiMap):
         :param sql: SQL query e.g. f'SELECT * IN "{resource_id}" WHERE "USER_ID" < 0'
         :param limit: Limit the number of records per request
         :param offset: Offset in the returned records
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
+        :param requests_limit: Limit the number of requests
         :param params: N/A
         :param search_all: if False, only the first request is operated
         :return:
@@ -648,8 +650,12 @@ class CkanApiReadOnly(CkanApiMap):
 
         :see: _api_datastore_search_sql()
         :param sql: SQL query e.g. f'SELECT * IN "{resource_id}" WHERE "USER_ID" < 0'
-        :param limit: Limit the number of records per request
-        :param offset: Offset in the returned records
+        :param limit: Limit the number of records per request. This parameter applies if there is no LIMIT statement
+            in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
+        :param offset: Offset in the returned records. This parameter applies if there is no OFFSET statement
+            in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
+        :param requests_limit: Limit the number of requests
         :param params: N/A
         :param search_all: if False, only the first request is operated
         :return:
@@ -688,6 +694,7 @@ class CkanApiReadOnly(CkanApiMap):
         :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
         :param limit: Limit the number of records per request
         :param offset: Offset in the returned records
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
         :param progress_callback: Progress callback function
         :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
@@ -729,6 +736,7 @@ class CkanApiReadOnly(CkanApiMap):
         :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
         :param limit: Limit the number of records per request
         :param offset: Offset in the returned records
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
         :param progress_callback: Progress callback function
         :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
@@ -761,6 +769,7 @@ class CkanApiReadOnly(CkanApiMap):
         :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
         :param limit: Limit the number of records per request
         :param offset: Offset in the returned records
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
         :param progress_callback: Progress callback function
         :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
@@ -798,7 +807,7 @@ class CkanApiReadOnly(CkanApiMap):
         :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
         :param limit: Limit the number of records per request
         :param offset: Offset in the returned records
-        :param total_limit: Limit the number of records to return
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
         :param progress_callback: Progress callback function
         :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
@@ -808,9 +817,9 @@ class CkanApiReadOnly(CkanApiMap):
         :param format: Format of the data requested through the API. This does not change the output if return_df is True.
         :return:
         """
-        bumped_limit = False
+        limit_reached = False
         if total_limit is not None and total_limit <= 0:
-            bumped_limit = True
+            limit_reached = True
             return
         row_index = 0
         page_generator = self.datastore_search_page_generator(resource_id, filters=filters, q=q, fields=fields,
@@ -826,7 +835,7 @@ class CkanApiReadOnly(CkanApiMap):
                     yield row
                     row_index += 1
                     if total_limit is not None and row_index >= total_limit:  # double-check from page generator
-                        bumped_limit = True
+                        limit_reached = True
                         return
         elif search_method:
             response: CkanActionResponse
@@ -840,7 +849,7 @@ class CkanApiReadOnly(CkanApiMap):
                         yield element
                         row_index += 1
                         if total_limit is not None and row_index >= total_limit:  # double-check from page generator
-                            bumped_limit = True
+                            limit_reached = True
                             return
             else:
                 for response in page_generator:
@@ -849,14 +858,14 @@ class CkanApiReadOnly(CkanApiMap):
                         yield element
                         row_index += 1
                         if total_limit is not None and row_index >= total_limit:  # double-check from page generator
-                            bumped_limit = True
+                            limit_reached = True
                             return
         else:
             raise TypeError("dumping datastore without parsing with a DataFrame does not return an iterable object")
 
     def datastore_dump_page_generator(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
                                       distinct:bool=None, sort:str=None, limit:int=None, offset:int=0,
-                                      requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None, params:dict=None,
+                                      total_limit:int=None, requests_limit:int=None, progress_callback:CkanProgressCallbackABC=None, params:dict=None,
                                       search_all:bool=True, search_method:bool=True, format:str=None, bom:bool=None, return_df:bool=True) \
             -> Union[Generator[pd.DataFrame, Any, None], Generator[CkanActionResponse, Any, None]]:
         """
@@ -871,6 +880,7 @@ class CkanApiReadOnly(CkanApiMap):
         :param distinct: return only distinct rows (optional, default: false) e.g. to return distinct ids: fields="id", distinct=True
         :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
         :param limit: Limit the number of records per request
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
         :param progress_callback: Progress callback function
         :param offset: Offset in the returned records
@@ -881,7 +891,7 @@ class CkanApiReadOnly(CkanApiMap):
         """
         return self.datastore_search_page_generator(resource_id, filters=filters, q=q, fields=fields,
                                                     distinct=distinct, sort=sort, limit=limit, offset=offset,
-                                                    requests_limit=requests_limit, progress_callback=progress_callback, params=params,
+                                                    total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback, params=params,
                                                     search_all=search_all, search_method=search_method, format=format, bom=bom, return_df=return_df)
 
     def datastore_search_sql(self, sql:str, *, params:dict=None, search_all:bool=False,
@@ -893,8 +903,11 @@ class CkanApiReadOnly(CkanApiMap):
         __NB__: This action is not available when ckanapi_harvesters.datastore.sqlsearch.enabled is set to false
 
         :param sql: SQL query e.g. f'SELECT * IN "{resource_id}" WHERE "USER_ID" < 0'
-        :param limit: Limit the number of records per request
-        :param offset: Offset in the returned records
+        :param limit: Limit the number of records per request. This parameter applies if there is no LIMIT statement
+            in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
+        :param offset: Offset in the returned records. This parameter applies if there is no OFFSET statement
+            in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
         :param progress_callback: Progress callback function
         :param params: N/A
@@ -918,8 +931,11 @@ class CkanApiReadOnly(CkanApiMap):
         __NB__: This action is not available when ckanapi_harvesters.datastore.sqlsearch.enabled is set to false
 
         :param sql: SQL query e.g. f'SELECT * IN "{resource_id}" WHERE "USER_ID" < 0'
-        :param limit: Limit the number of records per request
-        :param offset: Offset in the returned records
+        :param limit: Limit the number of records per request. This parameter applies if there is no LIMIT statement
+            in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
+        :param offset: Offset in the returned records. This parameter applies if there is no OFFSET statement
+            in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
         :param progress_callback: Progress callback function
         :param params: N/A
@@ -943,9 +959,11 @@ class CkanApiReadOnly(CkanApiMap):
         __NB__: This action is not available when ckanapi_harvesters.datastore.sqlsearch.enabled is set to false
 
         :param sql: SQL query e.g. f'SELECT * IN "{resource_id}" WHERE "USER_ID" < 0'
-        :param limit: Limit the number of records per request
-        :param offset: Offset in the returned records
-        :param total_limit: Limit the number of records to return
+        :param limit: Limit the number of records per request. This parameter applies if there is no LIMIT statement
+            in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
+        :param offset: Offset in the returned records. This parameter applies if there is no OFFSET statement
+            in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
+        :param total_limit: Strictly limit the number of records to return, counting from the initial offset
         :param requests_limit: Limit the number of requests
         :param progress_callback: Progress callback function
         :param params: N/A
@@ -953,9 +971,9 @@ class CkanApiReadOnly(CkanApiMap):
         :param return_df: Return pandas Series (True) or dict (False)
         :return:
         """
-        bumped_limit = False
+        limit_reached = False
         if total_limit is not None and total_limit <= 0:
-            bumped_limit = True
+            limit_reached = True
             return
         row_index = 0
         page_generator = self.datastore_search_sql_page_generator(sql, params=params, search_all=search_all,
@@ -971,7 +989,7 @@ class CkanApiReadOnly(CkanApiMap):
                     yield row
                     row_index += 1
                     if total_limit is not None and row_index >= total_limit:  # double-check from page generator
-                        bumped_limit = True
+                        limit_reached = True
                         return
         else:
             response: CkanActionResponse
@@ -983,24 +1001,27 @@ class CkanApiReadOnly(CkanApiMap):
                     yield element
                     row_index += 1
                     if total_limit is not None and row_index >= total_limit:  # double-check from page generator
-                        bumped_limit = True
+                        limit_reached = True
                         return
 
     def datastore_search_sql_find_one(self, sql:str, *, params:dict=None,
                                       offset:int=0, return_df:bool=True) -> Union[pd.DataFrame, Tuple[ListRecords, dict]]:
         """
         First element of an SQL request
+
+        :param sql: SQL query e.g. f'SELECT * IN "{resource_id}" WHERE "USER_ID" < 0'
+        :param offset: Offset in the returned records. This parameter applies if there is no OFFSET statement
+            in the sql query. Incompatible usage raises a CkanSqlLimitOffsetError.
+        :param params: N/A
+        :param return_df: Return pandas Series (True) or dict (False)
         """
-        df_row = self.datastore_search_sql(sql, limit=1, search_all=False, offset=offset, params=params, return_df=return_df)
+        df_row = self.datastore_search_sql(sql, limit=1, total_limit=1, search_all=False, offset=offset,
+                                           params=params, return_df=return_df)
         return df_row
 
     def datastore_search_sql_fields_type_dict(self, sql:str, *, params:dict=None) -> OrderedDict:
         document, fields_dict = self.datastore_search_sql_find_one(sql, offset=0, params=params, return_df=False)
         return fields_dict
-
-    def datastore_search_sql_row_count(self, sql:str, *, params:dict=None) -> int:
-        df_row = self.datastore_search_sql_find_one(sql, offset=0, params=params, return_df=True)
-        return df_row.attrs["total"]
 
     def datastore_search_find_one(self, resource_id:str, *, filters:dict=None, q:str=None, distinct:bool=None,
                                   fields:List[str]=None, offset:int=0, return_df:bool=True) \
@@ -1008,13 +1029,19 @@ class CkanApiReadOnly(CkanApiMap):
         """
         Request first result of a query
 
-        :param resource_id: resource id
+        :param resource_id: resource id.
+        :param filters: The base argument to filter values in a table (optional)
+        :param q: Full text query (optional)
+        :param fields: The base argument to filter columns (optional)
+        :param distinct: return only distinct rows (optional, default: false) e.g. to return distinct ids: fields="id", distinct=True
+        :param offset: Offset in the returned records
+        :param return_df: Return pandas Series (True) or dict (False)
         :return:
         """
         # resource_info = self.get_resource_info_or_request(resource_id)
         # return resource_info.datastore_info.row_count
-        df_row = self.datastore_search(resource_id, limit=1, search_all=False, filters=filters, q=q, distinct=distinct,
-                                       fields=fields, offset=offset, return_df=return_df)
+        df_row = self.datastore_search(resource_id, limit=1, total_limit=1, search_all=False, filters=filters, q=q,
+                                       distinct=distinct, fields=fields, offset=offset, return_df=return_df)
         return df_row
 
     def datastore_search_fields_type_dict(self, resource_id:str, *,
@@ -1038,7 +1065,11 @@ class CkanApiReadOnly(CkanApiMap):
         """
         Request the number of rows in a DataStore
 
-        :param resource_id: resource id
+        :param resource_id: resource id.
+        :param filters: The base argument to filter values in a table (optional)
+        :param q: Full text query (optional)
+        :param fields: The base argument to filter columns (optional)
+        :param distinct: return only distinct rows (optional, default: false) e.g. to return distinct ids: fields="id", distinct=True
         :return:
         """
         df_row = self.datastore_search_find_one(resource_id, filters=filters, q=q, distinct=distinct,
