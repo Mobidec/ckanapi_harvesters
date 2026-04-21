@@ -114,7 +114,7 @@ class CkanFieldInternalAttrs:
             self.epsg_target = ckan.params.ckan_default_target_epsg
 
 
-def _reassign_limit_argument(limit:int=None, *, total_limit:int=None, limit_per_request:int=None) -> dict:
+def _reassign_limit_argument(limit:int, *, total_limit:int, limit_per_request:int) -> dict:
     """
     Central point to reassign usage of limit argument before deprecation.
     Limit argument is deprecated because its name leads to confusions.
