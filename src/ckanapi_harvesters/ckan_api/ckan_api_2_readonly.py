@@ -25,7 +25,7 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import _reassign_limit_argument
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, CkanIdFieldTreatment
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType
-from ckanapi_harvesters.auxiliary.urls import url_join
+from ckanapi_harvesters.auxiliary.urls import url_join, urlsep
 from ckanapi_harvesters.auxiliary.ckan_action import (CkanActionResponse, CkanActionNotFoundError, CkanSqlCapabilityError,
                                                       CkanSqlLimitOffsetError)
 from ckanapi_harvesters.auxiliary.ckan_errors import (IntegrityError, CkanServerError, CkanArgumentError, SearchAllNoCountsError,
@@ -140,7 +140,8 @@ class CkanApiReadOnly(CkanApiMap):
         return df_args_dict
 
     @staticmethod
-    def _get_default_bom_option(bom:bool=None, format:str=None, search_method:bool=False) -> Union[bool, None]:
+    def _get_default_bom_option_read(bom:bool=None, format:str=None, search_method:bool=False,
+                                     apply_defaults:bool=True) -> Union[bool, None]:
         """
         API datastore_dump includes an option to return the BOM (Byte Order Mark) for requests in CSV/TSV format.
         The BOM helps text-processing tools and applications determine the encoding of the file e.g. to distinguish
@@ -154,12 +155,25 @@ class CkanApiReadOnly(CkanApiMap):
                 msg = "Argument bom is not used with API datastore_search and will be ignored"
                 warn(msg)
             return None  # argument bom not used with API datastore_search
-        elif bom is not None:
+        elif bom is not None or not apply_defaults:
             return bom
         elif format is not None:
             return format.lower() in {"csv", "tsv"}  # equivalent to format.lower() not in {"json", "xml"}
         else:
             return True  # default format is CSV
+
+    @staticmethod
+    def _get_default_format_read(format:str=None, search_method:bool=False, return_df:bool=True) -> Union[str, None]:
+        """
+        Configure default format for best interpretation when reading results
+        """
+        if search_method:
+            # format used for datastore_search
+            if return_df and format is None: format = "csv"
+        else:
+            # format used for DataStore dump
+            if return_df and format is None: format = "csv"
+        return format
 
     ## Data queries ------------------
     ### Dump method ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -192,13 +206,14 @@ class CkanApiReadOnly(CkanApiMap):
             format = format.lower()
             params["format"] = format
         if bom is None and format is not None:
-            bom = CkanApiReadOnly._get_default_bom_option(bom=bom, format=format, search_method=False)
+            bom = CkanApiReadOnly._get_default_bom_option_read(bom=bom, format=format, search_method=False,
+                                                               apply_defaults=default_limit_offset)
         if bom is not None:
             params["bom"] = bom
         # params["bom"] = True  # useful?
         return params
 
-    def get_datastore_dump_url(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+    def _get_datastore_dump_url(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
                                sort:str=None, limit_per_request:int=None, offset:int=None, format:str=None, bom:bool=None,
                                params:dict=None, default_limit_offset:bool=False):
         params = self._datastore_dump_params(resource_id=resource_id, filters=filters, q=q, fields=fields,
@@ -248,7 +263,7 @@ class CkanApiReadOnly(CkanApiMap):
                                                 params=params, compute_len=False)
         if format is not None:
             format = format.lower()
-        bom = CkanApiReadOnly._get_default_bom_option(bom=bom, format=format, search_method=False)
+        bom = CkanApiReadOnly._get_default_bom_option_read(bom=bom, format=format, search_method=False)
         assert_or_raise(bom is not None, RuntimeError())
         with io.StringIO(response.content.decode()) as stream:
             read_csv_argument_bom = dict(encoding="utf-8-sig") if bom else {}  # dict(encoding="utf-8")
@@ -343,30 +358,17 @@ class CkanApiReadOnly(CkanApiMap):
 
 
     ### Search method ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    def _api_datastore_search_raw(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
-                                  distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0, format:str=None,
-                                  params:dict=None, compute_len:bool=False) -> CkanActionResponse:
-        """
-        API call to datastore_search. Performs queries on the DataStore.
 
-        :param resource_id: resource id.
-        :param filters: The base argument to filter values in a table (optional)
-        :param q: Full text query (optional)
-        :param fields: The base argument to filter columns (optional)
-        :param distinct: return only distinct rows (optional, default: false) e.g. to return distinct ids: fields="id", distinct=True
-        :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
-        :param limit_per_request: Limit the number of records per request
-        :param offset: Offset in the returned records
-        :param format: The return format in the returned response (default=objects, csv, tsv, lists) (optional)
-        :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
-        :return:
-        """
+    def _datastore_search_params(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+                                 distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=None, format:str=None,
+                                 params:dict=None, default_limit_offset:bool=True) -> dict:
         if params is None:
             params = {}
-        if offset is None:
+        if offset is None and default_limit_offset:
             offset = 0
-        params["offset"] = offset
-        if limit_per_request is None:
+        if offset is not None:
+            params["offset"] = offset
+        if limit_per_request is None and default_limit_offset:
             limit_per_request = self.params.default_limit_read_per_request
         if limit_per_request is not None:
             params["limit"] = limit_per_request
@@ -388,6 +390,42 @@ class CkanApiReadOnly(CkanApiMap):
         if format is not None:
             format = format.lower()
             params["records_format"] = format
+        return params
+
+    def _get_datastore_search_url(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+                                 distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=None, format:str=None,
+                                 params:dict=None, default_limit_offset:bool=False):
+        params = self._datastore_search_params(resource_id=resource_id, filters=filters, q=q, fields=fields,
+                                               distinct=distinct, sort=sort, limit_per_request=limit_per_request, offset=offset,
+                                               format=format, params=params,
+                                               default_limit_offset=default_limit_offset)
+        base = self._get_api_url("action")
+        url = base + urlsep + "datastore_search"
+        if len(params) > 0:
+            url = f"{url}?{urlencode(params)}"
+        return url
+
+    def _api_datastore_search_raw(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+                                  distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0, format:str=None,
+                                  params:dict=None, compute_len:bool=False) -> CkanActionResponse:
+        """
+        API call to datastore_search. Performs queries on the DataStore.
+
+        :param resource_id: resource id.
+        :param filters: The base argument to filter values in a table (optional)
+        :param q: Full text query (optional)
+        :param fields: The base argument to filter columns (optional)
+        :param distinct: return only distinct rows (optional, default: false) e.g. to return distinct ids: fields="id", distinct=True
+        :param sort: Argument to sort results e.g. sort="index, quantity desc"  or  sort="index asc"
+        :param limit_per_request: Limit the number of records per request
+        :param offset: Offset in the returned records
+        :param format: The return format in the returned response (default=objects, csv, tsv, lists) (optional)
+        :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
+        :return:
+        """
+        params = self._datastore_search_params(resource_id=resource_id, filters=filters, q=q, fields=fields,
+                                               distinct=distinct, sort=sort, limit_per_request=limit_per_request, offset=offset,
+                                               format=format, params=params)
         response = self._api_action_request(f"datastore_search", method=RequestType.Get, params=params)
         if response.success:
             if response.dry_run:
@@ -699,6 +737,28 @@ class CkanApiReadOnly(CkanApiMap):
 
 
     ## Function aliases to limit the entry-points for the user  -------------------------------------------------------
+    def get_datastore_search_url(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+                                 distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=None, format:str=None, bom:bool=None,
+                                 params:dict=None, default_limit_offset:bool=False, search_method:bool=True):
+        """
+        Obtain the datastore search URL used for the datastore_search query
+        """
+        return_df = False
+        format = CkanApiReadOnly._get_default_format_read(format=format, search_method=search_method,
+                                                          return_df=return_df)
+        bom = CkanApiReadOnly._get_default_bom_option_read(bom=bom, format=format, search_method=search_method,
+                                                           apply_defaults=default_limit_offset)
+        if search_method:
+            assert_or_raise(bom is None, CkanArgumentError("datastore_search", "bom"))
+            return self._get_datastore_search_url(resource_id=resource_id, filters=filters, q=q, fields=fields,
+                                                  distinct=distinct, sort=sort, limit_per_request=limit_per_request, offset=offset,
+                                                  format=format, params=params, default_limit_offset=default_limit_offset)
+        else:
+            assert_or_raise(distinct is None, CkanArgumentError("DataStore dump", "distinct"))
+            return self._get_datastore_dump_url(resource_id=resource_id, filters=filters, q=q, fields=fields,
+                                                sort=sort, limit_per_request=limit_per_request, offset=offset, bom=bom,
+                                                format=format, params=params, default_limit_offset=default_limit_offset)
+
     def datastore_search(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
                          distinct:bool=None, sort:str=None, limit_per_request:int=None, offset:int=0,
                          total_limit:int=None, requests_limit:int=None, search_all:bool=False,
@@ -728,16 +788,17 @@ class CkanApiReadOnly(CkanApiMap):
         :return:
         """
         if limit is not None: locals().update(_reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request))
+        format = CkanApiReadOnly._get_default_format_read(format=format, search_method=search_method,
+                                                          return_df=return_df)
+        bom = CkanApiReadOnly._get_default_bom_option_read(bom=bom, format=format, search_method=search_method)
         if search_method:
-            if return_df and format is None: format = "csv"
+            assert_or_raise(bom is None, CkanArgumentError("datastore_search", "bom"))
             return self._api_datastore_search_all(resource_id, filters=filters, q=q, fields=fields, distinct=distinct, sort=sort,
                                                   limit_per_request=limit_per_request, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
                                                   progress_callback=progress_callback,
                                                   format=format, params=params, search_all=search_all, return_df=return_df)
         else:
             assert_or_raise(distinct is None, CkanArgumentError("DataStore dump", "distinct"))
-            if return_df and format is None: format = "csv"
-            bom = CkanApiReadOnly._get_default_bom_option(bom=bom, format=format, search_method=search_method)
             return self._api_datastore_dump_all(resource_id, filters=filters, q=q, fields=fields, sort=sort,
                                                 limit_per_request=limit_per_request, offset=offset, requests_limit=requests_limit, total_limit=total_limit,
                                                 progress_callback=progress_callback,
@@ -771,15 +832,16 @@ class CkanApiReadOnly(CkanApiMap):
         :return:
         """
         if limit is not None: locals().update(_reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request))
+        format = CkanApiReadOnly._get_default_format_read(format=format, search_method=search_method,
+                                                          return_df=return_df)
+        bom = CkanApiReadOnly._get_default_bom_option_read(bom=bom, format=format, search_method=search_method)
         if search_method:
-            if return_df and format is None: format = "csv"
+            assert_or_raise(bom is None, CkanArgumentError("datastore_search", "bom"))
             return self._api_datastore_search_all_page_generator(resource_id, filters=filters, q=q, fields=fields, distinct=distinct, sort=sort,
                                                                  limit_per_request=limit_per_request, offset=offset, total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback,
                                                                  format=format, params=params, search_all=search_all, return_df=return_df)
         else:
             assert_or_raise(distinct is None, CkanArgumentError("DataStore dump", "distinct"))
-            if return_df and format is None: format = "csv"
-            bom = CkanApiReadOnly._get_default_bom_option(bom=bom, format=format, search_method=search_method)
             return self._api_datastore_dump_all_page_generator(resource_id, filters=filters, q=q, fields=fields, sort=sort,
                                                                limit_per_request=limit_per_request, offset=offset, total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback,
                                                                format=format, bom=bom, params=params, search_all=search_all, return_df=return_df)
