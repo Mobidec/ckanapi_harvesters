@@ -139,6 +139,7 @@ class CkanCapacity(IntEnum):
         else:
             raise ValueError(s)
 
+
 class CkanConfigurableObjectABC(ABC):
     mandatory_attributes: set = None
     configurable_attributes: set = None
@@ -152,6 +153,7 @@ class CkanConfigurableObjectABC(ABC):
 class CkanIdentifiedObject:
     def __init__(self):
         self.id: Union[str,None] = None
+
 
 ## Field class ------------------
 class CkanField(CkanConfigurableObjectABC):

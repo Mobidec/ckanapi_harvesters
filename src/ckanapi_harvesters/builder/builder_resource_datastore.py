@@ -693,7 +693,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         df = self.download_resource_df(ckan=ckan, search_all=full_download, **kwargs)
         return self.local_file_format.write_in_memory(df, fields=self._get_fields_info())
 
-    def download_sample_df(self, ckan:CkanApi, *, limit_per_request:int=100,
+    def download_sample_df(self, ckan:CkanApi, *, total_limit:int=None,
                            search_all:bool=False, download_alter:bool=False, pop_id:bool=True,
                            **kwargs) -> Union[pd.DataFrame,None]:
         """

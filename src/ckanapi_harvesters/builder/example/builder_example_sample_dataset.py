@@ -30,7 +30,7 @@ def run(ckan:CkanApi = None):
     sample_df_dict = mdl_ckan.download_sample(ckan, limit_per_request=10)  # download the 10 first lines of each resource
     # sample_df_dict = mdl_ckan.download_sample(ckan, limit_per_request=10, include_files=False, empty_files=True)  # these options empty the file resources
 
-    sample_df_dict["traces.csv"] = mdl_ckan.resource_builders["traces.csv"].download_sample_df(ckan, limit_per_request=120)  # specific request for this resource: take 120 lines
+    sample_df_dict["traces.csv"] = mdl_ckan.resource_builders["traces.csv"].download_sample_df(ckan, total_limit=120)  # specific request for this resource: take 120 lines
     # sample_df_dict["users.csv"] = pd.DataFrame()  # erase DataStore contents
     # sample_df_dict["generate_example.py"] = bytes()  # erase file contents
 

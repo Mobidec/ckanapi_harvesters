@@ -680,7 +680,10 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param return_counters: if True, return a dict of request counters in addition to the received records
         :return: the number of records inserted
         """
-        if limit is not None: locals().update(_reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request))
+        if limit is not None:
+            locals_update = _reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request)
+            total_limit = locals_update["total_limit"]
+            limit_per_request = locals_update["limit_per_request"]
         if records is not None:
             assert(records_generator is None)
             # exclude_generator_mode = True  # records argument cannot accept generators

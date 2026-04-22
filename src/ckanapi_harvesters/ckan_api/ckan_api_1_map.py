@@ -676,8 +676,12 @@ class CkanApiMap(CkanApiBase):
         else:
             raise response.default_error(self)
 
-    def package_show(self, package_id, *, params:dict=None) -> CkanPackageInfo:
+    def package_show(self, package_id, *, params:dict=None, cancel_if_exists:bool=True) -> CkanPackageInfo:
         # function alias
+        if cancel_if_exists:
+            package_info = self.map.get_package_info(package_id, error_not_mapped=False)
+            if package_info is not None:
+                return package_info
         return self._api_package_show(package_id=package_id, params=params)
 
     def _api_resource_show(self, resource_id, *, params:dict=None) -> CkanResourceInfo:

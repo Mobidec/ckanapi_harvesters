@@ -943,6 +943,11 @@ class CkanApiBase(CkanApiABC):
             total_len = result_add.attrs.get("total", None)
         else:
             total_len = None
+        if total_limit is not None:
+            if total_len is not None:
+                total_len = min(total_len, total_limit)
+            else:
+                total_len = total_limit
         if total_len is not None and limit_per_request is not None:
             total_requests_estimation = int(math.ceil(total_len / limit_per_request))
         else:

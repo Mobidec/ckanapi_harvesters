@@ -41,6 +41,11 @@ def run(ckan:CkanApi = None):
     resource_download_url = ckan.get_resource_download_url(resource_id)
     resource_dump_url = ckan.get_datastore_search_url(resource_id, search_method=False)
     resource_search_url = ckan.get_datastore_search_url(resource_id, search_method=True)
+    package_info = ckan.package_show(resource_info.package_id, cancel_if_exists=False)
+    ckan.map.purge()
+    res = ckan.package_search_all(filter={"id": package_info.id})
+    ckan.map.purge()
+    ckan.map_resources(resource_info.package_id)
 
     # Test sending the traces in a generator mode
     with traces_chunks_generator(chunksize=6) as records_generator:
