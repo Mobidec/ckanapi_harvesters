@@ -729,12 +729,16 @@ class CkanApiMap(CkanApiBase):
             return datastore_info.copy()
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
             e = CkanActionNotFoundError(self, "DataStore", response, display_request=display_request_not_found)
-            assert_or_raise(not resource_info.datastore_active, IntegrityError("datastore_info returned not found for a resource with datastore_active=True"))
+            if not resource_info.datastore_active:
+                msg = str(IntegrityError("datastore_info returned not found for a resource with datastore_active=True"))
+                warn(msg)
             self.map._update_datastore_info(resource_id, None, e)
             raise e
         else:
             e = response.default_error(self)
-            assert_or_raise(not resource_info.datastore_active, IntegrityError("datastore_info returned an error for a resource with datastore_active=True"))
+            if not resource_info.datastore_active:
+                msg = str(IntegrityError("datastore_info returned an error for a resource with datastore_active=True"))
+                warn(msg)
             self.map._update_datastore_info(resource_id, None, e)
             raise e
 

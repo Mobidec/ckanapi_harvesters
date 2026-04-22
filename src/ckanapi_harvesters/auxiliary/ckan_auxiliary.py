@@ -118,11 +118,6 @@ def _reassign_limit_argument(limit:int, *, total_limit:int, limit_per_request:in
     """
     Central point to reassign usage of limit argument before deprecation.
     Limit argument is deprecated because its name leads to confusions.
-
-    Usage:
-    ```
-    if limit is not None: locals().update(_reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request))
-    ```
     """
     if limit is not None:
         msg = "limit argument is deprecated and will be removed in a future release. Use total_limit instead."
@@ -365,6 +360,13 @@ def bytes_to_megabytes(size_bytes:Union[int,None]) -> Union[float,None]:
     if size_bytes is None:
         return None
     return round(size_bytes / 1024 / 1024, 2)
+
+
+class DataStoreReprFormat(IntEnum):
+    none = 0
+    from_resource_format = 1
+    csv = 2
+
 
 ## json
 def _jsons_repl_func(match):

@@ -122,10 +122,10 @@ def init_resource_from_ckan(ckan: CkanApiMap, resource_info: CkanResourceInfo, p
         else:
             raise UnexpectedError(f"Format of data store {resource_info.name} ({resource_info.format}) is not recognized")
         # load fields information
-        resource_builder.field_builders = {}
+        resource_builder.field_builders_user = {}
         for field_id in resource_info.datastore_info.fields_id_list:
             field_info = resource_info.datastore_info.fields_dict[field_id]
-            resource_builder.field_builders[field_id] = BuilderField._from_ckan_field(field_info)
+            resource_builder.field_builders_user[field_id] = BuilderField._from_ckan_field(field_info)
     elif len(resource_info.download_url) > 0 and not ckan.is_url_internal(resource_info.download_url):
         # external resource_builder
         d["file/url"] = resource_info.download_url

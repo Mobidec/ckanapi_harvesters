@@ -28,7 +28,7 @@ from ckanapi_harvesters.auxiliary.ckan_errors import DuplicateNameError
 from ckanapi_harvesters.builder.builder_errors import RequiredDataFrameFieldsError, GroupByError
 from ckanapi_harvesters.auxiliary.ckan_model import CkanResourceInfo, CkanDataStoreInfo, CkanField, UpsertChoice
 from ckanapi_harvesters.ckan_api import CkanApi
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, find_duplicates, datastore_id_col
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, find_duplicates, datastore_id_col, DataStoreReprFormat
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_configuration import datastore_default_upload_index_col_name, datastore_default_source_file_col_name, module_fields
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
@@ -87,6 +87,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.column_enable_source_file: bool = False
         self.read_line_counter:int = 0
         self.upload_start_line:int = 0
+        self.records_to_file: DataStoreReprFormat = DataStoreReprFormat.none
 
     def copy(self, *, dest=None, parent=None):
         super().copy(dest=dest, parent=parent)
@@ -662,7 +663,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                                              datastore_create=True, records=df_upload, fields=fields,
                                              primary_key=primary_key, indexes=indexes, aliases=aliases,
                                              inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
-                                             progress_callback=self.progress_callback)
+                                             progress_callback=self.progress_callback,
+                                             records_to_file=self.records_to_file)
         resource_id = resource_info.id
         self.known_id = resource_id
         self._compare_fields_to_datastore_info(resource_info, current_df_fields, ckan)
@@ -699,8 +701,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         """
         Download the first lines of a DataStore. Extra options apply to datastore_dump API.
         """
-        df = self.download_resource_df(ckan=ckan, limit_per_request=limit_per_request, search_all=search_all, download_alter=download_alter, **kwargs)
-        if pop_id:
+        if total_limit is None and not search_all:
+            total_limit = 100  # limit to 100 records by default
+        df = self.download_resource_df(ckan=ckan, total_limit=total_limit, search_all=search_all, download_alter=download_alter, **kwargs)
+        if pop_id and datastore_id_col in df.columns:
             df.pop(datastore_id_col)
         return df
 

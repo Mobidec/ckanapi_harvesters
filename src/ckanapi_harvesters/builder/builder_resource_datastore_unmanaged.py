@@ -135,7 +135,8 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
                                              datastore_create=execute_datastore_create, records=df_upload, fields=fields,
                                              primary_key=primary_key, indexes=indexes, aliases=aliases,
                                              inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
-                                             progress_callback=self.progress_callback)
+                                             progress_callback=self.progress_callback,
+                                             records_to_file=self.records_to_file)
         resource_id = resource_info.id
         self.known_id = resource_id
         self._compare_fields_to_datastore_info(resource_info, current_df_fields, ckan)

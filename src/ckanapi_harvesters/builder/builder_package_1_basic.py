@@ -26,7 +26,7 @@ from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMe
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanState, CkanPackageInfo, CkanResourceInfo, CkanLicenseInfo
 from ckanapi_harvesters.auxiliary.path import sanitize_path, make_path_relative
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, assert_or_raise, find_duplicates
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, assert_or_raise, find_duplicates, DataStoreReprFormat
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_errors import (DuplicateNameError, ForbiddenNameError, MissingIdError,
                                                       MandatoryAttributeError, FileOrDirNotExistError)
@@ -1425,7 +1425,8 @@ class BuilderPackageBasic:
 
     def setup_sample_package(self, ckan: CkanApi, package_name:str=None, *,
                              sample_url_suffix:str=None, sample_title_suffix:str=None,
-                             sample_df_dict: Dict[str, Union[bytes, pd.DataFrame]]=None, return_sample:bool=False, **kwargs) \
+                             sample_df_dict: Dict[str, Union[bytes, pd.DataFrame]]=None, return_sample:bool=False,
+                             records_to_file:DataStoreReprFormat=None, **kwargs) \
         -> Union["BuilderPackageBasic", Tuple["BuilderPackageBasic", Dict[str, Union[bytes, pd.DataFrame]]]]:
         """
         Returns a package builder configured to represent a sample of the current package builder.
@@ -1441,6 +1442,8 @@ class BuilderPackageBasic:
         :return: a package builder configured to represent a sample of the current package builder.
             Optionally, the dictionary of resources to transmit
         """
+        if records_to_file is None:
+            records_to_file = DataStoreReprFormat.from_resource_format  # export DataStores to a file representation for sample datasets
         if sample_url_suffix is None:
             sample_url_suffix = BuilderPackageBasic.default_sample_url_suffix
         if sample_title_suffix is None:
@@ -1459,6 +1462,8 @@ class BuilderPackageBasic:
         sample_mdl.package_attributes.state = CkanState.Active  # publish at the end of the process
         for resource_builder in sample_mdl.resource_builders.values():
             resource_builder.aliases = []
+            if isinstance(resource_builder, BuilderDataStoreABC):
+                resource_builder.records_to_file = records_to_file
         sample_mdl.clear_ids()
         if return_sample and sample_df_dict is None:
             sample_df_dict = mdl.download_sample(ckan=ckan, **kwargs)
