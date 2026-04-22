@@ -12,7 +12,7 @@ import io
 
 from requests.auth import AuthBase
 
-from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckan_has_postgis, default_ckan_target_epsg
+from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckanext_has_postgis, default_ckan_target_epsg
 from ckanapi_harvesters.auxiliary.ckan_configuration import unlock_external_url_resource_download, allow_no_server_ca, unlock_no_server_ca
 from ckanapi_harvesters.auxiliary.ckan_errors import NoCAVerificationError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import ca_file_rel_to_dir, assert_or_raise
@@ -52,7 +52,7 @@ class DatabaseParams:
         self.login: Login = Login()
         self.database: Union[str, None] = None
         self.verbose_harvester: bool = True
-        self.ckan_postgis: Union[bool,None] = default_ckan_has_postgis
+        self.ckanext_postgis: Union[bool,None] = default_ckanext_has_postgis
         self.ckan_default_target_epsg:Union[int,None] = default_ckan_target_epsg
         # table arguments which can be put in common:
         self.limit: Union[int, None] = None
@@ -84,7 +84,7 @@ class DatabaseParams:
         dest.login = self.login
         dest.database = self.database
         dest.verbose_harvester = self.verbose_harvester
-        dest.ckan_postgis = self.ckan_postgis
+        dest.ckanext_postgis = self.ckanext_postgis
         # table arguments which can be put in common:
         dest.limit = self.limit
         dest.single_request = self.single_request
@@ -128,7 +128,7 @@ class DatabaseParams:
         parser.add_argument("--database", type=str,
                             help="Database name")
         parser.add_argument("--ckan-postgis", action="store_true",
-                            help="Option to use CKAN with PostGIS geometric types")  # default=default_ckan_has_postgis
+                            help="Option to use CKAN with PostGIS geometric types")  # default=default_ckanext_has_postgis
         parser.add_argument("--ckan-epsg", type=int,
                             help="Default EPSG for CKAN", default=default_ckan_target_epsg)
         # table arguments which can be put in common:
@@ -180,7 +180,7 @@ class DatabaseParams:
         if args.verbose is not None:
             self.verbose_harvester = args.verbose
         if args.ckan_postgis:
-            self.ckan_postgis = args.ckan_postgis
+            self.ckanext_postgis = args.ckan_postgis
         if args.ckan_epsg:
             self.ckan_default_target_epsg = args.ckan_epsg
         # table arguments which can be put in common:
@@ -190,8 +190,8 @@ class DatabaseParams:
 
     def _update_from_ckan(self, ckan):
         # aim: make these values accessible to the harvester algorithms (for the rest, Harvesters are independent of CkanApi)
-        if self.ckan_postgis is None:
-            self.ckan_postgis = ckan.params.ckan_has_postgis
+        if self.ckanext_postgis is None:
+            self.ckanext_postgis = ckan.params.ckanext_postgis
         if self.ckan_default_target_epsg is None:
             self.ckan_default_target_epsg = ckan.params.ckan_default_target_epsg
 
@@ -328,7 +328,7 @@ class TableParams(DatasetParams):
         dest.resource_url = self.resource_url
         dest.table = self.table
         dest.query_string = self.query_string
-        dest.ckan_postgis = self.ckan_postgis
+        dest.ckanext_postgis = self.ckanext_postgis
         return dest
 
     @staticmethod

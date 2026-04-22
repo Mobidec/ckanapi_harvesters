@@ -9,7 +9,7 @@ from warnings import warn
 import copy
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanResourceInfo, CkanState, CkanDataStoreInfo, \
-    CkanOrganizationInfo, CkanLicenseInfo, CkanViewInfo, CkanGroupInfo, CkanUserInfo
+    CkanOrganizationInfo, CkanLicenseInfo, CkanViewInfo, CkanGroupInfo, CkanUserInfo, CkanStatus
 from ckanapi_harvesters.auxiliary.ckan_errors import NotMappedObjectNameError, IntegrityError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
 
@@ -44,6 +44,7 @@ class CkanMap(CkanMapABC):
     """
 
     def __init__(self):
+        self.status:Union[CkanStatus, None] = None
         self.packages:Dict[str,CkanPackageInfo] = {}    # package id -> info
         self.packages_id_index:Dict[str, str] = {}      # package name -> id
         self.packages_title_index:Dict[str, str] = {}   # package title -> id
@@ -75,6 +76,7 @@ class CkanMap(CkanMapABC):
 
         :return:
         """
+        self.status = None
         self.packages:Dict[str,CkanPackageInfo] = {}    # package id -> info
         self.packages_id_index:Dict[str, str] = {}      # package name -> id
         self.packages_title_index:Dict[str, str] = {}   # package title -> id

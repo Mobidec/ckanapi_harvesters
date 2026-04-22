@@ -205,7 +205,7 @@ class CkanDataCleanerABC(ABC):
         Call before upsert.
         """
         if self.param_create_new_fields and len(self.fields_new) > 0:
-            ckan.datastore_field_patch(resource_id, fields_update=self.fields_new)
+            ckan.datastore_fields_patch(resource_id, fields_update=self.fields_new)
 
     def merge_field_changes(self, fields:List[dict]=None) -> List[dict]:
         """

@@ -6,10 +6,12 @@ Data model to represent a CKAN database architecture
 import datetime
 from abc import ABC, abstractmethod
 from enum import IntEnum, IntFlag
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Set
 from warnings import warn
 import copy
 from collections import OrderedDict
+from packaging import version
+from packaging.version import Version
 
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, _bool_from_string, bytes_to_megabytes
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanFieldInternalAttrs
@@ -957,4 +959,20 @@ class CkanOrganizationInfo(CkanIdentifiedObject):
     @staticmethod
     def from_dict(d:dict) -> "CkanOrganizationInfo":
         return CkanOrganizationInfo(d)
+
+
+class CkanStatus:
+    def __init__(self, d:dict):
+        self.ckan_version:Version = version.parse(d["ckan_version"])
+        self.extensions:Set[str] = set(d["extensions"].split(' '))
+        self.site_url:str = d["site_url"]
+        self.site_title:str = d["site_title"]
+        self.site_description:str = d["site_description"]
+        self.details:dict = d
+
+    def copy(self) -> "CkanStatus":
+        return copy.deepcopy(self)
+
+    def __str__(self):
+        return f"CKAN v{self.ckan_version} {self.site_url} ({self.site_title}) with ext {','.join(self.extensions)}"
 

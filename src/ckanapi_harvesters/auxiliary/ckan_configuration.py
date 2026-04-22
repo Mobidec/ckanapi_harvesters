@@ -14,7 +14,7 @@ datastore_default_upload_index_col_name: Union[str,None] = "py_upload_index"
 datastore_default_source_file_col_name: Union[str,None] = "py_source_file"
 module_fields = {datastore_default_upload_index_col_name, datastore_default_source_file_col_name}
 
-default_ckan_has_postgis: bool = True
+default_ckanext_has_postgis: bool = True
 epsg_wgs84 = 4326  # WGS-84
 default_ckan_target_epsg: Union[int,None] = epsg_wgs84  # default target geodesic system
 

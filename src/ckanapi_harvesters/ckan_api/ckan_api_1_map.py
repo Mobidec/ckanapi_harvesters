@@ -12,7 +12,7 @@ import argparse
 
 from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanLicenseInfo, CkanDataStoreInfo, CkanResourceInfo,
                                                      CkanOrganizationInfo, CkanViewInfo, CkanField, CkanUserInfo,
-                                                     CkanGroupInfo, CkanCollaboration, CkanCapacity)
+                                                     CkanGroupInfo, CkanCollaboration, CkanCapacity, CkanStatus)
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC, CkanProgressUnits, CkanCallbackLevel
 from ckanapi_harvesters.auxiliary.urls import urlsep, url_join
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
@@ -229,6 +229,8 @@ class CkanApiMap(CkanApiBase):
         resource_view_list = self.map._mapping_query_resource_view_list
         license_list = self.map._mapping_query_license_list
         organization_info = self.map._mapping_query_organization_info
+
+        self.status_show()
 
         if organization_info:
             if owner_org is None:
@@ -515,6 +517,31 @@ class CkanApiMap(CkanApiBase):
             return None
 
     ## API calls needed to make the map and auxiliary API functions  ------------------
+    def _api_status_show(self, *, params:dict=None) -> CkanStatus:
+        """
+        API call to status_show. Returns information on the CKAN installation (version, extensions).
+
+        :return:
+        """
+        response = self._api_action_request("status_show", method=RequestType.Get, params=params)
+        if response.success:
+            status_info = CkanStatus(response.result)
+            self.map.status = status_info  # update map
+            return status_info.copy()
+        else:
+            raise response.default_error(self)
+
+    def status_show(self, *, params:dict=None, cancel_if_present:bool=True) -> CkanStatus:
+        """
+        API call to status_show. Returns information on the CKAN installation (version, extensions).
+
+        :return:
+        """
+        if cancel_if_present and self.map.status is not None and params is None:
+            return self.map.status.copy()
+        else:
+            return self._api_status_show(params=params)
+
     def _api_package_search(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
                             include_private:bool=True, include_drafts:bool=True, sort:str=None,
                             facet:bool=None, limit_per_request:int=None, offset:int=None) -> List[CkanPackageInfo]:
@@ -685,6 +712,7 @@ class CkanApiMap(CkanApiBase):
         """
         if params is None: params = {}
         params["id"] = resource_id
+        resource_info = self.get_resource_info_or_request(resource_id, datastore_info=False, error_not_found=True)
         response = self._api_action_request("datastore_info", method=RequestType.Post, json=params)
         if response.success:
             datastore_info = CkanDataStoreInfo(response.result)
@@ -692,10 +720,12 @@ class CkanApiMap(CkanApiBase):
             return datastore_info.copy()
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
             e = CkanActionNotFoundError(self, "DataStore", response, display_request=display_request_not_found)
+            assert_or_raise(not resource_info.datastore_active, IntegrityError("datastore_info returned not found for a resource with datastore_active=True"))
             self.map._update_datastore_info(resource_id, None, e)
             raise e
         else:
             e = response.default_error(self)
+            assert_or_raise(not resource_info.datastore_active, IntegrityError("datastore_info returned an error for a resource with datastore_active=True"))
             self.map._update_datastore_info(resource_id, None, e)
             raise e
 

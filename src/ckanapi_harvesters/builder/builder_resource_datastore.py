@@ -558,11 +558,15 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=False)
         if resource_id is not None and not reupload:
                 # This call merges the field builder with existing information
-            update_needed, fields_update = ckan.datastore_field_patch_dict(fields_merge=data_cleaner_fields, fields_update=builder_fields,
-                                                                           return_list=False, datastore_merge=not override_ckan,
-                                                                           resource_id=resource_id, error_not_found=False)
+            update_needed, fields_update = ckan._datastore_fields_patch_dict(fields_merge=data_cleaner_fields,
+                                                                             fields_update=builder_fields,
+                                                                             return_list=False,
+                                                                             datastore_merge=not override_ckan,
+                                                                             resource_id=resource_id,
+                                                                             error_not_found=False)
         else:
-            fields_update = CkanApi.datastore_field_dict(fields_merge=data_cleaner_fields, fields_update=builder_fields, return_list=False)
+            fields_update = CkanApi._datastore_fields_dict_merge(fields_merge=data_cleaner_fields,
+                                                                 fields_update=builder_fields, return_list=False)
         return fields_update
 
     def _collect_indexes_from_fields(self) -> Set[str]:

@@ -480,7 +480,7 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
         Some data types need to be translated
         """
         if field_metadata.harvester_attrs["datatype_keyword"] == "geometry":
-            if self.params.ckan_postgis:
+            if self.params.ckanext_postgis:
                 if self.params.ckan_default_target_epsg is not None:
                     # TODO: at this point, the ckan_default_target_epsg does not inherit from ckan
                     geometry_type, geo_epsg = parse_geometry_native_type(field_metadata.data_type)
@@ -495,7 +495,7 @@ class TableHarvesterPostgre(DatasetHarvesterPostgre, TableHarvesterABC):
         Force some data types to return as text
         """
         if field_metadata.harvester_attrs["datatype_keyword"] == "geometry":
-            if self.params.ckan_postgis:
+            if self.params.ckanext_postgis:
                 return sql_varname_escape(field_metadata.name)  # TODO: test if transfer is successful without converting to a GeoJSON string
             else:
                 return f"ST_AsGeoJSON({sql_varname_escape(field_metadata.name)})"

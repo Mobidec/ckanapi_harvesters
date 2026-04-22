@@ -11,13 +11,14 @@ from warnings import warn
 import argparse
 import io
 import hashlib
+from packaging.version import Version
 
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import json_encode_params
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
-from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckan_has_postgis, default_ckan_target_epsg
+from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckanext_has_postgis, default_ckan_target_epsg
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanResourceInfo, CkanViewInfo, CkanField,
                                                      CkanState, UpsertChoice)
@@ -106,14 +107,15 @@ class CkanApiExtendedParams(CkanApiManageParams):
     def __init__(self, *, proxies:Union[str,dict,ProxyConfig]=None,
                  ckan_headers:dict=None, http_headers:dict=None):
         super().__init__(proxies=proxies, ckan_headers=ckan_headers, http_headers=http_headers)
-        self.ckan_has_postgis: bool = default_ckan_has_postgis
+        # CKAN Database has PostGIS extension:
+        self.ckanext_postgis: bool = default_ckanext_has_postgis
         self.ckan_default_target_epsg: Union[int,None] = default_ckan_target_epsg
 
     def copy(self, new_identifier:str=None, *, dest=None):
         if dest is None:
             dest = CkanApiExtendedParams()
         super().copy(dest=dest)
-        dest.ckan_has_postgis = self.ckan_has_postgis
+        dest.ckanext_postgis = self.ckanext_postgis
         dest.ckan_default_target_epsg = self.ckan_default_target_epsg
         return dest
 
@@ -121,7 +123,7 @@ class CkanApiExtendedParams(CkanApiManageParams):
         # overload adding support to change extended parameters
         parser = super()._setup_cli_ckan_parser__params(parser=parser)
         parser.add_argument("--ckan-postgis", action="store_true",
-                            help="Option to notify that CKAN is compatible with PostGIS")  # default=default_ckan_has_postgis
+                            help="Option to notify that CKAN is compatible with PostGIS")  # default=default_ckanext_has_postgis
         parser.add_argument("--ckan-epsg", type=int,
                             help="Default EPSG for CKAN", default=default_ckan_target_epsg)
         return parser
@@ -133,7 +135,7 @@ class CkanApiExtendedParams(CkanApiManageParams):
         super()._cli_ckan_args_apply(args=args, base_dir=base_dir, error_not_found=error_not_found,
                                      default_proxies=default_proxies, proxy_headers=proxy_headers)
         if args.ckan_postgis:
-            self.ckan_has_postgis = args.ckan_postgis
+            self.ckanext_postgis = args.ckan_postgis
         if args.ckan_epsg:
             self.ckan_default_target_epsg = args.ckan_epsg
 
@@ -207,11 +209,11 @@ class CkanApiManage(CkanApiReadWrite):
 
     ## Field modification ------------------
     @staticmethod
-    def datastore_field_dict(fields:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None,
-                             fields_merge:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None,
-                             fields_update:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None, *,
-                             fields_type_override:Dict[str,str]=None, fields_description:Dict[str,str]=None,
-                             fields_label:Dict[str,str]=None, return_list:bool=False) \
+    def _datastore_fields_dict_merge(fields:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None,
+                                   fields_merge:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None,
+                                   fields_update:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None, *,
+                                   fields_type_override:Dict[str,str]=None, fields_description:Dict[str,str]=None,
+                                   fields_label:Dict[str,str]=None, return_list:bool=False) \
             -> Union[Dict[str, CkanField], List[dict]]:
         """
         Initialization of the `fields` parameter for datastore_create.
@@ -327,7 +329,21 @@ class CkanApiManage(CkanApiReadWrite):
         else:
             return fields_updated
 
-    def datastore_field_patch_dict(self, fields_merge:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None,
+    def datastore_fields(self, resource_id:str, *, error_not_found:bool=True) -> Union[dict[str, CkanField], None]:
+        """
+        Obtain the fields composing a DataStore
+        """
+        datastore_info = self.get_datastore_info_or_request_of_id(resource_id, error_not_found=error_not_found)
+        if datastore_info is not None:
+            fields_base = copy.deepcopy(datastore_info.fields_dict)
+            if len(fields_base) == 0:
+                msg = f"No fields found for {resource_id}"
+                warn(msg)
+            return fields_base
+        else:
+            return None
+
+    def _datastore_fields_patch_dict(self, fields_merge:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None,
                                    fields_update:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None, *,
                                    fields_type_override:Dict[str,str]=None, fields_description:Dict[str,str]=None,
                                    fields_label:Dict[str,str]=None, return_list:bool=False,
@@ -345,9 +361,13 @@ class CkanApiManage(CkanApiReadWrite):
         :param resource_id: required if datastore_merge=True
         :return:
         """
-        fields_update: Dict[str, CkanField] = CkanApiManage.datastore_field_dict(fields=None, fields_merge=fields_merge, fields_update=fields_update,
-                                               fields_type_override=fields_type_override, fields_description=fields_description,
-                                               fields_label=fields_label, return_list=False)
+        fields_update: Dict[str, CkanField] = CkanApiManage._datastore_fields_dict_merge(fields=None,
+                                                                                         fields_merge=fields_merge,
+                                                                                         fields_update=fields_update,
+                                                                                         fields_type_override=fields_type_override,
+                                                                                         fields_description=fields_description,
+                                                                                         fields_label=fields_label,
+                                                                                         return_list=False)
         if datastore_merge:
             if error_not_found:
                 assert(resource_id is not None)
@@ -379,7 +399,7 @@ class CkanApiManage(CkanApiReadWrite):
             else:
                 return None, fields_update
 
-    def datastore_field_patch(self, resource_id:str, fields_merge:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None,
+    def datastore_fields_patch(self, resource_id:str, fields_merge:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None,
                               fields_update:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None, *,
                               only_if_needed:bool=False, fields:Union[List[Union[CkanField,dict]], OrderedDict[str,Union[CkanField,dict]]]=None,
                               fields_type_override:Dict[str,str]=None, field_description:Dict[str,str]=None,
@@ -405,15 +425,44 @@ class CkanApiManage(CkanApiReadWrite):
         :param only_if_needed: Cancels the request if the changes do not affect the current configuration
         :return: a tuple (update_needed, fields_new, update_dict)
         """
-        update_needed, fields_update = self.datastore_field_patch_dict(fields_merge=fields_merge, fields_update=fields_update,
-                                                                       fields_type_override=fields_type_override,
-                                                                       fields_description=field_description, fields_label=fields_label,
-                                                                       datastore_merge=True, resource_id=resource_id, return_list=True)
+        update_needed, fields_update = self._datastore_fields_patch_dict(fields_merge=fields_merge,
+                                                                         fields_update=fields_update,
+                                                                         fields_type_override=fields_type_override,
+                                                                         fields_description=field_description,
+                                                                         fields_label=fields_label, return_list=True,
+                                                                         datastore_merge=True, resource_id=resource_id)
         if update_needed or not only_if_needed:
             return update_needed, fields_update, self.datastore_create(resource_id, fields=fields_update)
         else:
             return update_needed, fields_update, None
 
+    def datastore_fields_delete(self, resource_id: str, fields_delete:Union[str,List[str]],
+                                *, params:dict=None, bypass_admin:bool=True) -> dict:
+        """
+        Request to delete fields from a DataStore.
+        Introduced in CKAN version >= 2.11
+
+        :param resource_id: resource id
+        :param fields_delete: list of fields to delete or string with names separated by commas (,)
+        :param bypass_admin: option to bypass admin state check (locally)
+        :param params: additional parameters to pass to the CKAN API datastore_create
+        """
+        warn("TODO: untested function")  # TODO
+        assert_or_raise(bypass_admin or not self.params.enable_admin, ReadOnlyError())
+        if self.map.status is not None and self.map.status.ckan_version < Version("2.11"):
+            msg = "API datastore_create does not implement option delete_fields. Requires CKAN version >= 2.11"
+            warn(msg)
+        if isinstance(fields_delete, str):
+            fields_delete = [field_name.strip() for field_name in ckan_tags_sep.split(fields_delete)]
+        datastore_info = self.get_datastore_info_or_request_of_id(resource_id)
+        fields = self.datastore_fields(resource_id=resource_id)
+        for field_name in fields_delete:
+            fields.pop(field_name)
+        res = self._api_datastore_create(resource_id, fields=fields, delete_fields=True, params=params)
+        # update map:
+        for field_name in fields_delete:
+            datastore_info.fields_dict.pop(field_name)
+        return res
 
     ## Data deletions ------------------
     def _api_datastore_delete(self, resource_id:str, *, params:dict=None,
@@ -435,7 +484,8 @@ class CkanApiManage(CkanApiReadWrite):
         params["force"] = force
         response = self._api_action_request(f"datastore_delete", method=RequestType.Post, json=params)
         if response.success:
-            self.map._record_datastore_delete(resource_id)
+            if "filters" not in params.keys():
+                self.map._record_datastore_delete(resource_id)
             return response.result
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
             resource_info = self.resource_show(resource_id)  # will trigger another error if resource does not exist
@@ -443,8 +493,34 @@ class CkanApiManage(CkanApiReadWrite):
         else:
             raise response.default_error(self)
 
-    def datastore_delete_rows(self, resource_id:str, filters:dict, *, params:dict=None,
-                              force:bool=None, calculate_record_count:bool=True) -> dict:
+    def _api_datastore_records_delete(self, resource_id:str, *, params:dict=None,
+                                      force:bool=None) -> dict:
+        """
+        Function to delete rows an api_datastore using api_datastore_upsert.
+        This API will never remove the table itself.
+        Introduced in CKAN version >= 2.11
+
+        :param resource_id:
+        :param params:
+        :param force: set to True to edit a read-only resource. If not provided, this is overridden by self.default_force
+        :return:
+        """
+        assert_or_raise(not self.params.read_only, ReadOnlyError())
+        if params is None: params = {}
+        if force is None: force = self.params.default_force
+        params["resource_id"] = resource_id
+        params["force"] = force
+        response = self._api_action_request(f"datastore_records_delete", method=RequestType.Post, json=params)
+        if response.success:
+            return response.result
+        elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
+            resource_info = self.resource_show(resource_id)  # will trigger another error if resource does not exist
+            raise CkanActionNotFoundError(self, "DataStore", response)
+        else:
+            raise response.default_error(self)
+
+    def datastore_records_delete(self, resource_id:str, filters:dict, *, params:dict=None,
+                                 force:bool=None, calculate_record_count:bool=True) -> dict:
         """
         Function to delete certain rows a DataStore using _api_datastore_delete.
         The filters are mandatory here.
@@ -463,7 +539,10 @@ class CkanApiManage(CkanApiReadWrite):
         params["filters"] = filters
         params["calculate_record_count"] = calculate_record_count
         assert_or_raise(len(filters) > 0, InvalidParameterError("filters"))
-        return self._api_datastore_delete(resource_id, params=params, force=force)
+        if self.map.status is not None and self.map.status.ckan_version >= Version("2.11"):
+            return self._api_datastore_records_delete(resource_id, params=params, force=force)
+        else:
+            return self._api_datastore_delete(resource_id, params=params, force=force)
 
     def datastore_clear(self, resource_id:str, *, error_not_found:bool=True, params:dict=None,
                         force:bool=None, bypass_admin:bool=False) -> Union[dict,None]:
@@ -825,7 +904,7 @@ class CkanApiManage(CkanApiReadWrite):
         return resource_info
 
     def _api_datastore_create(self, resource_id:str, *, records:Union[dict, List[dict], pd.DataFrame]=None,
-                             fields:List[Union[dict, CkanField]]=None,
+                             fields:List[Union[dict, CkanField]]=None, delete_fields:bool=None,
                              primary_key:Union[str, List[str]]=None, indexes:Union[str, List[str]]=None,
                              aliases: Union[str, List[str]]=None,
                              params:dict=None,force:bool=None) -> dict:
@@ -871,6 +950,9 @@ class CkanApiManage(CkanApiReadWrite):
             for field_dict in fields_list_dict:
                 CkanApiManage.verify_field_name_format(field_dict["id"])
             params["fields"] = fields_list_dict
+        if delete_fields:
+            # option avalaible
+            params["delete_fields"] = delete_fields
         data_payload, json_headers = json_encode_params(params)
         response = self._api_action_request(f"datastore_create", method=RequestType.Post,
                                             data=data_payload, headers=json_headers)
@@ -910,7 +992,7 @@ class CkanApiManage(CkanApiReadWrite):
             data_cleaner = self.data_cleaner_upload
         if data_cleaner is not None:
             if not delete_previous:
-                fields_for_cleaner_dict = CkanApiManage.datastore_field_dict(fields=fields)
+                fields_for_cleaner_dict = CkanApiManage._datastore_fields_dict_merge(fields=fields)
                 fields_for_cleaner = OrderedDict([(field_name, field_info) for field_name, field_info in fields_for_cleaner_dict.items()])
             else:
                 fields_for_cleaner = None

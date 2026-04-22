@@ -324,7 +324,9 @@ class CkanApiReadWrite(CkanApiPolicy):
             data_cleaner = self.data_cleaner_upload
         if data_cleaner is not None:
             datastore_info = self.get_datastore_info_or_request_of_id(resource_id=resource_id, error_not_found=True)
-            records = data_cleaner.clean_records(records, known_fields=datastore_info.fields_dict, inplace=True)
+            records = data_cleaner.clean_records(records,
+                                                 known_fields=datastore_info.fields_dict if datastore_info is not None else None,
+                                                 inplace=True)
             data_cleaner.apply_new_fields_request(self, resource_id=resource_id)
         if return_df is None:
             return_df = mode_df
