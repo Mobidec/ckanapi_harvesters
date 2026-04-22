@@ -10,6 +10,13 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-04-22
 
 
+## [0.0.28] - 2026-04-22
+
+### Changed
+
+- Refactoring of previous version 0.0.27
+
+
 ## [0.0.27] - 2026-04-22
 
 ### Added
