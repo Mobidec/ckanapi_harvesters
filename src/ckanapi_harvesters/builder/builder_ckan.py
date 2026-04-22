@@ -23,9 +23,10 @@ ckan_allowed_user_fields: Set[str] = {
     "proxies", "proxy authentication file",
     "ckan remote ca", "external ca",
     "data format policy file", "options",
-    "limit", "time between requests", "thread count",
+    "limit per request", "time between requests", "thread count",
     "comment",
     "attribute",  # reserved name for table header
+    "limit",  # deprecated
 }
 
 
@@ -162,6 +163,13 @@ class BuilderCkan:
             number_str = _string_from_element(ckan_df.pop("limit"))
             self._user_fields_used.add("limit")
             if number_str is not None:
+                msg = "`ckan` attribute `Limit` is deprecated. Use `Limit per request` instead"
+                warn(msg, DeprecationWarning)
+                self.limit_per_request = int(number_str)
+        if "limit per request" in ckan_df.columns:
+            number_str = _string_from_element(ckan_df.pop("limit per request"))
+            self._user_fields_used.add("limit per request")
+            if number_str is not None:
                 self.limit_per_request = int(number_str)
         if "time between requests" in ckan_df.columns:
             number_str = _string_from_element(ckan_df.pop("time between requests"))
@@ -194,7 +202,7 @@ class BuilderCkan:
         ckan_dict["External remote CA"] = ca_arg_to_str(self.extern_ca, base_dir=base_dir, source_string=self._extern_ca_src)
         ckan_dict["Data format policy file"] = make_path_relative(self.policy_file, base_dir)
         ckan_dict["Options"] = self.options_string
-        ckan_dict["Limit"] = self.limit_per_request
+        ckan_dict["Limit per request"] = self.limit_per_request
         ckan_dict["Time between requests"] = self.time_between_requests
         ckan_dict["Thread count"] = self.default_thread_count
         ckan_dict["Comment"] = self.comment
@@ -211,7 +219,7 @@ class BuilderCkan:
             "External CA": "Path to a custom CA certificate used for connexions other than the CKAN server, relative to this Excel workbook folder (.pem)",
             "Data format policy file": "Path to a JSON file containing the CKAN data format policy, relative to this Excel workbook folder",
             "Options": "List of options to initialize the CKAN API object in CLI format",
-            "Limit": "Maximum number of records to return/send per request",
+            "Limit per request": "Maximum number of records to return/send per request",
             "Time between requests": "Delay between upload/download requests (seconds) - recommended: 0.1 seconds",
             "Thread count": "Number of threads to use to upload/download large datasets",
         }
@@ -286,7 +294,7 @@ class BuilderCkan:
             ckan.initialize_from_options_string(self.options_string,
                                                 base_dir=base_dir, default_proxies=default_proxies)
         if self.limit_per_request is not None:
-            ckan.set_limits(self.limit_per_request)
+            ckan.set_limits_per_request(self.limit_per_request)
         if self.time_between_requests is not None:
             ckan.params.multi_requests_time_between_requests = self.time_between_requests
         return ckan

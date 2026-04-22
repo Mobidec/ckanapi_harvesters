@@ -128,7 +128,7 @@ class CkanApiReadWrite(CkanApiPolicy):
         self.params.default_force = unlock
         self.params.read_only = not unlock
 
-    def set_limits(self, limit_read:Union[int,None], limit_write:int=None) -> None:
+    def set_limits_per_request(self, limit_read:Union[int,None], limit_write:int=None) -> None:
         """
         Set default query limits. If only one argument is provided, it applies to both limits.
 
@@ -136,11 +136,16 @@ class CkanApiReadWrite(CkanApiPolicy):
         :param limit_write: default limit for upsert (write) requests
         :return:
         """
-        super().set_limits(limit_read)
+        super().set_limits_per_request(limit_read)
         if limit_write is not None:
             self.params.default_limit_write_per_request = limit_write
         else:
             self.params.default_limit_write_per_request = limit_read
+
+    def set_limits(self, limit_read:Union[int,None], limit_write:int=None) -> None:
+        msg = "set_limits is deprecated, use set_limits_per_request instead"
+        warn(msg, DeprecationWarning)
+        self.set_limits_per_request(limit_read, limit_write)
 
     def set_submit_timeout(self, submit_timeout:float, submit_delay:float=None) -> None:
         """

@@ -682,7 +682,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         resource_id = self.get_or_query_resource_id(ckan=ckan, error_not_found=self.download_error_not_found)
         if resource_id is None and not self.download_error_not_found:
             return None
-        df_download = ckan.datastore_dump(resource_id, search_all=search_all, progress_callback=self.progress_callback, **kwargs)
+        df_download = ckan.datastore_search(resource_id, search_all=search_all, progress_callback=self.progress_callback, **kwargs)
         if download_alter:
             df_local = self.df_mapper.df_download_alter(df_download, fields=self._get_fields_info())
             return df_local

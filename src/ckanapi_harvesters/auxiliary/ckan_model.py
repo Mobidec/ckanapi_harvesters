@@ -489,9 +489,9 @@ class CkanDataStoreInfo:
         if self.row_count is not None:
             d["meta"]["count"] = self.row_count
         if self.primary_key is not None:
-            d["primary_key"] = self.primary_key
+            d["primary_key"] = ckan_tags_sep.join(list(self.primary_key))
         if self.indexes is not None:
-            d["indexes"] = self.indexes
+            d["indexes"] = ckan_tags_sep.join(list(self.indexes))
         return d
 
     @staticmethod

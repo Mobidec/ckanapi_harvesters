@@ -214,13 +214,9 @@ When multiple primary keys were provided, the default behavior is to associate a
 6) `datastore_upsert`: the DataFrame is uploaded through the API. 
 
 
-#### Specific modes for _DataStore from Harvester_
+#### Specific modes for _DataStore from Harvester_ (PostgreSQL/MongoDB datanase harvesters)
 
-The _Options_ attribute serves to specify the harvesting method and parameters.
-
-##### Configuration for a mongo database
-
-The _File/URL_ column serves to specify the database collection used. 
+The _File/URL_ column serves to specify the table used. The _Options_ column serves to configure the database connection. 
 
 
 

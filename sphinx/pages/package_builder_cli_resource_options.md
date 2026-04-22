@@ -292,8 +292,8 @@ Example of arguments enabling a connection to a database without using SSL:
 
 ```
 --harvester MongoDB --login-file mongodb_login.txt 
---ca server_ca.pem --host mongodb://my-postgre-server.com:27017/admin 
---url --host mongodb://my-postgre-server.com:27017
+--ca server_ca.pem --host mongodb://my-mongodb-server.com:27017/admin 
+--url --host mongodb://my-mongodb-server.com:27017
 --dataset My_Schema 
 --limit 1000
 ```

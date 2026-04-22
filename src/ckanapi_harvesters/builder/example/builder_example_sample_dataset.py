@@ -18,7 +18,7 @@ def run(ckan:CkanApi = None):
     mdl_xls = BuilderPackage.from_excel(example_package_xls)
     ckan = mdl_xls.init_ckan(ckan)
     ckan.input_missing_info(input_args_if_necessary=True, input_owner_org=True)
-    ckan.set_limits(10000)  # reduce if server hangs up
+    ckan.set_limits_per_request(10000)  # reduce if server hangs up
     ckan.set_submit_timeout(5)
     ckan.set_verbosity(True)
     ckan.test_ckan_login(raise_error=True, verbose=True)

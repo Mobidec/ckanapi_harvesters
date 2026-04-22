@@ -906,7 +906,7 @@ class CkanApiManage(CkanApiReadWrite):
     def _api_datastore_create(self, resource_id:str, *, records:Union[dict, List[dict], pd.DataFrame]=None,
                              fields:List[Union[dict, CkanField]]=None, delete_fields:bool=None,
                              primary_key:Union[str, List[str]]=None, indexes:Union[str, List[str]]=None,
-                             aliases: Union[str, List[str]]=None,
+                             aliases: Union[str, List[str]]=None, calculate_record_count:bool=None,
                              params:dict=None,force:bool=None) -> dict:
         """
         API call to datastore_create.
@@ -952,7 +952,9 @@ class CkanApiManage(CkanApiReadWrite):
             params["fields"] = fields_list_dict
         if delete_fields:
             # option avalaible
-            params["delete_fields"] = delete_fields
+            params["delete_fields"] = delete_fields  # requires CKAN >= 3.11
+        if calculate_record_count is not None:
+            params["calculate_record_count"] = calculate_record_count
         data_payload, json_headers = json_encode_params(params)
         response = self._api_action_request(f"datastore_create", method=RequestType.Post,
                                             data=data_payload, headers=json_headers)

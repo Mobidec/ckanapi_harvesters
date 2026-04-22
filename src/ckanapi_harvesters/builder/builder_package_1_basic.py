@@ -68,11 +68,12 @@ info_allowed_user_fields: Set[str] = {
     "auxiliary functions file", "comment",
 }
 package_base_user_fields: Set[str] = {
-    "name", "name in url", "description", "version", "visibility", "state", "url",
+    "name in url", "description", "version", "visibility", "state", "url",
     "tags", "author", "author email", "maintainer", "maintainer email",
     "organization", "license"
     "known id",
     "attribute",  # reserved name for table header
+    "name",  # deprecated
 }  # any extra fields are added to package custom fields
 
 
@@ -1244,6 +1245,7 @@ class BuilderPackageBasic:
         mono_resource_used_files = self._get_mono_resource_used_files(resources_base_dir, ckan)
         if progress_callback is not None:
             progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources, units=CkanProgressUnits.Items)
+        multi_resource_reupload = not only_missing
         for resource_index, resource_builder in enumerate(self.resource_builders.values()):
             if isinstance(resource_builder, BuilderDataStoreMultiABC):
                 if progress_callback is not None:
@@ -1262,7 +1264,8 @@ class BuilderPackageBasic:
                                                      only_missing=only_missing, from_line_count=from_line_count,
                                                      allow_chunks=allow_chunks,
                                                      excluded_files=mono_resource_used_files if multi_file_exclude_other_files else None,
-                                                     inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
+                                                     inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
+                                                     reupload=multi_resource_reupload)
         self.package_resource_reorder(ckan)
         self.patch_request_final(ckan)
         if progress_callback is not None:

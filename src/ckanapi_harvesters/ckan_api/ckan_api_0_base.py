@@ -243,7 +243,7 @@ class CkanApiBase(CkanApiABC):
         self.debug.multi_requests_last_counters = None
         self.debug.last_response_elapsed_time = 0.0
 
-    def set_limits(self, limit_read:Union[int,None]) -> None:
+    def set_limits_per_request(self, limit_read:Union[int,None]) -> None:
         """
         Set default query limits. If only one argument is provided, it applies to both limits.
 
@@ -252,6 +252,11 @@ class CkanApiBase(CkanApiABC):
         """
         self.params.default_limit_read_per_request = limit_read
         self.params.default_limit_list_per_request = limit_read
+
+    def set_limits(self, limit_read:Union[int,None]) -> None:
+        msg = "set_limits is deprecated, use set_limits_per_request instead"
+        warn(msg, DeprecationWarning)
+        self.set_limits_per_request(limit_read)
 
     def set_requests_delay(self, time_between_requests:int) -> None:
         """

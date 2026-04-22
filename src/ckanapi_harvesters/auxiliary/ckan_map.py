@@ -158,7 +158,7 @@ class CkanMap(CkanMapABC):
         elif resource_name in self.resource_alias_index.keys():
             # found resource alias
             resource_id = self.resource_alias_index[resource_name]
-        else:
+        elif package_name is not None:
             package_id = self.get_package_id(package_name, error_not_mapped=error_not_mapped)
             if package_id is None and not error_not_mapped:
                 return None
@@ -168,6 +168,8 @@ class CkanMap(CkanMapABC):
                 raise NotMappedObjectNameError(f"Resource {resource_name} is not mapped or does not exist.")
             else:
                 resource_id = None
+        else:
+            resource_id = None
         # sanity check
         if package_name is not None and resource_id is not None:
             resource_info = self.resources[resource_id]

@@ -113,7 +113,7 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
         if resource_id is None and not self.download_error_not_found:
             return None
         if self.local_file_format.append_allowed() and not return_data:
-            download_generator = ckan.datastore_dump_page_generator(resource_id, search_all=full_download, progress_callback=self.progress_callback)
+            download_generator = ckan.datastore_search_page_generator(resource_id, search_all=full_download, progress_callback=self.progress_callback)
             first_df = None
             for df_download in download_generator:
                 self.read_line_counter += len(df_download)
@@ -125,7 +125,7 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
                     else:
                         self.local_file_format.append_file(df, self.downloaded_destination, fields=self._get_fields_info())
         else:
-            df_download = ckan.datastore_dump(resource_id, search_all=full_download)
+            df_download = ckan.datastore_search(resource_id, search_all=full_download)
             self.read_line_counter += len(df_download)
             df = self.df_mapper.df_download_alter(df_download, fields=self._get_fields_info())
             if out_dir is not None:

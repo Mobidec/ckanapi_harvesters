@@ -29,9 +29,19 @@ def run(ckan:CkanApi = None):
     ckan.input_missing_info(input_args_if_necessary=True, input_owner_org=True)
     ckan.set_verbosity(True)
 
-    # Test sending the traces in a generator mode
+    # Tests on get_resource_id: map package of a given resource
     resource_id = mdl.get_or_query_resource_id(ckan, resource_name="traces.csv")
     is_datastore = ckan.resource_is_datastore(resource_id)
+    ckan.map.purge()
+    resource_info = ckan.get_resource_info_or_request(resource_id)
+    package_info_None = ckan.map.get_package_info(resource_info.package_id, error_not_mapped=False)
+    resource_info = ckan.get_resource_info_or_request(resource_id, map_package=True)
+    package_info = ckan.map.get_package_info(resource_info.package_id)
+    resource_page_url = ckan.get_resource_page_url(resource_id)
+    resource_download_url = ckan.get_resource_download_url(resource_id)
+    resource_dump_url = ckan.get_datastore_dump_url(resource_id)
+
+    # Test sending the traces in a generator mode
     with traces_chunks_generator(chunksize=6) as records_generator:
         counters = ckan.datastore_upsert(records_generator, resource_id=resource_id, request_threshold=15, offset=12)
     with (traces_chunks_generator(chunksize=6) as records_generator):

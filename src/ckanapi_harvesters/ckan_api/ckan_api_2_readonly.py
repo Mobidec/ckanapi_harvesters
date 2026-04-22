@@ -8,6 +8,7 @@ import io
 import json
 import re
 from warnings import warn
+from urllib.parse import urlencode
 
 import numpy as np
 import requests
@@ -24,6 +25,7 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import _reassign_limit_argument
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, CkanIdFieldTreatment
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType
+from ckanapi_harvesters.auxiliary.urls import url_join
 from ckanapi_harvesters.auxiliary.ckan_action import (CkanActionResponse, CkanActionNotFoundError, CkanSqlCapabilityError,
                                                       CkanSqlLimitOffsetError)
 from ckanapi_harvesters.auxiliary.ckan_errors import (IntegrityError, CkanServerError, CkanArgumentError, SearchAllNoCountsError,
@@ -161,29 +163,16 @@ class CkanApiReadOnly(CkanApiMap):
 
     ## Data queries ------------------
     ### Dump method ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    # NB: dump methods are not exposed to the user by default. Only datastore_search and resource_download methods are exposed.
-    def _api_datastore_dump_raw(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
-                                sort:str=None, limit_per_request:int=None, offset:int=0, format:str=None, bom:bool=None, params:dict=None,
-                                compute_len:bool=False) -> requests.Response:
-        """
-        URL call to datastore/dump URL. Dumps successive lines in the DataStore.
-
-        :param resource_id: resource id.
-        :param filters: The base argument to filter values in a table (optional)
-        :param q: Full text query (optional)
-        :param fields: The base argument to filter columns (optional)
-        :param format: The return format in the returned response (default=csv, tsv, json, xml) (optional)
-        :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
-        :return: raw response
-        """
-        if compute_len:
-            raise SearchAllNoCountsError("datastore_search", f"format={format}")
+    def _datastore_dump_params(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+                               sort:str=None, limit_per_request:int=None, offset:int=None, format:str=None, bom:bool=None,
+                               params:dict=None, default_limit_offset:bool=True):
         if params is None:
             params = {}
-        if offset is None:
+        if offset is None and default_limit_offset:
             offset = 0
-        params["offset"] = offset
-        if limit_per_request is None:
+        if offset is not None:
+            params["offset"] = offset
+        if limit_per_request is None and default_limit_offset:
             limit_per_request = self.params.default_limit_read_per_request
         if limit_per_request is not None:
             params["limit"] = limit_per_request
@@ -207,6 +196,40 @@ class CkanApiReadOnly(CkanApiMap):
         if bom is not None:
             params["bom"] = bom
         # params["bom"] = True  # useful?
+        return params
+
+    def get_datastore_dump_url(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+                               sort:str=None, limit_per_request:int=None, offset:int=None, format:str=None, bom:bool=None,
+                               params:dict=None, default_limit_offset:bool=False):
+        params = self._datastore_dump_params(resource_id=resource_id, filters=filters, q=q, fields=fields,
+                                             sort=sort, limit_per_request=limit_per_request, offset=offset,
+                                             format=format, bom=bom, params=params,
+                                             default_limit_offset=default_limit_offset)
+        url = url_join(self.url, f"datastore/dump/{resource_id}")
+        if len(params) > 0:
+            url = f"{url}?{urlencode(params)}"
+        return url
+
+    # NB: dump methods are not exposed to the user by default. Only datastore_search and resource_download methods are exposed.
+    def _api_datastore_dump_raw(self, resource_id:str, *, filters:dict=None, q:str=None, fields:List[str]=None,
+                                sort:str=None, limit_per_request:int=None, offset:int=0, format:str=None, bom:bool=None, params:dict=None,
+                                compute_len:bool=False) -> requests.Response:
+        """
+        URL call to datastore/dump URL. Dumps successive lines in the DataStore.
+
+        :param resource_id: resource id.
+        :param filters: The base argument to filter values in a table (optional)
+        :param q: Full text query (optional)
+        :param fields: The base argument to filter columns (optional)
+        :param format: The return format in the returned response (default=csv, tsv, json, xml) (optional)
+        :param params: Additional parameters such as filters, q, sort and fields can be given. See DataStore API documentation.
+        :return: raw response
+        """
+        if compute_len:
+            raise SearchAllNoCountsError("datastore_search", f"format={format}")
+        params = self._datastore_dump_params(resource_id=resource_id, filters=filters, q=q, fields=fields,
+                                             sort=sort, limit_per_request=limit_per_request, offset=offset,
+                                             format=format, bom=bom, params=params)
         response = self._ckan_url_request(f"datastore/dump/{resource_id}", method=RequestType.Get, params=params)
         if response.status_code == 200:
             return response
@@ -1038,6 +1061,10 @@ class CkanApiReadOnly(CkanApiMap):
 
 
     ## Resource download by direct link (FileStore) -----------------------------------------------
+    def get_resource_download_url(self, resource_id:str, package_name:str=None):
+        resource_info = self.get_resource_info_or_request(resource_id, package_name=package_name)
+        return resource_info.download_url
+
     def resource_download(self, resource_id:str, *, method:str=None,
                           proxies:dict=None, headers:dict=None, auth: Union[AuthBase, Tuple[str,str]]=None,
                           verify:Union[bool,str,None]=None, stream:bool=False) \

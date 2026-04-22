@@ -110,7 +110,12 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
         ds_builder = BuilderDataStoreFile(parent=self.parent_package_builder, name=file_name, description=self.resource_attributes_user.description, download_url=self.download_url,
                                           format=self.resource_attributes_user.format, file_name=file_name)
         ds_builder.field_builders = self.field_builders
+        ds_builder.primary_key_user = self.primary_key_user
+        ds_builder.primary_key_data_source = self.primary_key_data_source
         ds_builder.primary_key = self.primary_key
+        ds_builder.resource_attributes_user = self.resource_attributes_user
+        ds_builder.resource_attributes_data_source = self.resource_attributes_data_source
+        ds_builder.resource_attributes = self.resource_attributes
         ds_builder.indexes = self.indexes
         ds_builder.package_name = self.package_name
         ds_builder.aux_upload_fun_name = self.aux_upload_fun_name
@@ -119,6 +124,7 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
         ds_builder.data_cleaner_upload = self.data_cleaner_upload
         ds_builder.local_file_format = self.local_file_format
         ds_builder.process_level = CkanCallbackLevel.MultiFileResource  # file of a multi-file resource
+        ds_builder.setup_default_file_mapper()
         return ds_builder, file_dir
 
 
