@@ -263,7 +263,6 @@ class CkanApiMap(CkanApiBase):
                     resource_id = resource_info.id
                     resource_name = resource_info.name
                     resource_info.index_in_package = j
-                    self._enrich_resource_info(resource_info, datastore_info=datastore_info, resource_view_list=resource_view_list)
                     if resource_name not in pkg_info.resources_id_index.keys():
                         pkg_info.resources_id_index[resource_name] = resource_id
                         pkg_info.resources_id_index_counts[resource_name] = 1
@@ -271,6 +270,7 @@ class CkanApiMap(CkanApiBase):
                         pkg_info.resources_id_index_counts[resource_name] += 1
                         msg = "Two or more resources with same name {} were found during mapping.".format(resource_name)
                         warn(msg)
+                    self._enrich_resource_info(resource_info, datastore_info=datastore_info, resource_view_list=resource_view_list)
                 pkg_info.requested_datastore_info = datastore_info
                 if pkg_info.organization_info is not None:
                     self.map._update_organization_info(pkg_info.organization_info)

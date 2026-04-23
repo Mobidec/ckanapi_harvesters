@@ -10,6 +10,13 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-04-23
 
 
+## [0.0.30] - 2026-04-23
+
+### Fixed
+
+- Unexpected warning in mapping resources of a dataset.
+
+
 ## [0.0.29] - 2026-04-23
 
 ### Added
