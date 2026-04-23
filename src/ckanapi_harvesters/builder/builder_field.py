@@ -64,7 +64,7 @@ class BuilderField:
             self.comment = other.comment
 
     def __str__(self):
-        return f"Field builder for {self.name}"
+        return f"Field builder for {self.name} <{self.type_override}>"
 
     def copy(self, *, dest=None):
         if dest is None:

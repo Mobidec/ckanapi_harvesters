@@ -217,7 +217,8 @@ class BuilderResourceABC(ABC):
         package_name = self.package_name
         if package_name == "":
             raise EmptyPackageNameException()
-        resource_id = ckan.get_resource_id_or_request(self.name, package_name=package_name, error_not_mapped=error_not_found)
+        resource_id = ckan.get_resource_id_or_request(self.name, package_name=package_name,
+                                                      error_not_mapped=error_not_found, error_not_found=error_not_found)
         self.known_id = resource_id  # update
         return self.known_id
 

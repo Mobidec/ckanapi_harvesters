@@ -26,7 +26,7 @@ from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMe
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanState, CkanPackageInfo, CkanResourceInfo, CkanLicenseInfo
 from ckanapi_harvesters.auxiliary.path import sanitize_path, make_path_relative
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, assert_or_raise, find_duplicates
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, assert_or_raise, find_duplicates, DataStoreReprFormat
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.ckan_errors import (DuplicateNameError, ForbiddenNameError, MissingIdError,
                                                       MandatoryAttributeError, FileOrDirNotExistError)
@@ -1384,7 +1384,7 @@ class BuilderPackageBasic:
         return sample_df_dict
 
     def download_sample(self, ckan:CkanApi, resource_name:str=None, *,
-                        datastores_as_df:bool=True, download_url_resources:bool=False,
+                        datastores_as_df:bool=True, download_url_resources:bool=False, cancel_datastores:bool=False,
                         include_files:bool=True, empty_files:bool=False,
                         search_all:bool=False,
                         **kwargs) -> Dict[str, Union[bytes, pd.DataFrame]]:
@@ -1394,6 +1394,7 @@ class BuilderPackageBasic:
         :param ckan:
         :param resource_name: option to restrict to a single resource
         :param datastores_as_df: Download DataStores as DataFrames (do not convert to bytes)
+        :param cancel_datastores: if True do not download DataStores
         :param download_url_resources: Option to download resources aiming for an external URL.
         :param include_files: Option to include resources which are files as bytes.
         :param empty_files: Option to force file contents to an empty file.
@@ -1413,6 +1414,8 @@ class BuilderPackageBasic:
             if (not download_url_resources) and (isinstance(resource_builder, BuilderUrl)
                     or isinstance(resource_builder, BuilderDataStoreUrl)):
                 sample_df_dict[resource_builder.name] = None
+            elif isinstance(resource_builder, BuilderDataStoreABC) and cancel_datastores:
+                sample_df_dict[resource_builder.name] = None  # pd.DataFrame()  # None cancels any data transaction: user must specify data
             elif isinstance(resource_builder, BuilderDataStoreABC) and datastores_as_df:
                 sample_df_dict[resource_builder.name] = resource_builder.download_sample_df(ckan, search_all=search_all, **kwargs)
             elif include_files and not empty_files:
@@ -1425,7 +1428,8 @@ class BuilderPackageBasic:
 
     def setup_sample_package(self, ckan: CkanApi, package_name:str=None, *,
                              sample_url_suffix:str=None, sample_title_suffix:str=None,
-                             sample_df_dict: Dict[str, Union[bytes, pd.DataFrame]]=None, return_sample:bool=False, **kwargs) \
+                             sample_df_dict: Dict[str, Union[bytes, pd.DataFrame]]=None, return_sample:bool=False,
+                             records_to_file:DataStoreReprFormat=None, **kwargs) \
         -> Union["BuilderPackageBasic", Tuple["BuilderPackageBasic", Dict[str, Union[bytes, pd.DataFrame]]]]:
         """
         Returns a package builder configured to represent a sample of the current package builder.
@@ -1441,6 +1445,8 @@ class BuilderPackageBasic:
         :return: a package builder configured to represent a sample of the current package builder.
             Optionally, the dictionary of resources to transmit
         """
+        if records_to_file is None:
+            records_to_file = DataStoreReprFormat.from_resource_format  # export DataStores to a file representation for sample datasets
         if sample_url_suffix is None:
             sample_url_suffix = BuilderPackageBasic.default_sample_url_suffix
         if sample_title_suffix is None:
@@ -1459,6 +1465,8 @@ class BuilderPackageBasic:
         sample_mdl.package_attributes.state = CkanState.Active  # publish at the end of the process
         for resource_builder in sample_mdl.resource_builders.values():
             resource_builder.aliases = []
+            if isinstance(resource_builder, BuilderDataStoreABC):
+                resource_builder.records_to_file = records_to_file
         sample_mdl.clear_ids()
         if return_sample and sample_df_dict is None:
             sample_df_dict = mdl.download_sample(ckan=ckan, **kwargs)

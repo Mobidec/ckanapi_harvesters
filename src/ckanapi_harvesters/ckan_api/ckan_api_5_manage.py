@@ -16,7 +16,7 @@ from packaging.version import Version
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import json_encode_params
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import json_encode_params, DataStoreReprFormat, df_upload_to_csv_kwargs
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckanext_has_postgis, default_ckan_target_epsg
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
@@ -27,7 +27,7 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_errors import (ReadOnlyError, AdminFeatureLockedError, NoDefaultView,
                                                       InvalidParameterError, CkanMandatoryArgumentError,
-                                                      IntegrityError, NameFormatError, MultipleErrors)
+                                                      IntegrityError, NameFormatError, MultipleErrors, ArgumentError)
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import use_ckan_owner_org_as_default_package_owner
@@ -806,11 +806,12 @@ class CkanApiManage(CkanApiReadWrite):
                         url:str=None,
                         files=None, file_path:str=None, df:pd.DataFrame=None,
                         payload:Union[bytes, io.BufferedIOBase]=None, payload_name:str=None,
-                        cancel_if_exists:bool=True, update_if_exists:bool=False, reupload:bool=False, create_default_view:bool=True, auto_submit:bool=False,
+                        cancel_if_exists:bool=True, update_if_exists:bool=False, reupload:bool=False, create_default_view:bool=True,
+                        auto_submit:bool=False, error_submit_timeout:bool=True,
                         datastore_create:bool=False, records:Union[dict, List[dict], pd.DataFrame]=None, fields:List[dict]=None,
                             primary_key: Union[str, List[str]] = None, indexes: Union[str, List[str]] = None,
                             aliases: Union[str, List[str]] = None, inhibit_datastore_patch_indexes:bool=False,
-                            data_cleaner:CkanDataCleanerABC=None,
+                            data_cleaner:CkanDataCleanerABC=None, records_to_file:DataStoreReprFormat=None,
                         progress_callback:CkanProgressCallbackABC=None) -> CkanResourceInfo:
         """
         Proxy to API call resource_create verifying if a resource with the same name already exists and adding the default view.
@@ -840,6 +841,23 @@ class CkanApiManage(CkanApiReadWrite):
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         has_file_data = (files is not None or df is not None or file_path is not None or payload is not None)
         has_records = records is not None
+        if records_to_file is None:
+            records_to_file = DataStoreReprFormat.none
+        records_to_file = DataStoreReprFormat(records_to_file)
+        if has_records and int(records_to_file) > 0:
+            assert_or_raise(not has_file_data, ArgumentError("User must not specify a file if records_to_file > 0 (this means a file is to be generated to represent records)"))
+            if records_to_file == DataStoreReprFormat.from_resource_format:
+                if format is None or format == "csv":
+                    records_to_file = DataStoreReprFormat.csv
+                else:
+                    records_to_file = DataStoreReprFormat.csv
+            if records_to_file == DataStoreReprFormat.csv:
+                stream = io.StringIO()
+                records.to_csv(stream, index=False, header=True, **df_upload_to_csv_kwargs)
+                stream.seek(0)  # reset to head
+                files = {"upload": ("file.csv", stream)}
+                has_file_data = True
+                auto_submit = len(records) > 0
         delete_previous_datastore = (has_file_data or has_records) and reupload and datastore_create
         if name is None or name == "":
             raise CkanMandatoryArgumentError("resource_create", "name")
@@ -878,8 +896,13 @@ class CkanApiManage(CkanApiReadWrite):
                     if has_file_data:
                         resource_info.newly_updated = True
                         if auto_submit:
-                            self.datastore_submit(resource_info.id)
+                            self.datastore_submit(resource_info.id, error_timeout=error_submit_timeout)
+                        # else:
+                        #     self.datastore_wait(resource_info.id, error_timeout=error_submit_timeout)
                     if datastore_create or delete_previous_datastore:
+                        if delete_previous_datastore and has_file_data:  # and auto_submit:
+                            # remove data which was uploaded by datapusher
+                            self.datastore_clear(resource_id, error_not_found=False, bypass_admin=True)
                         info = self.datastore_create(resource_info.id, records=records, fields=fields, primary_key=primary_key,
                                                      indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner,
                                                      progress_callback=progress_callback, inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
@@ -897,8 +920,11 @@ class CkanApiManage(CkanApiReadWrite):
             view_info_list = self.resource_view_create(resource_info.id, is_datastore=datastore_create)
             resource_info.update_view(view_info_list)
         if auto_submit and has_file_data:
-            self.datastore_submit(resource_info.id)
+            self.datastore_submit(resource_info.id, error_timeout=error_submit_timeout)
         if datastore_create:
+            if delete_previous_datastore and has_file_data:  # and auto_submit:
+                # remove data which was uploaded by datapusher
+                self.datastore_clear(resource_info.id, error_not_found=False, bypass_admin=True)
             info = self.datastore_create(resource_info.id, records=records, fields=fields, primary_key=primary_key,
                                          indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner)
         return resource_info
