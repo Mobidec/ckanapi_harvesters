@@ -631,6 +631,27 @@ class CkanApiMap(CkanApiBase):
     def package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
                                 include_private:bool=True, include_drafts:bool=True, sort:str=None,
                                 facet:bool=None, limit_per_request:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
+        """
+        API call to package_search until an empty list is received.
+
+        :see: _api_package_search()
+        :param owner_org: ability to filter packages by owner_org
+        :param filter: dict of filters to apply, which translate to the API fq argument.
+            Example to filter for a given group "GROUP": filter={"groups": "GROUP"};
+            Example to filter for a given organization "ORG": filter={"organization": "ORG"};
+            Example to filter for a given author "NAME": filter={"author": "NAME"}.
+            fq documentation: any filter queries to apply. Note: +site_id:{ckan_site_id} is added to this string prior to the query being executed.
+        :param q: the solr query. Optional. Default is '*:*'
+        :param include_private: if True, private datasets will be included in the results. Only private datasets from the user’s organizations will be returned and sysadmins will be returned all private datasets. Optional, the default is False in the API
+        :param include_drafts:  if True, draft datasets will be included in the results. A user will only be returned their own draft datasets, and a sysadmin will be returned all draft datasets. Optional, the default is False.
+        :param sort: sorting of the search results. Optional. Default: 'score desc, metadata_modified desc'. As per the solr documentation, this is a comma-separated string of field names and sort-orderings.
+        :param facet:  whether to enable faceted results. Default: True in API.
+        :param limit_per_request: maximum number of results to return. Translatees to the API rows argument.
+        :param offset: the offset in the complete result for where the set of returned datasets should begin. Translatees to the API start argument.
+        :param params: other parameters to pass to package_search
+        :param search_all: if True, the request is renewed until an empty list is received.
+        :return:
+        """
         # function alias
         return self._api_package_search_all(params=params, owner_org=owner_org, filter=filter, q=q,
                                             include_private=include_private, include_drafts=include_drafts, sort=sort,
@@ -901,7 +922,7 @@ class CkanApiMap(CkanApiBase):
         assert_or_raise(resource_info.datastore_queried(), RuntimeError("Implementation error: DataStore info should have been queried at this point"))
         return resource_info.is_datastore()
 
-    def get_package_page_url(self, package_name:str, *, error_not_found:bool=True, default_url:bool=False) -> str:
+    def get_package_page_url(self, package_name:str, *, error_not_found:bool=False, default_url:bool=True) -> str:
         """
         Get URL of package presentation page in CKAN (landing page).
 
@@ -910,13 +931,9 @@ class CkanApiMap(CkanApiBase):
         :param default_url: return url based on package name, even if it was not found.
         :return:
         """
-        package_info = self.get_package_info_or_request(package_name)
-        package_name = package_info.name
         self._error_empty_url()
-        initial_url = url_join(self.url, "dataset" + urlsep + package_name)
-        if default_url and error_not_found:
-            return initial_url
         package_info = self.get_package_info_or_request(package_name, error_not_found=error_not_found)
+        initial_url = url_join(self.url, "dataset" + urlsep + package_name)
         if package_info is not None:
             url = url_join(self.url, "dataset" + urlsep + package_info.name)
         elif default_url:

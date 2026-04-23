@@ -7,7 +7,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 When publishing a new release, copy the relevant section on the [Github release page](https://github.com/Mobidec/ckanapi_harvesters/releases).
 
 
-## [Unreleased] - 2026-04-22
+## [Unreleased] - 2026-04-23
+
+
+## [0.0.29] - 2026-04-23
+
+### Added
+
+- Option to export a DataStore to a CSV file when creating a resource. This option is enabled by default when creating sample datasets.
+
+### Fixed
+
+- Error in package creation script: displaying package URL before creation led to an error.
 
 
 ## [0.0.28] - 2026-04-22

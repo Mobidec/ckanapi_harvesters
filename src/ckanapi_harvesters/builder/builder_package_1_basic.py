@@ -1384,7 +1384,7 @@ class BuilderPackageBasic:
         return sample_df_dict
 
     def download_sample(self, ckan:CkanApi, resource_name:str=None, *,
-                        datastores_as_df:bool=True, download_url_resources:bool=False,
+                        datastores_as_df:bool=True, download_url_resources:bool=False, cancel_datastores:bool=False,
                         include_files:bool=True, empty_files:bool=False,
                         search_all:bool=False,
                         **kwargs) -> Dict[str, Union[bytes, pd.DataFrame]]:
@@ -1394,6 +1394,7 @@ class BuilderPackageBasic:
         :param ckan:
         :param resource_name: option to restrict to a single resource
         :param datastores_as_df: Download DataStores as DataFrames (do not convert to bytes)
+        :param cancel_datastores: if True do not download DataStores
         :param download_url_resources: Option to download resources aiming for an external URL.
         :param include_files: Option to include resources which are files as bytes.
         :param empty_files: Option to force file contents to an empty file.
@@ -1413,6 +1414,8 @@ class BuilderPackageBasic:
             if (not download_url_resources) and (isinstance(resource_builder, BuilderUrl)
                     or isinstance(resource_builder, BuilderDataStoreUrl)):
                 sample_df_dict[resource_builder.name] = None
+            elif isinstance(resource_builder, BuilderDataStoreABC) and cancel_datastores:
+                sample_df_dict[resource_builder.name] = None  # pd.DataFrame()  # None cancels any data transaction: user must specify data
             elif isinstance(resource_builder, BuilderDataStoreABC) and datastores_as_df:
                 sample_df_dict[resource_builder.name] = resource_builder.download_sample_df(ckan, search_all=search_all, **kwargs)
             elif include_files and not empty_files:

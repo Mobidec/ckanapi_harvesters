@@ -806,7 +806,8 @@ class CkanApiManage(CkanApiReadWrite):
                         url:str=None,
                         files=None, file_path:str=None, df:pd.DataFrame=None,
                         payload:Union[bytes, io.BufferedIOBase]=None, payload_name:str=None,
-                        cancel_if_exists:bool=True, update_if_exists:bool=False, reupload:bool=False, create_default_view:bool=True, auto_submit:bool=False,
+                        cancel_if_exists:bool=True, update_if_exists:bool=False, reupload:bool=False, create_default_view:bool=True,
+                        auto_submit:bool=False, error_submit_timeout:bool=True,
                         datastore_create:bool=False, records:Union[dict, List[dict], pd.DataFrame]=None, fields:List[dict]=None,
                             primary_key: Union[str, List[str]] = None, indexes: Union[str, List[str]] = None,
                             aliases: Union[str, List[str]] = None, inhibit_datastore_patch_indexes:bool=False,
@@ -856,7 +857,7 @@ class CkanApiManage(CkanApiReadWrite):
                 stream.seek(0)  # reset to head
                 files = {"upload": ("file.csv", stream)}
                 has_file_data = True
-                # auto_submit = False  # do not use data pusher
+                auto_submit = len(records) > 0
         delete_previous_datastore = (has_file_data or has_records) and reupload and datastore_create
         if name is None or name == "":
             raise CkanMandatoryArgumentError("resource_create", "name")
@@ -895,7 +896,9 @@ class CkanApiManage(CkanApiReadWrite):
                     if has_file_data:
                         resource_info.newly_updated = True
                         if auto_submit:
-                            self.datastore_submit(resource_info.id)
+                            self.datastore_submit(resource_info.id, error_timeout=error_submit_timeout)
+                        # else:
+                        #     self.datastore_wait(resource_info.id, error_timeout=error_submit_timeout)
                     if datastore_create or delete_previous_datastore:
                         if delete_previous_datastore and has_file_data:  # and auto_submit:
                             # remove data which was uploaded by datapusher
@@ -917,8 +920,11 @@ class CkanApiManage(CkanApiReadWrite):
             view_info_list = self.resource_view_create(resource_info.id, is_datastore=datastore_create)
             resource_info.update_view(view_info_list)
         if auto_submit and has_file_data:
-            self.datastore_submit(resource_info.id)
+            self.datastore_submit(resource_info.id, error_timeout=error_submit_timeout)
         if datastore_create:
+            if delete_previous_datastore and has_file_data:  # and auto_submit:
+                # remove data which was uploaded by datapusher
+                self.datastore_clear(resource_info.id, error_not_found=False, bypass_admin=True)
             info = self.datastore_create(resource_info.id, records=records, fields=fields, primary_key=primary_key,
                                          indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner)
         return resource_info
