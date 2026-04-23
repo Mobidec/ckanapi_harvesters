@@ -1030,7 +1030,7 @@ class BuilderPackageBasic:
         license_info = self.get_license_info(ckan)
         return license_info.title if license_info is not None else None
 
-    def get_package_page_url(self, ckan:CkanApi, *, error_not_found:bool=True, default_url:bool=False) -> str:
+    def get_package_page_url(self, ckan:CkanApi, *, error_not_found:bool=False, default_url:bool=True) -> str:
         return ckan.get_package_page_url(self.package_name, error_not_found=error_not_found, default_url=default_url)
 
     def patch_request_package(self, ckan:CkanApi) -> CkanPackageInfo:
