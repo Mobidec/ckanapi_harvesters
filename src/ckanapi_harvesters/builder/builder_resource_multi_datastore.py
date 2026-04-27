@@ -128,6 +128,15 @@ class BuilderMultiDataStore(BuilderMultiFile, BuilderDataStoreABC):
         return ds_builder, file_dir
 
 
+    def init_options_from_ckan(self, ckan:CkanApi, *, base_dir:str=None) -> None:
+        self.known_resource_info = None
+        # super().init_options_from_ckan(ckan, base_dir=base_dir)
+        self._update_metadata(ckan, base_dir=base_dir)
+        # self.local_file_format.chunk_size = ckan.params.default_limit_read
+        if self.field_builders is not None:
+            for field_builder in self.field_builders.values():
+                field_builder.internal_attrs.update_from_ckan(ckan)
+
     ## Upload ----------------
     def get_local_df_chunk_generator(self, resources_base_dir:str, ckan:CkanApi, excluded_files:Set[str]=None,
                                      allow_chunks:bool=True, **kwargs) -> Generator[FileChunkDataFrame, None, None]:

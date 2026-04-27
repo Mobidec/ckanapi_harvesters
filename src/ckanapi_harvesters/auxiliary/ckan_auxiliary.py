@@ -361,6 +361,11 @@ def bytes_to_megabytes(size_bytes:Union[int,None]) -> Union[float,None]:
         return None
     return round(size_bytes / 1024 / 1024, 2)
 
+def round_size(value_mb:float) -> float:
+    return round(value_mb, 2)
+
+def size_str_mb(size_mb:float) -> str:
+    return f"{round_size(size_mb):.2f} MB"
 
 class DataStoreReprFormat(IntEnum):
     none = 0

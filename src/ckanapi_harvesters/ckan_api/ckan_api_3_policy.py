@@ -5,12 +5,13 @@
 """
 from typing import List, Dict, Union
 import argparse
+import datetime
 
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary import ckan_configuration
-from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
+from ckanapi_harvesters.policies.policy_report import PackagePolicyReport
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.ckan_api.ckan_api_2_readonly import CkanApiReadOnlyParams
@@ -171,8 +172,9 @@ class CkanApiPolicy(CkanApiReadOnly):
         return self.policy
 
     def policy_check(self, package_list:Union[str,List[str]]=None, policy: CkanPackageDataFormatPolicy=None,
-                     *, buffer:Dict[str, List[DataPolicyError]]=None, raise_error:bool=False,
-                     verbose:bool=None, auto_update:bool=None, progress_callback:CkanProgressCallbackABC=None) -> bool:
+                     *, buffer:Dict[str, PackagePolicyReport]=None, raise_error:bool=False,
+                     verbose:bool=None, auto_update:bool=None, date_report:datetime.datetime=None,
+                     progress_callback:CkanProgressCallbackABC=None) -> bool:
         """
         Enforce policy on mapped packages
 
@@ -184,12 +186,15 @@ class CkanApiPolicy(CkanApiReadOnly):
             package_list = self.map.packages.keys()  # check on all packages
         elif isinstance(package_list, str):
             package_list = [package_list]
-        if policy is None:
-            policy = self.policy
         if verbose is None:
             verbose = self.params.verbose_policy
         if auto_update is None:
             auto_update = self.params.default_update_policy_on_check
+        self.map_resources(package_list, datastore_info=True, load_policy=True)
+        self.map_file_resource_sizes(package_list=package_list)
+        self._update_package_size_fields(package_list)
+        if policy is None:
+            policy = self.policy
         if policy is None:
             # no policy loaded at all
             return True
@@ -202,13 +207,13 @@ class CkanApiPolicy(CkanApiReadOnly):
             if progress_callback is not None:
                 progress_callback.update_task(i_package, num_packages, level=CkanCallbackLevel.Packages)
             package_info = self.get_package_info_or_request(package_name, datastore_info=True)
-            package_buffer: List[DataPolicyError] = []
-            success &= policy.policy_check_package(package_info, display_message=verbose,
-                                                   package_buffer=package_buffer, raise_error=raise_error)
+            package_report = policy.policy_check_package(package_info, display_message=verbose, raise_error=raise_error)
+            success &= package_report.success
             if auto_update:
-                policy.package_update_scores(self, package_info, package_buffer, raise_error=raise_error)
+                policy.package_update_scores(self, package_info, package_report,
+                                             date_report=date_report, raise_error=raise_error)
             if buffer is not None:
-                buffer[package_info.name] = package_buffer
+                buffer[package_info.name] = package_report
         if progress_callback is not None:
             progress_callback.end_task(num_packages, level=CkanCallbackLevel.Packages)
         if verbose:

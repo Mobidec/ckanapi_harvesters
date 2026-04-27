@@ -44,7 +44,7 @@ from . import reports
 # usage shortcuts
 from .auxiliary import (CkanMap, RequestType, CkanField, CkanState, CkanProgressCallback, CkanCallbackLevel,
                         CkanProgressBarType, CkanProgressCallbackEmpty)
-from .policies import CkanPackageDataFormatPolicy
+from .policies import PackagePolicyReport, CkanPackageDataFormatPolicy
 from .reports import CkanAdminReport
 from .ckan_api import CkanApi, CkanApiParams, CKAN_API_VERSION
 from .builder import BUILDER_FILE_FORMAT_VERSION

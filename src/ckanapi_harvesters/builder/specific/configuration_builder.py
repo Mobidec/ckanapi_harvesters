@@ -10,7 +10,7 @@ from ckanapi_harvesters.auxiliary.ckan_field_types import CkanFieldType
 from ckanapi_harvesters.auxiliary.ckan_model import CkanState
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
-from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError
+from ckanapi_harvesters.policies.policy_report import PackagePolicyReport
 from ckanapi_harvesters.builder.builder_resource import BuilderResourceUnmanaged
 from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDataStoreFile
 from ckanapi_harvesters.builder.builder_field import BuilderField
@@ -65,7 +65,7 @@ class ConfigurationBuilder(SpecificBuilderABC):
 
     def policy_check(self, ckan: CkanApi,
                     package_list: Union[str, List[str]] = None, *, owner_org:str=None,
-                    policy:CkanPackageDataFormatPolicy=None, buffer:Dict[str, List[DataPolicyError]]=None,
+                    policy:CkanPackageDataFormatPolicy=None, buffer:Dict[str, PackagePolicyReport]=None,
                     raise_error:bool=False, verbose:bool=None) -> bool:
         """
         Check package list against currently loaded data format policy loaded in CKAN (or the one provided by argument).

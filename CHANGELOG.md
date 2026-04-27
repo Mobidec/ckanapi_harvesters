@@ -9,6 +9,14 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ## [Unreleased] - 2026-04-23
 
+### Fixed
+
+- Loading data format policy by default to enable policy checks.
+
+### Added
+
+- BuilderPackage function `mdl.remote_policy_check(ckan)` updates package policy score and package size custom metadata.
+
 
 ## [0.0.30] - 2026-04-23
 

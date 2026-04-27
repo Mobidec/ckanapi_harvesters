@@ -25,16 +25,16 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import _reassign_limit_argument
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, CkanIdFieldTreatment
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType
+from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageSizeInfo
 from ckanapi_harvesters.auxiliary.urls import url_join, urlsep
 from ckanapi_harvesters.auxiliary.ckan_action import (CkanActionResponse, CkanActionNotFoundError, CkanSqlCapabilityError,
                                                       CkanSqlLimitOffsetError)
 from ckanapi_harvesters.auxiliary.ckan_errors import (IntegrityError, CkanServerError, CkanArgumentError, SearchAllNoCountsError,
-                                                      DataStoreNotFoundError, RequestError)
+                                                      DataStoreNotFoundError, RequestError, MissingDataStoreInfoError)
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import ckan_request_proxy_default_auth_if_ckan
-
 from ckanapi_harvesters.ckan_api.ckan_api_1_map import CkanApiMap
 
 df_download_read_csv_kwargs = dict(keep_default_na=False)
@@ -1201,10 +1201,15 @@ class CkanApiReadOnly(CkanApiMap):
         return resource_info, df
 
     def map_file_resource_sizes(self, resource_list:List[str]=None,
-                                *, cancel_if_present:bool=True, progress_callback:CkanProgressCallbackABC=None) -> None:
+                                *, package_list:List[str]=None,
+                                cancel_if_present:bool=True, progress_callback:CkanProgressCallbackABC=None) -> None:
         num_resources = len(self.map.resources)
         if progress_callback is not None:
             progress_callback.start_task(num_resources, level=CkanCallbackLevel.Resources, units=CkanProgressUnits.Items)
+        if package_list is not None:
+            if resource_list is None:
+                resource_list = []
+            resource_list = list(set(resource_list).union(set(self.get_resource_ids_of_package_list(package_list))))
         if resource_list is None:
             resource_info_dict = self.map.resources
         else:
@@ -1229,6 +1234,44 @@ class CkanApiReadOnly(CkanApiMap):
         if progress_callback is not None:
             progress_callback.end_task(num_resources, level=CkanCallbackLevel.Resources)
 
+    def _update_package_size_fields(self, package_list:List[str]=None) -> None:
+        if package_list is None:
+            package_list = list(self.map.packages.keys())
+        for package_name in package_list:
+            package_info = self.get_package_info_or_request(package_name)
+            if package_info is not None:
+                if package_info.package_size is None:
+                    package_info.package_size = CkanPackageSizeInfo()
+                package_size = package_info.package_size
+                package_size.reset()
+                package_size.resource_count = len(package_info.package_resources)
+                for resource_id in package_info.package_resources.keys():
+                    resource_info = self.map.get_resource_info(resource_id)
+                    if not resource_info.datastore_queried():
+                        raise MissingDataStoreInfoError(resource_info.id)
+                    resource_modified = resource_info.last_modified if resource_info.last_modified is not None else resource_info.created
+                    internal_filestore = self.is_url_internal(resource_info.download_url)
+                    if resource_modified is not None:
+                        package_size.date_last_modified_resource = max(package_size.date_last_modified_resource, resource_modified) \
+                            if package_size.date_last_modified_resource else resource_modified
+                    if resource_info.metadata_modified is not None:
+                        package_size.date_last_modified_resource_metadata = max(package_size.date_last_modified_resource_metadata,
+                                                                                resource_info.metadata_modified) \
+                            if package_size.date_last_modified_resource_metadata else resource_info.metadata_modified
+                    if resource_info.download_url:
+                        if internal_filestore:
+                            if resource_info.download_size_mb is not None:
+                                package_size.filestore_size_mb += resource_info.download_size_mb
+                        else:
+                            if resource_info.download_size_mb is not None:
+                                package_size.external_size_mb += resource_info.download_size_mb
+                            package_size.external_resource_count += 1
+                        package_size.filestore_count += 1
+                    if resource_info.datastore_info is not None:
+                        datastore_size = resource_info.datastore_info.table_size_mb + resource_info.datastore_info.index_size_mb
+                        package_size.datastore_size_mb += datastore_size
+                        package_size.datastore_lines += resource_info.datastore_info.row_count
+                        package_size.datastore_count += 1
 
     ## Mapping of resource aliases from table
     def list_datastore_aliases(self) -> List[CkanAliasInfo]:

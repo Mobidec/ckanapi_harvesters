@@ -85,7 +85,7 @@ def init_resource_from_ckan(ckan: CkanApiMap, resource_info: CkanResourceInfo, p
     :return:
     """
     # assert_or_raise(ckan.map._mapping_query_datastore_info, MissingDataStoreInfoError())
-    assert_or_raise(resource_info.datastore_queried(), MissingDataStoreInfoError())
+    assert_or_raise(resource_info.datastore_queried(), MissingDataStoreInfoError(resource_info.id))
     d = {
         "name": resource_info.name,
         "format": resource_info.format,

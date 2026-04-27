@@ -14,16 +14,10 @@ from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgres
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_errors import CkanAuthorizationError
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import to_jsons_indent_lists_single_line
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import to_jsons_indent_lists_single_line, round_size, size_str_mb
 from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanUserInfo, CkanPackageInfo
-from ckanapi_harvesters.policies.data_format_policy_errors import ErrorCount, DataPolicyError
-
-
-def round_size(value_mb:float) -> float:
-    return round(value_mb, 2)
-
-def size_str_mb(size_mb:float) -> str:
-    return f"{round_size(size_mb):.2f} MB"
+from ckanapi_harvesters.policies.policy_report import PackagePolicyReport
+from ckanapi_harvesters.policies.data_format_policy_errors import ErrorCount
 
 
 class CkanAdminReport:
@@ -36,6 +30,7 @@ class CkanAdminReport:
         if isinstance(package_list, str):
             package_list = [package_list]
         self.package_list: Union[List[str],None] = package_list
+        self.resource_list: Union[List[str],None] = None
         self.cancel_if_present: bool = cancel_if_present
         self.include_package_custom_fields: List[str] = package_custom_fields
         self.include_resources_detail: bool = True
@@ -49,6 +44,7 @@ class CkanAdminReport:
         self._request_count: Union[int,None] = None
         self.allow_downgraded_queries:bool = False
         self.owner_org :Union[str,None] = owner_org
+        self.auto_update_ckan: bool = True  # update custom fiels on CKAN server, if specified
         self.report: Union[dict,None] = None  # report output
         if auto_exec and ckan is not None:
             self.execute(ckan, progress_callback=progress_callback)
@@ -94,7 +90,11 @@ class CkanAdminReport:
         ckan.license_list(cancel_if_present=self.cancel_if_present)
         if progress_callback is not None:
             progress_callback.add_context("Step 2: Request file sizes", level=CkanCallbackLevel.Resources)
-        ckan.map_file_resource_sizes(cancel_if_present=self.cancel_if_present, progress_callback=progress_callback)
+        self.resource_list = None
+        if self.package_list is not None:
+            self.resource_list = ckan.get_resource_ids_of_package_list(self.package_list)  # for info
+        ckan.map_file_resource_sizes(package_list=self.package_list, cancel_if_present=self.cancel_if_present, progress_callback=progress_callback)
+        ckan._update_package_size_fields(self.package_list)
         if progress_callback is not None:
             progress_callback.add_context("Step 3: Request user access", level=CkanCallbackLevel.Packages)
         try:
@@ -123,10 +123,11 @@ class CkanAdminReport:
     def _create_report(self, ckan: CkanApi, *, progress_callback:CkanProgressCallbackABC=None) -> None:
         start = time.time()
         request_count_init = ckan.debug.ckan_request_counter
-        policy_messages: Dict[str, List[DataPolicyError]] = {}
+        policy_messages: Dict[str, PackagePolicyReport] = {}
         if progress_callback is not None:
             progress_callback.add_context("Step 4: Policy check", level=CkanCallbackLevel.Packages)
-        ckan.policy_check(buffer=policy_messages, progress_callback=progress_callback)
+        ckan.policy_check(buffer=policy_messages, progress_callback=progress_callback,
+                          date_report=self.report_date, auto_update=self.auto_update_ckan)
 
         report_header = OrderedDict([
             ("title", "Admin report on packages and resources"),
@@ -143,6 +144,7 @@ class CkanAdminReport:
         total_external_size_mb = 0.
         total_datastore_size_mb = 0.
         total_resource_count = 0
+        total_filestore_count = 0
         total_external_resource_count = 0
         total_datastore_count = 0
         total_datastore_lines = 0
@@ -159,15 +161,13 @@ class CkanAdminReport:
             data_format_policy_scores = ErrorCount(package_data_format_messages)
             total_policy_errors += data_format_policy_scores
             resources_report = []
-            last_modified_resource = None
-            last_modified_resource_metadata = None
-            package_resource_count = len(package_info.package_resources)
-            package_external_resource_count = 0
-            package_datastore_count = 0
-            package_filestore_size_mb = 0.
-            package_external_size_mb = 0.
-            package_datastore_size_mb = 0.
-            package_datastore_lines = 0
+            package_size = package_info.package_size  # computed by _update_package_size_fields
+            if package_size.date_last_modified_resource is not None:
+                global_last_modified_resources = max(global_last_modified_resources, package_size.date_last_modified_resource) \
+                    if global_last_modified_resources else package_size.date_last_modified_resource
+            if package_size.date_last_modified_resource_metadata is not None:
+                global_last_modified_metadata = max(global_last_modified_metadata, package_size.date_last_modified_resource_metadata) \
+                    if global_last_modified_metadata else package_size.date_last_modified_resource_metadata
             for resource_id in package_info.package_resources.keys():
                 resource_info = ckan.map.resources[resource_id]
                 resource_modified = resource_info.last_modified if resource_info.last_modified is not None else resource_info.created
@@ -187,32 +187,11 @@ class CkanAdminReport:
                     ("metadata_modified", self._date_format_str(resource_info.metadata_modified) if resource_info.metadata_modified is not None else None),
                     ("datastore_aliases", None),
                 ])
-                if resource_modified is not None:
-                    last_modified_resource = max(last_modified_resource, resource_modified) \
-                        if last_modified_resource else resource_modified
-                    global_last_modified_resources = max(global_last_modified_resources, resource_modified) \
-                        if global_last_modified_resources else resource_modified
-                if resource_info.metadata_modified is not None:
-                    last_modified_resource_metadata = max(last_modified_resource_metadata, resource_info.metadata_modified) \
-                        if last_modified_resource_metadata else resource_info.metadata_modified
-                    global_last_modified_metadata = max(global_last_modified_metadata, resource_modified) \
-                        if global_last_modified_metadata else resource_modified
-                if resource_info.download_url:
-                    if internal_filestore:
-                        if resource_info.download_size_mb is not None:
-                            package_filestore_size_mb += resource_info.download_size_mb
-                    else:
-                        if resource_info.download_size_mb is not None:
-                            package_external_size_mb += resource_info.download_size_mb
-                        package_external_resource_count += 1
                 if resource_info.datastore_info is not None:
                     datastore_size = round_size(resource_info.datastore_info.table_size_mb + resource_info.datastore_info.index_size_mb)
                     resource_report["datastore_aliases"] = resource_info.datastore_info.aliases
                     resource_report["datastore_size_mb"] = datastore_size
-                    package_datastore_size_mb += datastore_size
                     resource_report["datastore_lines"] = resource_info.datastore_info.row_count
-                    package_datastore_lines += resource_info.datastore_info.row_count
-                    package_datastore_count += 1
                 resources_report.append(resource_report)
             license_info = ckan.map.licenses[package_info.license_id] if package_info.license_id and package_info.license_id in ckan.map.licenses.keys() else None
             package_report = OrderedDict([
@@ -226,16 +205,17 @@ class CkanAdminReport:
                 ("author", package_info.author),
                 ("maintainer", package_info.maintainer),
                 ("metadata_modified", self._date_format_str(package_info.metadata_modified)),
-                ("resources_modified", self._date_format_str(last_modified_resource) if last_modified_resource is not None else None),
-                ("resources_metadata_modified", self._date_format_str(last_modified_resource_metadata) if last_modified_resource_metadata is not None else None),
+                ("resources_modified", self._date_format_str(package_size.date_last_modified_resource) if package_size.date_last_modified_resource is not None else None),
+                ("resources_metadata_modified", self._date_format_str(package_size.date_last_modified_resource_metadata) if package_size.date_last_modified_resource_metadata is not None else None),
                 ("visibility", str(CkanVisibility.from_bool_is_private(package_info.private))),
-                ("filestore_total_size_mb", round_size(package_filestore_size_mb)),
-                ("external_total_size_mb", round_size(package_external_size_mb)),
-                ("datastore_total_size_mb", round_size(package_datastore_size_mb)),
-                ("datastore_total_lines", package_datastore_lines),
-                ("resource_count", package_resource_count),
-                ("among_resources_external", package_external_resource_count),
-                ("among_resources_datastore", package_datastore_count),
+                ("filestore_total_size_mb", round_size(package_size.filestore_size_mb)),
+                ("external_total_size_mb", round_size(package_size.external_size_mb)),
+                ("datastore_total_size_mb", round_size(package_size.datastore_size_mb)),
+                ("datastore_total_lines", package_size.datastore_lines),
+                ("resource_count", package_size.resource_count),
+                ("among_resources_filestore", package_size.filestore_count),
+                ("among_resources_external", package_size.external_resource_count),
+                ("among_resources_datastore", package_size.datastore_count),
                 ("data_format_policy_scores", data_format_policy_scores.to_dict()),
                 ("tags", package_info.tags),
             ])
@@ -256,17 +236,17 @@ class CkanAdminReport:
             package_report["groups"] = sorted([group_info.name for group_info in package_info.groups])
             if self.include_policy_messages:
                 package_report["policy_messages"] = [message.to_dict() for message in package_data_format_messages]
-            total_filestore_size_mb += package_filestore_size_mb
-            total_external_size_mb += package_external_size_mb
-            total_datastore_size_mb += package_datastore_size_mb
-            total_resource_count += package_resource_count
-            total_external_resource_count += package_external_resource_count
-            total_datastore_count += package_datastore_count
-            total_datastore_lines += package_datastore_lines
+            total_filestore_size_mb += package_size.filestore_size_mb
+            total_external_size_mb += package_size.external_size_mb
+            total_datastore_size_mb += package_size.datastore_size_mb
+            total_resource_count += package_size.resource_count
+            total_filestore_count += package_size.filestore_count
+            total_external_resource_count += package_size.external_resource_count
+            total_datastore_count += package_size.datastore_count
+            total_datastore_lines += package_size.datastore_lines
             global_last_modified_metadata = max(global_last_modified_metadata, package_info.metadata_modified) \
                 if global_last_modified_metadata else package_info.metadata_modified
             packages_report[package_name] = package_report
-            self._package_update_report(ckan, package_info, package_report)
             if progress_callback is not None:
                 progress_callback.update_task(i_package, num_packages, level=CkanCallbackLevel.Packages)
         packages_report = OrderedDict(sorted(packages_report.items()))
@@ -277,6 +257,7 @@ class CkanAdminReport:
             ("total_datastore_lines", total_datastore_lines),
             ("num_packages", len(packages_report)),
             ("total_resource_count", total_resource_count),
+            ("among_resources_filestore", total_filestore_count),
             ("among_resources_external", total_external_resource_count),
             ("among_resources_datastore", total_datastore_count),
             ("last_modified_data", self._date_format_str(global_last_modified_resources) if global_last_modified_resources else None),
@@ -327,58 +308,6 @@ class CkanAdminReport:
         if progress_callback is not None:
             progress_callback.end_task(num_packages, level=CkanCallbackLevel.Packages)
             progress_callback.remove_context()
-
-    def _package_update_report(self, ckan:CkanApi, package_info: CkanPackageInfo, package_report) -> None:
-        policy = ckan.policy
-        if policy is None:
-            return
-        package_update_needed = any([field_name is not None for field_name in [
-            policy.output_custom_fields.package_filestore_size_field,
-            policy.output_custom_fields.package_external_size_field,
-            policy.output_custom_fields.package_datastore_size_field,
-            policy.output_custom_fields.package_datastore_rowcount_field]])
-        if package_update_needed and package_info.custom_fields is None:
-            package_info.custom_fields = OrderedDict()
-        package_update_needed = False
-        if policy.output_custom_fields.report_timestamp_field is not None:
-            report_timestamp = self.report_date.isoformat(sep='T')
-            if policy.output_custom_fields.report_timestamp_field in package_info.custom_fields.keys():
-                package_update_needed |= not package_info.custom_fields[policy.output_custom_fields.report_timestamp_field] == report_timestamp
-            else:
-                package_update_needed = True
-            package_info.custom_fields[policy.output_custom_fields.report_timestamp_field] = report_timestamp
-        if policy.output_custom_fields.package_filestore_size_field is not None:
-            package_size_str = size_str_mb(package_report["filestore_total_size_mb"])
-            if policy.output_custom_fields.package_filestore_size_field in package_info.custom_fields.keys():
-                package_update_needed |= not package_info.custom_fields[policy.output_custom_fields.package_filestore_size_field] == package_size_str
-            else:
-                package_update_needed = True
-            package_info.custom_fields[policy.output_custom_fields.package_filestore_size_field] = package_size_str
-        if policy.output_custom_fields.package_external_size_field is not None:
-            package_size_str = size_str_mb(package_report["external_total_size_mb"])
-            if policy.output_custom_fields.package_external_size_field in package_info.custom_fields.keys():
-                package_update_needed |= not package_info.custom_fields[policy.output_custom_fields.package_external_size_field] == package_size_str
-            else:
-                package_update_needed = True
-            package_info.custom_fields[policy.output_custom_fields.package_external_size_field] = package_size_str
-        if policy.output_custom_fields.package_datastore_size_field is not None:
-            package_size_str = size_str_mb(package_report["datastore_total_size_mb"])
-            if policy.output_custom_fields.package_datastore_size_field in package_info.custom_fields.keys():
-                package_update_needed |= not package_info.custom_fields[
-                                                 policy.output_custom_fields.package_datastore_size_field] == package_size_str
-            else:
-                package_update_needed = True
-            package_info.custom_fields[policy.output_custom_fields.package_datastore_size_field] = package_size_str
-        if policy.output_custom_fields.package_datastore_rowcount_field is not None:
-            package_rowcount_str = str(package_report["datastore_total_lines"])
-            if policy.output_custom_fields.package_datastore_rowcount_field in package_info.custom_fields.keys():
-                package_update_needed |= not package_info.custom_fields[policy.output_custom_fields.package_datastore_rowcount_field] == package_rowcount_str
-            else:
-                package_update_needed = True
-            package_info.custom_fields[policy.output_custom_fields.package_datastore_rowcount_field] = package_rowcount_str
-        package_info.updated = package_update_needed
-        if package_update_needed and ckan is not None:
-            ckan.package_patch(package_info.id, custom_fields=package_info.custom_fields)
 
     def execute(self, ckan: CkanApi, *, progress_callback:CkanProgressCallbackABC=None) -> dict:
         if progress_callback is not None and not isinstance(progress_callback, CkanProgressCallbackABC):

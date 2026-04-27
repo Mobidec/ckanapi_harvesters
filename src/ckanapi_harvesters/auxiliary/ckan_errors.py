@@ -69,8 +69,8 @@ class DataStoreNotFoundError(Exception):
         super().__init__(f"DataStore not found for resource id {resource_id}. This could mean the DataStore was not initialized. Server message: {error_message}")
 
 class MissingDataStoreInfoError(Exception):
-    def __init__(self):
-        super().__init__("DataStore info was not requested. Use option datastore_info=True for the map_resources function.")
+    def __init__(self, resource_id:str):
+        super().__init__("DataStore info was not requested for resource {resource_id}. Use option datastore_info=True for the map_resources function.")
 
 class DuplicateNameError(Exception):
     def __init__(self, object_type:str, names:Iterable[str]):
@@ -93,6 +93,10 @@ class AdminFeatureLockedError(Exception):
 
 class NotMappedObjectNameError(Exception):
     pass
+
+class NoPackageSizeError(Exception):
+    def __init__(self, package_name:str):
+        super().__init__(f"Package size was not computed for package {package_name}.")
 
 class UnexpectedError(RuntimeError):
     pass
