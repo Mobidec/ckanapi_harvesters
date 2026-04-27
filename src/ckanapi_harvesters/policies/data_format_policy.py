@@ -3,6 +3,7 @@
 """
 Data format policy representation and enforcing
 """
+import datetime
 from collections import OrderedDict
 from typing import List, Set, Union, Tuple
 from warnings import warn
@@ -17,12 +18,14 @@ from ckanapi_harvesters.auxiliary.ckan_configuration import allow_policy_from_ur
 from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.urls import is_valid_url
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import str_is_not_empty
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import str_is_not_empty, size_str_mb
+from ckanapi_harvesters.auxiliary.ckan_errors import NoPackageSizeError
 from ckanapi_harvesters.policies import POLICY_FILE_FORMAT_VERSION
 from ckanapi_harvesters.policies.data_format_policy_errors import (DataPolicyError, UnsupportedPolicyVersionError,
                                                                    _policy_msg, ErrorCount, ErrorLevel, UrlPolicyLockedError)
 from ckanapi_harvesters.policies.data_format_policy_defs import StringMatchMode
 from ckanapi_harvesters.policies.data_format_policy_defs import ListChoiceMode, StringValueSpecification
+from ckanapi_harvesters.policies.policy_report import PackagePolicyReport
 from ckanapi_harvesters.policies.data_format_policy_abc import DataPolicyABC
 from ckanapi_harvesters.policies.data_format_policy_lists import ValueListPolicy, GroupedValueListPolicy, SingleValueListPolicy
 from ckanapi_harvesters.policies.data_format_policy_tag_groups import TagListPolicy, TagGroupsListPolicy
@@ -309,8 +312,8 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
             success = False
         return success
 
-    def policy_check_package(self, package_info: CkanPackageInfo, *, package_buffer:List[DataPolicyError]=None,
-                             display_message:bool=True, raise_error:bool=False) -> bool:
+    def policy_check_package(self, package_info: CkanPackageInfo, *, package_report:PackagePolicyReport=None,
+                             display_message:bool=True, raise_error:bool=False) -> PackagePolicyReport:
         """
         Main entry-point to check the policy rules against the package.
 
@@ -321,12 +324,15 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         :param raise_error: option to raise an exception if any rule with a high error level is encountered
         :return: True if no error was encountered
         """
-        if package_buffer is None:
-            package_buffer: List[DataPolicyError] = []
+        package_name = package_info.name
+        if package_report is None:
+            package_report = PackagePolicyReport(package_name)
         context = OrderedDict()
-        context["package"] = package_info.name
-        success = self.enforce(package_info, context=context, verbose=True, buffer=package_buffer)
-        error_count = ErrorCount(package_buffer)
+        context["package"] = package_name
+        success = self.enforce(package_info, context=context, verbose=True, buffer=package_report.messages)
+        error_count = ErrorCount(package_report.messages)
+        package_report.error_count = error_count
+        package_report.success = success
         # consistency check
         if success:
             assert(error_count.total == 0)
@@ -335,28 +341,50 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         # command-line output
         if display_message:
             if success:
-                print("Package '" + package_info.name + "' passed all tests")
+                print("Package '" + package_name + "' passed all tests")
             else:
-                print("Package '" + package_info.name + "': " + error_count.error_count_message() + ":")
-                print('\n'.join([error_message.message for error_message in package_buffer]))
+                print("Package '" + package_name + "': " + error_count.error_count_message() + ":")
+                print('\n'.join([error_message.message for error_message in package_report.messages]))
         # raise error after all this
         if raise_error and error_count.error > 0:
             raise DataPolicyError(context, ErrorLevel.Error, error_count.error_count_message())
-        return success
+        return package_report
 
-    def package_update_scores(self, ckan: "CkanApi", package_info: CkanPackageInfo, package_buffer:List[DataPolicyError],
-                              raise_error:bool=True) -> bool:
+    def package_update_scores(self, ckan: "CkanApi", package_info: CkanPackageInfo, package_report:PackagePolicyReport,
+                              *, date_report:datetime.datetime=None, error_no_sizes:bool=False, raise_error:bool=True) -> bool:
         """
         Update the package scores on the CKAN server in package custom fields.
 
         :return: True if a package update is required. If ckan argument was given, the package update is applied.
         """
+        package_info.updated = False
+        self._package_update_policy_scores(package_info, package_report)
+        self._package_update_size_report(package_info, date_report=date_report, error_no_sizes=error_no_sizes)
+        package_update_needed = package_info.updated
+        if package_update_needed and ckan is not None:
+            try:
+                ckan.package_patch(package_info.id, custom_fields=package_info.custom_fields)
+            except Exception as e:
+                if raise_error:
+                    raise e from e
+                else:
+                    msg = "Could not update policy scores: " + str(e)
+                    warn(msg)
+        return package_update_needed
+
+    def _package_update_policy_scores(self, package_info: CkanPackageInfo, package_report:PackagePolicyReport) -> bool:
+        """
+        Update the package scores on the CKAN server in package custom fields.
+
+        :return: True if a package update is required. If ckan argument was given, the package update is applied.
+        """
+        package_buffer = package_report.messages
         error_count = ErrorCount(package_buffer)
         # update package metadata
         package_update_needed = self.output_custom_fields.package_score_field is not None or self.output_custom_fields.package_report_field is not None
         if package_update_needed and package_info.custom_fields is None:
             package_info.custom_fields = OrderedDict()
-        package_update_needed = False
+        package_update_needed = package_info.updated  # initial state
         if self.output_custom_fields.package_score_field is not None:
             package_score_str = error_count.error_count_message()
             if self.output_custom_fields.package_score_field in package_info.custom_fields.keys():
@@ -372,16 +400,62 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
                 package_update_needed = True
             package_info.custom_fields[self.output_custom_fields.package_report_field] = package_report_str
         package_info.updated = package_update_needed
-        if package_update_needed and ckan is not None:
-            try:
-                ckan.package_patch(package_info.id, custom_fields=package_info.custom_fields)
-            except Exception as e:
-                if raise_error:
-                    raise e from e
-                else:
-                    msg = "Could not update policy scores: " + str(e)
-                    warn(msg)
-        return package_update_needed
+
+    def _package_update_size_report(self, package_info: CkanPackageInfo,
+                                    *, date_report:datetime.datetime=None, error_no_sizes:bool=False) -> None:
+        package_size = package_info.package_size
+        if package_size is None:
+            if error_no_sizes:
+                raise NoPackageSizeError(package_info.name)
+            else:
+                return
+        if date_report is None:
+            date_report = datetime.datetime.now()
+        package_update_needed = any([field_name is not None for field_name in [
+            self.output_custom_fields.package_filestore_size_field,
+            self.output_custom_fields.package_external_size_field,
+            self.output_custom_fields.package_datastore_size_field,
+            self.output_custom_fields.package_datastore_rowcount_field]])
+        if package_update_needed and package_info.custom_fields is None:
+            package_info.custom_fields = OrderedDict()
+        package_update_needed = package_info.updated  # initial state
+        if self.output_custom_fields.report_timestamp_field is not None:
+            report_timestamp = date_report.isoformat(sep='T', timespec="seconds")
+            if self.output_custom_fields.report_timestamp_field in package_info.custom_fields.keys():
+                package_update_needed |= not package_info.custom_fields[self.output_custom_fields.report_timestamp_field] == report_timestamp
+            else:
+                package_update_needed = True
+            package_info.custom_fields[self.output_custom_fields.report_timestamp_field] = report_timestamp
+        if self.output_custom_fields.package_filestore_size_field is not None:
+            package_size_str = size_str_mb(package_size.filestore_size_mb)
+            if self.output_custom_fields.package_filestore_size_field in package_info.custom_fields.keys():
+                package_update_needed |= not package_info.custom_fields[self.output_custom_fields.package_filestore_size_field] == package_size_str
+            else:
+                package_update_needed = True
+            package_info.custom_fields[self.output_custom_fields.package_filestore_size_field] = package_size_str
+        if self.output_custom_fields.package_external_size_field is not None:
+            package_size_str = size_str_mb(package_size.external_size_mb)
+            if self.output_custom_fields.package_external_size_field in package_info.custom_fields.keys():
+                package_update_needed |= not package_info.custom_fields[self.output_custom_fields.package_external_size_field] == package_size_str
+            else:
+                package_update_needed = True
+            package_info.custom_fields[self.output_custom_fields.package_external_size_field] = package_size_str
+        if self.output_custom_fields.package_datastore_size_field is not None:
+            package_size_str = size_str_mb(package_size.datastore_size_mb)
+            if self.output_custom_fields.package_datastore_size_field in package_info.custom_fields.keys():
+                package_update_needed |= not package_info.custom_fields[
+                                                 self.output_custom_fields.package_datastore_size_field] == package_size_str
+            else:
+                package_update_needed = True
+            package_info.custom_fields[self.output_custom_fields.package_datastore_size_field] = package_size_str
+        if self.output_custom_fields.package_datastore_rowcount_field is not None:
+            package_rowcount_str = str(package_size.datastore_lines)
+            if self.output_custom_fields.package_datastore_rowcount_field in package_info.custom_fields.keys():
+                package_update_needed |= not package_info.custom_fields[self.output_custom_fields.package_datastore_rowcount_field] == package_rowcount_str
+            else:
+                package_update_needed = True
+            package_info.custom_fields[self.output_custom_fields.package_datastore_rowcount_field] = package_rowcount_str
+        package_info.updated = package_update_needed
 
 
 from ckanapi_harvesters.ckan_api.ckan_api import CkanApi

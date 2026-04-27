@@ -3,7 +3,7 @@
 """
 
 """
-from typing import List, Dict, Union
+from typing import List, Dict, Union, Tuple
 from collections import OrderedDict
 import time
 import copy
@@ -521,6 +521,27 @@ class CkanApiMap(CkanApiBase):
         else:
             return None
 
+    def get_resource_ids_of_package_list(self, package_list:Union[List[str],str]=None,
+                                         *, return_package_dict:bool=False, only_missing: bool=True) \
+            -> Union[List[str], Tuple[List[str], Dict[str, CkanPackageInfo]]]:
+        """
+        Returns a list of resource ids corresponding to the package list. Order is not preserved.
+        """
+        if package_list is None:
+            package_list = list(self.map.packages.keys())
+        elif isinstance(package_list,str):
+            package_list = [package_list]
+        self.map_resources(package_list, only_missing=only_missing)
+        package_info_list = [self.map.get_package_info(package_name) for package_name in package_list]
+        package_dict = {package_info.id: package_info for package_info in package_info_list}
+        resource_ids = set()
+        for package_info in package_dict.values():
+            resource_ids = resource_ids.union(set(package_info.package_resources.keys()))
+        if return_package_dict:
+            return list(resource_ids), package_dict
+        else:
+            return list(resource_ids)
+
     ## API calls needed to make the map and auxiliary API functions  ------------------
     def _api_status_show(self, *, params:dict=None) -> CkanStatus:
         """
@@ -763,9 +784,16 @@ class CkanApiMap(CkanApiBase):
             self.map._update_datastore_info(resource_id, None, e)
             raise e
 
-    def datastore_info(self, resource_id:str, *, params:dict=None, display_request_not_found:bool=True) -> CkanDataStoreInfo:
+    def datastore_info(self, resource_id:str, *, error_not_found:bool=True,
+                       params:dict=None, display_request_not_found:bool=True) -> Union[CkanDataStoreInfo,None]:
         # function alias
-        return self._api_datastore_info(resource_id=resource_id, params=params, display_request_not_found=display_request_not_found)
+        try:
+            return self._api_datastore_info(resource_id=resource_id, params=params, display_request_not_found=display_request_not_found)
+        except CkanActionNotFoundError as e:
+            if error_not_found:
+                raise e from e
+            else:
+                return None
 
     def _api_resource_view_list(self, resource_id:str, *, params:dict=None) -> List[CkanViewInfo]:
         """

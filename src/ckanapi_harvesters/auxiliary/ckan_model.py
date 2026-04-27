@@ -3,7 +3,6 @@
 """
 Data model to represent a CKAN database architecture
 """
-import datetime
 from abc import ABC, abstractmethod
 from enum import IntEnum, IntFlag
 from typing import List, Dict, Union, Set
@@ -12,6 +11,8 @@ import copy
 from collections import OrderedDict
 from packaging import version
 from packaging.version import Version
+from dataclasses import dataclass
+import datetime
 
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, _bool_from_string, bytes_to_megabytes
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanFieldInternalAttrs
@@ -766,6 +767,22 @@ class CkanCollaboration:
         return d
 
 
+@dataclass
+class CkanPackageSizeInfo:
+    date_last_modified_resource: Union[datetime.datetime,None] = None
+    date_last_modified_resource_metadata: Union[datetime.datetime,None] = None
+    resource_count: int = 0
+    external_resource_count: int = 0
+    filestore_count: int = 0
+    datastore_count: int = 0
+    filestore_size_mb: float = 0.
+    external_size_mb: float = 0.
+    datastore_size_mb: float = 0.
+    datastore_lines: int = 0
+
+    def reset(self):
+        self.__init__()
+
 class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
     mandatory_attributes = {"name"}
     configurable_attributes = {"name", "state", "title", "description", "private", "version",
@@ -804,6 +821,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         self.newly_created:bool = False
         self.collaborators:Union[None,Dict[str,CkanCollaboration]] = None  # given by API package_collaborator_list
         self.user_access:Union[None,Dict[str,CkanCollaboration]] = None  # given by function map_user_rights
+        self.package_size:Union[None,CkanPackageSizeInfo] = None  # given by function _update_package_size_fields
 
         if d is not None:
             self.id = d["id"]

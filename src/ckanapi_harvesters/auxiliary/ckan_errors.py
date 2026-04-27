@@ -94,6 +94,10 @@ class AdminFeatureLockedError(Exception):
 class NotMappedObjectNameError(Exception):
     pass
 
+class NoPackageSizeError(Exception):
+    def __init__(self, package_name:str):
+        super().__init__(f"Package size was not computed for package {package_name}.")
+
 class UnexpectedError(RuntimeError):
     pass
 

@@ -19,6 +19,7 @@ import pandas as pd
 import numpy as np
 
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback, CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
+from ckanapi_harvesters.policies.policy_report import PackagePolicyReport
 from ckanapi_harvesters.policies.data_format_policy_errors import DataPolicyError
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 from ckanapi_harvesters.ckan_api import CkanApi, CkanApiMap
@@ -1591,8 +1592,8 @@ class BuilderPackageBasic:
         ckan._api_package_resource_reorder(package_id=package_id, resource_ids=resource_ids)
 
     def remote_policy_check(self, ckan: CkanApi, policy:CkanPackageDataFormatPolicy=None,
-                            *, buffer:Dict[str, List[DataPolicyError]]=None, raise_error:bool=False,
-                            verbose:bool=None) -> bool:
+                            *, buffer:Dict[str, PackagePolicyReport]=None, raise_error:bool=False,
+                            purge_map:bool=True, verbose:bool=None, auto_update:bool=True) -> bool:
         """
         Check the package defined by this builder against a data format policy, based on the information from the API.
 
@@ -1605,12 +1606,14 @@ class BuilderPackageBasic:
         """
         if policy is None:
             policy = self.ckan_builder.policy
+        if purge_map:
+            ckan.map.purge()
         return ckan.policy_check(package_list=self.package_name, policy=policy, buffer=buffer,
-                                 verbose=verbose, raise_error=raise_error)
+                                 verbose=verbose, raise_error=raise_error, auto_update=auto_update)
 
     def local_policy_check(self, policy:CkanPackageDataFormatPolicy=None,
-                           *, buffer:Dict[str, List[DataPolicyError]]=None, raise_error:bool=False,
-                           verbose:bool=True) -> bool:
+                           *, buffer:Dict[str, PackagePolicyReport]=None, raise_error:bool=False,
+                           verbose:bool=True) -> Union[PackagePolicyReport,None]:
         """
         Check if the package builder respects a data format policy (only on local definition).
 
@@ -1620,15 +1623,14 @@ class BuilderPackageBasic:
             policy = self.ckan_builder.policy
         if policy is None:
             # no policy loaded at all
-            return True
+            return None
         package_info = self.to_ckan_package_info(check_id=False)
-        package_buffer: List[DataPolicyError] = []
-        success = policy.policy_check_package(package_info, display_message=verbose,
-                                              package_buffer=package_buffer, raise_error=raise_error)
+        package_report = policy.policy_check_package(package_info, display_message=verbose, raise_error=raise_error)
+        success = package_report.success
         if buffer is not None:
-            buffer[package_info.name] = package_buffer
+            buffer[package_info.name] = package_report
         if verbose:
             print(f"Data format policy {policy.label} success: {success}")
-        return success
+        return package_report
 
 
