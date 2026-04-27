@@ -1200,11 +1200,16 @@ class CkanApiReadOnly(CkanApiMap):
         self._rx_records_df_clean(df)
         return resource_info, df
 
-    def map_file_resource_sizes(self, *, cancel_if_present:bool=True, progress_callback:CkanProgressCallbackABC=None) -> None:
+    def map_file_resource_sizes(self, resource_list:List[str]=None,
+                                *, cancel_if_present:bool=True, progress_callback:CkanProgressCallbackABC=None) -> None:
         num_resources = len(self.map.resources)
         if progress_callback is not None:
             progress_callback.start_task(num_resources, level=CkanCallbackLevel.Resources, units=CkanProgressUnits.Items)
-        for i_resource, (resource_id, resource_info) in enumerate(self.map.resources.items()):
+        if resource_list is None:
+            resource_info_dict = self.map.resources
+        else:
+            resource_info_dict =  {resource_id: self.get_resource_info_or_request_of_id(resource_id) for resource_id in resource_list}
+        for i_resource, (resource_id, resource_info) in enumerate(resource_info_dict.items()):
             if progress_callback is not None:
                 progress_callback.update_task(i_resource, num_resources, level=CkanCallbackLevel.Resources)
             if resource_info.download_url:

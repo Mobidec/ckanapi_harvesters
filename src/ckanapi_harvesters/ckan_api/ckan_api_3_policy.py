@@ -66,7 +66,7 @@ class CkanApiPolicy(CkanApiReadOnly):
         self.policy_source: Union[str,None] = None
         if policy_file is not None:
             self.load_policy(policy_file, base_dir=None)
-        self.default_policy_load_on_map: bool = False
+        self.default_policy_load_on_map: bool = True
         if params is None:
             params = CkanApiPolicyParams()
         if proxies is not None:
@@ -234,8 +234,11 @@ class CkanApiPolicy(CkanApiReadOnly):
                               resource_view_list=resource_view_list, organization_info=organization_info,
                               license_list=license_list, only_missing=only_missing, error_not_found=error_not_found,
                               owner_org=owner_org, progress_callback=progress_callback)
-        load_policy = self.default_policy_load_on_map
-        if load_policy:
+        if load_policy is None and self.default_policy_load_on_map:
             self.load_default_policy(cancel_if_present=True, load_error=False)
+        else:
+            load_policy = self.default_policy_load_on_map
+            if load_policy:
+                self.load_default_policy(cancel_if_present=True, load_error=True)
         return map
 

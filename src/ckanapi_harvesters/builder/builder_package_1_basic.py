@@ -1138,9 +1138,7 @@ class BuilderPackageBasic:
                 pkg_info.update_resource(resource_info)
             # else:
             #     assert(isinstance(resource_builder, BuilderMultiFile))
-        self.package_resource_reorder(ckan)
-        if ckan.params.policy_check_post:
-            self.remote_policy_check(ckan)
+        self._patch_request_final_any(ckan)
         if progress_callback is not None:
             progress_callback.end_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
         if ckan.params.verbose_extra:
@@ -1266,7 +1264,6 @@ class BuilderPackageBasic:
                                                      excluded_files=mono_resource_used_files if multi_file_exclude_other_files else None,
                                                      inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
                                                      reupload=multi_resource_reupload)
-        self.package_resource_reorder(ckan)
         self.patch_request_final(ckan)
         if progress_callback is not None:
             progress_callback.end_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
@@ -1276,7 +1273,14 @@ class BuilderPackageBasic:
             print("Timestamp", start_time)
             print(f"{(end_time - start_time).total_seconds()} elapsed")
 
+    def _patch_request_final_any(self, ckan:CkanApi):
+        # call at the end of patch/upload processes
+        self.package_resource_reorder(ckan)
+        if ckan.params.policy_check_post:
+            self.remote_policy_check(ckan)
+
     def patch_request_final(self, ckan:CkanApi):
+        self._patch_request_final_any(ckan)
         if initial_package_building_state is not None:
             ckan.package_patch(self.package_name, state=self.package_attributes.state)
 
