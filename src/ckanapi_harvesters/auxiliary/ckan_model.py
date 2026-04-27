@@ -660,7 +660,7 @@ class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
     def datastore_queried(self, *, error_not_queried:bool=False) -> bool:
         ds_was_queried = self.datastore_info is not None or self.datastore_info_error is not None
         if error_not_queried and not ds_was_queried:
-            raise MissingDataStoreInfoError()
+            raise MissingDataStoreInfoError(self.id)
         return ds_was_queried
 
     def is_datastore(self, *, error_not_queried:bool=False) -> Union[bool,None]:

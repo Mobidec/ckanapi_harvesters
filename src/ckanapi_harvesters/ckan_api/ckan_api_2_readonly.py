@@ -30,7 +30,7 @@ from ckanapi_harvesters.auxiliary.urls import url_join, urlsep
 from ckanapi_harvesters.auxiliary.ckan_action import (CkanActionResponse, CkanActionNotFoundError, CkanSqlCapabilityError,
                                                       CkanSqlLimitOffsetError)
 from ckanapi_harvesters.auxiliary.ckan_errors import (IntegrityError, CkanServerError, CkanArgumentError, SearchAllNoCountsError,
-                                                      DataStoreNotFoundError, RequestError)
+                                                      DataStoreNotFoundError, RequestError, MissingDataStoreInfoError)
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
@@ -1247,6 +1247,8 @@ class CkanApiReadOnly(CkanApiMap):
                 package_size.resource_count = len(package_info.package_resources)
                 for resource_id in package_info.package_resources.keys():
                     resource_info = self.map.get_resource_info(resource_id)
+                    if not resource_info.datastore_queried():
+                        raise MissingDataStoreInfoError(resource_info.id)
                     resource_modified = resource_info.last_modified if resource_info.last_modified is not None else resource_info.created
                     internal_filestore = self.is_url_internal(resource_info.download_url)
                     if resource_modified is not None:

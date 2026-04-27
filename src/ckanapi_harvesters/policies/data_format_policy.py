@@ -19,7 +19,7 @@ from ckanapi_harvesters.auxiliary.ckan_defs import ckan_tags_sep
 from ckanapi_harvesters.auxiliary.urls import is_valid_url
 from ckanapi_harvesters.auxiliary.path import path_rel_to_dir
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import str_is_not_empty, size_str_mb
-from ckanapi_harvesters.auxiliary.ckan_errors import NoPackageSizeError
+from ckanapi_harvesters.auxiliary.ckan_errors import NoPackageSizeError, MissingDataStoreInfoError
 from ckanapi_harvesters.policies import POLICY_FILE_FORMAT_VERSION
 from ckanapi_harvesters.policies.data_format_policy_errors import (DataPolicyError, UnsupportedPolicyVersionError,
                                                                    _policy_msg, ErrorCount, ErrorLevel, UrlPolicyLockedError)
@@ -299,6 +299,8 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
                 success &= self.resource_format.enforce(resource_info.format, context=resource_format_context, verbose=verbose, buffer=buffer)
             if self.resource_mandatory_attributes is not None:
                 success &= self._enforce_attributes_list(resource_info, self.resource_mandatory_attributes, context=resource_context, verbose=verbose, buffer=buffer)
+            if not resource_info.datastore_queried():
+                raise MissingDataStoreInfoError(resource_info.id)
             if self.datastore_fields_mandatory_attributes is not None and resource_info.datastore_info is not None:
                 for field_info in resource_info.datastore_info.fields_dict.values():
                     field_context = resource_context.copy()
@@ -403,7 +405,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
 
     def _package_update_size_report(self, package_info: CkanPackageInfo,
                                     *, date_report:datetime.datetime=None, error_no_sizes:bool=False) -> None:
-        package_size = package_info.package_size
+        package_size = package_info.package_size  # see ckan._update_package_size_fields
         if package_size is None:
             if error_no_sizes:
                 raise NoPackageSizeError(package_info.name)

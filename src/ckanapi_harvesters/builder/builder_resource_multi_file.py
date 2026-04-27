@@ -82,6 +82,14 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
     def get_or_query_resource_id(self, ckan: CkanApi, cancel_if_present:bool=True, error_not_found:bool=True) -> Union[None,str]:
         return None
 
+    def init_options_from_ckan(self, ckan:CkanApi, *, base_dir:str=None) -> None:
+        self.known_resource_info = None
+        # super().init_options_from_ckan(ckan, base_dir=base_dir)
+        self._update_metadata(ckan, base_dir=base_dir)
+        # self.local_file_format.chunk_size = ckan.params.default_limit_read
+        if self.field_builders is not None:
+            for field_builder in self.field_builders.values():
+                field_builder.internal_attrs.update_from_ckan(ckan)
 
     ## upload --------------------------------------------------------------------
     def patch_request(self, ckan: CkanApi, *, reupload: bool = None, override_ckan:bool=False,
