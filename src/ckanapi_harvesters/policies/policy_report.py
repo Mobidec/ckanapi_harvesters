@@ -17,7 +17,9 @@ class PackagePolicyReport:
         self.success: bool = False
 
 class PolicyReport:
+    # not used
     def __init__(self):
         self.package_reports:Dict[str, PackagePolicyReport] = OrderedDict()
+        self.error_count: ErrorCount = ErrorCount([])
 
 

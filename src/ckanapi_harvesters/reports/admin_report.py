@@ -157,8 +157,9 @@ class CkanAdminReport:
             progress_callback.start_task(num_packages, level=CkanCallbackLevel.Packages, units=CkanProgressUnits.Items)
         for i_package, (package_id, package_info) in enumerate(ckan.map.packages.items()):
             package_name = package_info.name
-            package_data_format_messages = policy_messages.get(package_name, [])
-            data_format_policy_scores = ErrorCount(package_data_format_messages)
+            package_policy_report = policy_messages.get(package_name, [])
+            # data_format_policy_scores = ErrorCount(package_policy_report.messages)
+            data_format_policy_scores = package_policy_report.error_count
             total_policy_errors += data_format_policy_scores
             resources_report = []
             package_size = package_info.package_size  # computed by _update_package_size_fields
@@ -235,7 +236,7 @@ class CkanAdminReport:
                 public_packages[package_name] = ckan.get_package_page_url(package_name)
             package_report["groups"] = sorted([group_info.name for group_info in package_info.groups])
             if self.include_policy_messages:
-                package_report["policy_messages"] = [message.to_dict() for message in package_data_format_messages]
+                package_report["policy_messages"] = [message.to_dict() for message in package_policy_report.messages]
             total_filestore_size_mb += package_size.filestore_size_mb
             total_external_size_mb += package_size.external_size_mb
             total_datastore_size_mb += package_size.datastore_size_mb
