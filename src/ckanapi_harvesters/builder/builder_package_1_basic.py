@@ -53,12 +53,13 @@ example_package_resources_dir = os.path.join(self_dir, "example", "package")
 builder_default_package_state:CkanState = CkanState.Draft
 initial_package_building_state:Union[CkanState,None] = CkanState.Draft
 
-def load_help_page_df(*, engine:str=None) -> pd.DataFrame:
+def load_aux_pages_df(*, engine:str=None) -> Dict[str, pd.DataFrame]:
     with open(example_package_xls, "rb") as stream:  # read-only mode
         with pd.ExcelFile(stream, engine=engine) as help_file:
             help_df = pd.read_excel(help_file, sheet_name="help", header=None)
+            validation_df = pd.read_excel(help_file, sheet_name="help", header=None)
             help_file.close()
-    return help_df
+    return {"help": help_df, "validation": validation_df}
 
 forbidden_resource_names = {"ckan", "info", "package", "resources", "validation", "help"}
 excel_subs_characters_re = r"[:\*\?\/\[\]\\]"  # characters used in wildcards (MultiFile & MultiDataStore), forbidden in Excel sheet names
@@ -669,8 +670,11 @@ class BuilderPackageBasic:
                 sheet_name = resource_builder.columns_sheet_name if resource_builder.columns_sheet_name is not None else excel_name_of_sheet(name)
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
             if include_help:
-                help_df = load_help_page_df()
+                aux_dict = load_aux_pages_df()
+                help_df = aux_dict["help"]
                 help_df.to_excel(writer, sheet_name="help", index=False, header=False)
+                validation_df = aux_dict["validation"]
+                validation_df.to_excel(writer, sheet_name="validation", index=False, header=False)
             # writer.close()
 
     def to_dict(self, base_dir:str=None, include_id:bool=True, separate_field_builders:bool=False) -> dict:

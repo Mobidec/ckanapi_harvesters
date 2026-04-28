@@ -11,5 +11,5 @@ def load_example_package() -> BuilderPackage:
     mdl = BuilderPackage.from_excel(example_package_xls)
     return BuilderPackage(src=mdl)
 
-from ckanapi_harvesters.builder.builder_package_1_basic import load_help_page_df
+from ckanapi_harvesters.builder.builder_package_1_basic import load_aux_pages_df
 
