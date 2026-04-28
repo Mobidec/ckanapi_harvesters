@@ -151,7 +151,7 @@ For more details on contributing and best practices, please refer to the `CONTRI
 The package and its optional dependencies can be installed with the following command:
 
 ```bash
-pip install ckanapi_harvesters[extras]
+pip install ckanapi-harvesters[extras]
 ```
 
 
