@@ -57,7 +57,7 @@ def load_aux_pages_df(*, engine:str=None) -> Dict[str, pd.DataFrame]:
     with open(example_package_xls, "rb") as stream:  # read-only mode
         with pd.ExcelFile(stream, engine=engine) as help_file:
             help_df = pd.read_excel(help_file, sheet_name="help", header=None)
-            validation_df = pd.read_excel(help_file, sheet_name="help", header=None)
+            validation_df = pd.read_excel(help_file, sheet_name="validation", header=None)
             help_file.close()
     return {"help": help_df, "validation": validation_df}
 
