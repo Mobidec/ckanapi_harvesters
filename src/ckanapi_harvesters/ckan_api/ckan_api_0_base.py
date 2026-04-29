@@ -100,6 +100,7 @@ class CkanApiBase(CkanApiABC):
     # to use CkanApi in a "with" statement
     def __enter__(self):
         self.disconnect()  # start new sessions
+        self.connect()
         return self
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
@@ -183,6 +184,8 @@ class CkanApiBase(CkanApiABC):
                 self.ckan_session.verify = self.params.ckan_ca
                 self.ckan_session.headers = self.params.ckan_headers
                 # API key is applied in the headers of each request
+                # first connection requests before any other request
+                self.connect()
         else:
             if self.extern_session is None:
                 self.extern_session = requests  # do not persist cookies between domains & requests to external resources are not meant to be numerous

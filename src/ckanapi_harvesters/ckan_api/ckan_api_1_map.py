@@ -14,13 +14,14 @@ from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanLicens
                                                      CkanOrganizationInfo, CkanViewInfo, CkanField, CkanUserInfo,
                                                      CkanGroupInfo, CkanCollaboration, CkanCapacity, CkanStatus)
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC, CkanProgressUnits, CkanCallbackLevel
-from ckanapi_harvesters.auxiliary.urls import urlsep, url_join
+from ckanapi_harvesters.auxiliary.urls import urlsep, url_join, clean_base_url
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionError, CkanActionNotFoundError, CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
 from ckanapi_harvesters.auxiliary.ckan_errors import IntegrityError, NotMappedObjectNameError
+from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import CkanApiBase, use_ckan_owner_org_for_requests
 
@@ -53,11 +54,11 @@ class CkanApiMap(CkanApiBase):
         :param map: map of known resources
         :param identifier: identifier of the ckan client
         """
-        super().__init__(url=url, proxies=proxies, apikey=apikey, apikey_file=apikey_file,
-                         owner_org=owner_org, params=params, identifier=identifier)
         if map is None:
             map = CkanMap()
         self.map: CkanMap = map
+        super().__init__(url=url, proxies=proxies, apikey=apikey, apikey_file=apikey_file,
+                         owner_org=owner_org, params=params, identifier=identifier)
 
     def copy(self, new_identifier:str=None, *, dest=None):
         """
@@ -71,9 +72,27 @@ class CkanApiMap(CkanApiBase):
         dest.map = self.map.copy()
         return dest
 
+    @property
+    def url(self) -> str:
+        return self._ckan_url
+    @url.setter
+    def url(self, url:str) -> None:
+        # super method:
+        # ensure the ckan url ends with '/' (see is_url_internal)
+        if url is None:
+            self._ckan_url = None
+        elif url.lower().strip() == environ_keyword:  # keyword
+            self.init_from_environ(init_api_key=False)
+        else:
+            self._ckan_url = clean_base_url(url)
+        self.apikey.remote_url = self._ckan_url  # update
+        # super().url = url
+        self.map.purge()
+
     def connect(self):
         super().connect()
-        self.test_ckan_login(raise_error=True)
+        self.status_show(cancel_if_present=True)
+        self.test_ckan_login(raise_error=True)  # to confirm
 
     def purge(self, purge_map:bool=False) -> None:
         """
