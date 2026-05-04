@@ -21,9 +21,11 @@ def clean_base_url(url:Union[str,None]) -> Union[str,None]:
         return url
 
 def url_matches_host(*, target_host_url:str, url:str) -> bool:
-    parsed_url = urllib.parse.urlparse(url)
     parsed_target_host_url = urllib.parse.urlparse(target_host_url)
-    return parsed_url.hostname == parsed_target_host_url.hostname and parsed_target_host_url.hostname is not None
+    if parsed_target_host_url.hostname is None:
+        raise ValueError(f"Hostname not specified for {target_host_url}")
+    parsed_url = urllib.parse.urlparse(url)
+    return parsed_url.hostname == parsed_target_host_url.hostname
 
 def is_valid_url(url:str) -> bool:
     try:
