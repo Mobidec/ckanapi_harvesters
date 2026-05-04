@@ -4,6 +4,7 @@
 CKAN configuration builder
 """
 from typing import Union, List, Dict
+from collections import OrderedDict
 
 from ckanapi_harvesters.auxiliary import ckan_configuration
 from ckanapi_harvesters.auxiliary.ckan_field_types import CkanFieldType
@@ -16,6 +17,7 @@ from ckanapi_harvesters.builder.builder_resource_datastore_file import BuilderDa
 from ckanapi_harvesters.builder.builder_field import BuilderField
 from ckanapi_harvesters.builder.specific_builder_abc import SpecificBuilderABC
 from ckanapi_harvesters.builder.builder_package_1_basic import example_package_resources_dir
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import DataStoreReprFormat
 
 
 class ConfigurationBuilder(SpecificBuilderABC):
@@ -32,14 +34,22 @@ class ConfigurationBuilder(SpecificBuilderABC):
         self.resource_builders[ckan_configuration.policy_resource] = \
             BuilderResourceUnmanaged(parent=self, name=ckan_configuration.policy_resource, format="JSON",
                                      description="CKAN Data format policy for use with Python scripts")
+        datastore_sample_field_builders = OrderedDict([
+            ("user_id", BuilderField(name="user_id", type_override=CkanFieldType("numeric"), description="Numeric user ID")),
+            ("age", BuilderField(name="age", type_override=CkanFieldType("numeric"), description="User age")),
+        ])
+        self.resource_builders[ckan_configuration.datastore_sample_resource_w_file] = \
+            BuilderDataStoreFile(parent=self, name=ckan_configuration.datastore_sample_resource_w_file, format="CSV",
+                                 description="Sample DataStore with download URL",
+                                 file_name="users_local.csv")
+        self.resource_builders[ckan_configuration.datastore_sample_resource_w_file].field_builders_user = datastore_sample_field_builders
+        self.resource_builders[ckan_configuration.datastore_sample_resource_w_file].primary_key_user = ["user_id"]
+        self.resource_builders[ckan_configuration.datastore_sample_resource_w_file].records_to_file = DataStoreReprFormat.csv
         self.resource_builders[ckan_configuration.datastore_sample_resource] = \
             BuilderDataStoreFile(parent=self, name=ckan_configuration.datastore_sample_resource, format="CSV",
                                  description="Sample DataStore",
                                  file_name="users_local.csv")
-        self.resource_builders[ckan_configuration.datastore_sample_resource].field_builders_user = {
-            "user_id": BuilderField(name="user_id", type_override=CkanFieldType("numeric"), description="Numeric user ID"),
-            "age": BuilderField(name="age", type_override=CkanFieldType("numeric"), description="User age"),
-        }
+        self.resource_builders[ckan_configuration.datastore_sample_resource].field_builders_user = datastore_sample_field_builders
         self.resource_builders[ckan_configuration.datastore_sample_resource].primary_key_user = ["user_id"]
 
     def patch_policy(self, ckan:CkanApi, policy: CkanPackageDataFormatPolicy,
@@ -95,7 +105,7 @@ if __name__ == '__main__':
     ckan = mdl.init_ckan(ckan)
     ckan.test_ckan_login(raise_error=True, verbose=True)
 
-    mdl.patch_request_full(ckan)
+    mdl.patch_request_full(ckan, reupload=True)
     mdl.patch_request_final(ckan)
 
     print("Done.")
