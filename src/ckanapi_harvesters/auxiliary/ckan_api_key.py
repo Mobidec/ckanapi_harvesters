@@ -64,8 +64,8 @@ class ApiKey:
     def apply_constraints(self, *, auto_clear:bool=True, raise_error:bool=False) -> bool:
         if self._remote_url_constraint is not None:
             if self._remote_url is not None:
-                if not url_matches_host(host_url=self._remote_url_constraint, url=self._remote_url):
-                    msg = HostContraintError(host_url=self._remote_url_constraint, url=self._remote_url)
+                if not url_matches_host(target_host_url=self._remote_url_constraint, url=self._remote_url):
+                    msg = HostContraintError(target_host_url=self._remote_url_constraint, url=self._remote_url)
                     if raise_error:
                         raise msg
                     elif auto_clear:

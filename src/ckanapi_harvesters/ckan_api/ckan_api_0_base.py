@@ -1100,7 +1100,7 @@ class CkanApiBase(CkanApiABC):
         :param url:
         :return:
         """
-        return url_matches_host(self.url, url)
+        return url_matches_host(target_host_url=self.url, url=url)
 
     def test_ckan_url_reachable(self, raise_error:bool=False) -> bool:
         """
