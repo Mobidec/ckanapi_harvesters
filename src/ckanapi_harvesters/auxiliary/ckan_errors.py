@@ -23,6 +23,10 @@ class MultipleErrors(Exception):
 class ApiKeyFileError(Exception):
     pass
 
+class LocalApiKeyError(Exception):
+    def __init__(self):
+        super().__init__("LocalCkanApi action call does not support use of apikey parameter, use context['user'] instead")
+
 class HostContraintError(Exception):
     def __init__(self, target_host_url:str, url:str):
         super().__init__(f"URL {url} does not match constraint from file: {target_host_url}")

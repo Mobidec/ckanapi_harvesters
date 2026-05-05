@@ -67,6 +67,15 @@ class CkanActionResponse:
         else:
             return CkanActionError(ckan, self)
 
+
+class LocalCkanActionResponse(CkanActionResponse):
+    def __init__(self, result: dict, dry_run: bool=False):
+        super().__init__(None, True)
+        self.result = result
+        self.dry_run = dry_run
+        self.success = True
+
+
 ## action error codes
 class CkanActionError(Exception):
     def __init__(self, ckan, response: CkanActionResponse, display_request:bool=True):

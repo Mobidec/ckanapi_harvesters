@@ -12,6 +12,7 @@ from . import ckan_api_3_policy
 from . import ckan_api_4_readwrite
 from . import ckan_api_5_manage
 from . import ckan_api
+from . import ckan_api_local
 # from . import deprecated
 
 # usage shortcuts
