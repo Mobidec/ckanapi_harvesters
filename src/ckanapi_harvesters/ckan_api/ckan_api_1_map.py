@@ -92,7 +92,7 @@ class CkanApiMap(CkanApiBase):
     def connect(self):
         super().connect()
         self.status_show(cancel_if_present=True)
-        self.test_ckan_login(raise_error=True)  # to confirm
+        self.test_ckan_login(raise_error=False)  # to confirm
 
     def purge(self, purge_map:bool=False) -> None:
         """
