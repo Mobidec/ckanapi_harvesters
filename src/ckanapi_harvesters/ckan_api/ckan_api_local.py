@@ -33,7 +33,7 @@ class LocalCkanApiParams(CkanApiParams):
         self.context: Union[dict,None] = context
 
     def _setup_cli_ckan_parser__params(self, parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
-        # overload adding support to trigger admin mode
+        # overload adding support to initialize username and context
         parser = super()._setup_cli_ckan_parser__params(parser=parser)
         parser.add_argument("--username", type=str,
                             help="CKAN user name (local CKAN only)")
@@ -44,7 +44,7 @@ class LocalCkanApiParams(CkanApiParams):
     def _cli_ckan_args_apply(self, args: argparse.Namespace, *, base_dir:str=None,
                              error_not_found:bool=True, default_proxies:dict=None, proxy_headers:dict=None,
                              proxies:dict=None, headers:dict=None) -> None:
-        # overload adding support to trigger admin mode
+        # overload adding support to initialize username and context
         super()._cli_ckan_args_apply(args=args, base_dir=base_dir, error_not_found=error_not_found,
                                      default_proxies=default_proxies, proxy_headers=proxy_headers)
         if args.username:
@@ -61,7 +61,8 @@ class LocalCkanApi(CkanApi):
                  data_cleaner_upload:CkanDataCleanerABC=None,
                  identifier=None, username:str=None, context:dict=None):
         """
-        CKAN Database API interface to CKAN server with helper functions using pandas DataFrames.
+        CKAN Database API interface to a local CKAN installation with helper functions using pandas DataFrames.
+        Requires package `ckan` to be installed.
 
         :param url: url of the CKAN server
         :param proxies: proxies to use for requests

@@ -17,5 +17,6 @@ from . import ckan_api_local
 
 # usage shortcuts
 from ckanapi_harvesters.ckan_api.ckan_api import CkanApi, CkanApiParams, CkanApiABC, CKAN_API_VERSION, CkanApiMap
+from ckanapi_harvesters.ckan_api.ckan_api_local import LocalCkanApi, LocalCkanApiParams
 
 

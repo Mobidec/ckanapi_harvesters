@@ -46,7 +46,7 @@ from .auxiliary import (CkanMap, RequestType, CkanField, CkanState, CkanProgress
                         CkanProgressBarType, CkanProgressCallbackEmpty)
 from .policies import PackagePolicyReport, CkanPackageDataFormatPolicy
 from .reports import CkanAdminReport
-from .ckan_api import CkanApi, CkanApiParams, CKAN_API_VERSION
+from .ckan_api import CkanApi, CkanApiParams, CKAN_API_VERSION, LocalCkanApi, LocalCkanApiParams
 from .builder import BUILDER_FILE_FORMAT_VERSION
 from .builder import BuilderPackage, BuilderResourceABC, BuilderDataStoreABC, BuilderDataStoreMultiABC, BuilderDataStoreFolder, RequestFileMapperIndexKeys
 
