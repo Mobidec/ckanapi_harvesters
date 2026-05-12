@@ -65,7 +65,7 @@ more = [
 ]
 local = [  # optional dependencies to work on a local CKAN installation
     "ckan >= 2.11.5",
-    "werkzeug >= 3.1.8",  # included in ckan requirements
+    # "werkzeug >= 3.1.8",  # included in ckan requirements
 ]
 dev = [
     "pytest >= 9.0.2",  # strict version 8.0.1 in the package template

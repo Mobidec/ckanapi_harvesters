@@ -47,7 +47,7 @@ The package is divided in the following sections:
     The Excel workbook is available in the package and at this link:
     [builder_package_example.xlsx](../../src/ckanapi_harvesters/builder/builder_package_example.xlsx)
     See also the notebook example in the current documentation here: 
-    [builder_example_notebook.ipynb](../notebooks/builder_example_notebook.ipynb).
+    [builder_example_notebook.ipynb](../notebooks/builder_excel_notebook.ipynb).
 
 For documentation on the underlying API calls, refer to CKAN documentation:
 - Basic API: https://docs.ckan.org/en/latest/api/

@@ -13,7 +13,8 @@ Welcome to ckanapi_harvesters's documentation!
     pages/ckan_recommendations_metadata.md
     pages/data_format_policy_recommendations.md
 
-    notebooks/builder_example_notebook
+    notebooks/builder_excel_notebook
+    notebooks/builder_api_sample_notebook
 
     src/modules/
 

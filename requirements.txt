@@ -31,7 +31,7 @@ paramiko[sshtunnel] >= 4.0.0
 tqdm[more] >= 4.67.3  # Console/Jupyter progress bars
 # local
 ckan[local] >= 2.11.5
-werkzeug[local] >= 3.1.8  # included in ckan requirements
+# werkzeug[local] >= 3.1.8  # included in ckan requirements
 # dev
 pytest[dev] >= 9.0.2  # strict version 8.0.1 in the package template
 pytest-cov[dev] >= 7.1.0

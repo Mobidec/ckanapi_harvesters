@@ -7,7 +7,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 When publishing a new release, copy the relevant section on the [Github release page](https://github.com/Mobidec/ckanapi_harvesters/releases).
 
 
-## [Unreleased] - 2026-04-28
+## [Unreleased] - 2026-05-12
+
+
+## [0.0.32] - 2026-05-12
+
+### Fixed
+
+- `ckan.connect` needed an API key to work
+
+### Added
+
+- Request the list of active CKAN extensions when connecting to CKAN (API `status_show`).
+- Call `ckan.connect` before first request, if not done before.
 
 
 ## [0.0.31] - 2026-04-28
