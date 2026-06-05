@@ -1,8 +1,19 @@
-# ckanapi_harvesters
+# ckanapi-harvesters
 
 <img src="https://raw.githubusercontent.com/Mobidec/ckanapi_harvesters/refs/heads/main/doc/assets/France2030-Logo-1024x576.png" alt="logo">
 
 ---
+
+
+## Useful links
+
+Links to resources and documentation:
+- [Documentation](https://mobidec.github.io/ckanapi_harvesters/index.html)
+- [GitHub Repository](https://github.com/Mobidec/ckanapi_harvesters.git)
+- [Issues](https://github.com/Mobidec/ckanapi_harvesters/issues)
+- [Changelog](https://github.com/Mobidec/ckanapi_harvesters/blob/main/CHANGELOG.md)
+- [PyPI](https://pypi.org/project/ckanapi-harvesters/)
+
 
 ## Description
 
@@ -55,15 +66,6 @@ The package is divided in the following sections:
 For documentation on the underlying API calls, refer to CKAN documentation:
 - Basic API: https://docs.ckan.org/en/latest/api/
 - DataStore extension API: https://docs.ckan.org/en/latest/maintaining/datastore.html
-
-## Useful links
-
-Links to resources and documentation:
-- [Documentation](https://mobidec.github.io/ckanapi_harvesters/index.html)
-- [GitHub Repository](https://github.com/Mobidec/ckanapi_harvesters.git)
-- [Issues](https://github.com/Mobidec/ckanapi_harvesters/issues)
-- [Changelog](https://github.com/Mobidec/ckanapi_harvesters/blob/main/CHANGELOG.md)
-- [PyPI](https://pypi.org/project/ckanapi-harvesters/)
 
 
 ## Python Package Template Architecture
