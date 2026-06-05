@@ -163,14 +163,17 @@ class CkanApiMap(CkanApiBase):
         resource_name = resource_info.name
         if datastore_info:
             try:
-                db_info = self.datastore_info(resource_id, display_request_not_found=False)
-                resource_info.datastore_info = db_info
+                ds_info = self.datastore_info(resource_id, display_request_not_found=False)
+                resource_info.datastore_info = ds_info
                 resource_info.datastore_info_error = None
+                resource_info.datastore_info_queried = True
             except Exception as e:
                 resource_info.datastore_info = None
                 resource_info.datastore_info_error = {"error": str(e)}
-        else:
-            resource_info.datastore_info = None
+                resource_info.datastore_info_queried = True
+        # else:
+        #     resource_info.datastore_info = None
+        #     resource_info.datastore_info_queried = False
         if resource_view_list:
             resource_info.update_view(self.resource_view_list(resource_id), view_list=True)
         else:
@@ -401,6 +404,7 @@ class CkanApiMap(CkanApiBase):
         if resource_info is not None:
             if datastore_info and resource_info.datastore_info is None and resource_info.datastore_info_error is None:
                 resource_info.datastore_info = self.get_datastore_info_or_request_of_id(resource_info.id, error_not_mapped=False, error_not_found=False)
+                resource_info.datastore_info_queried = True
         elif error_not_found:
             raise CkanNotFoundError("resource", resource_id)
         return resource_info

@@ -233,6 +233,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                 if resource_attributes_from_file.datastore_info is not None and resource_attributes_from_file.datastore_info.fields_dict is not None:
                     if self.resource_attributes_data_source.datastore_info is None:
                         self.resource_attributes_data_source.datastore_info = resource_attributes_from_file.datastore_info
+                        # self.resource_attributes_data_source.datastore_info_queried = True
                     elif self.resource_attributes_data_source.datastore_info.fields_dict is None:
                         self.resource_attributes_data_source.datastore_info.fields_dict = resource_attributes_from_file.datastore_info.fields_dict
                     for field_name, field_info in resource_attributes_from_file.datastore_info.fields_dict.items():
@@ -383,6 +384,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         aliases = self._get_alias_list(None)
         if aliases is not None:
             resource_info.datastore_info.aliases = aliases.copy()
+        # resource_info.datastore_info_queried = True
         return resource_info
 
     @abstractmethod

@@ -494,8 +494,12 @@ class CkanMap(CkanMapABC):
             return
         resource_info = self.resources[resource_id]
         resource_info.datastore_info = None
+        resource_info.datastore_info_error = None
+        resource_info.datastore_info_queried = False
         if resource_id in self.packages[resource_info.package_id].package_resources.keys():
             self.packages[resource_info.package_id].package_resources[resource_id].datastore_info = None
+            self.packages[resource_info.package_id].package_resources[resource_id].datastore_info_error = None
+            self.packages[resource_info.package_id].package_resources[resource_id].datastore_info_queried = False
 
     ## Organization record changes  ------------------
     def _update_organization_info(self, organization_info:Union[CkanOrganizationInfo, List[CkanOrganizationInfo]]) -> None:

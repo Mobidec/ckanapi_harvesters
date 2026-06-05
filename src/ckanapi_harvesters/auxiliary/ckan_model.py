@@ -608,6 +608,7 @@ class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         self.format:Union[str,None] = format
         self.description:Union[str,None] = description
         self.datastore_info:Union[CkanDataStoreInfo,None] = None
+        self.datastore_info_queried: bool = False
         self.datastore_info_error:Union[dict,None] = None
         self.views:Union[OrderedDict[str,CkanViewInfo],None] = None  # dict id -> view info (list of known views - full list not guaranteed)
         self.view_is_full_list:bool = False
@@ -627,6 +628,7 @@ class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
             self.description = d["description"] if str_is_not_empty(d["description"]) else None
             if "datastore_info" in d.keys():
                 self.datastore_info = CkanDataStoreInfo.from_dict(d["datastore_info"])
+                self.datastore_info_queried = True
             if "datastore_info_error" in d.keys():
                 self.datastore_info_error = d["datastore_info_error"]
             if "views" in d.keys():
@@ -643,11 +645,13 @@ class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
 
     def __str__(self):
         if self.datastore_info is not None:
-            datastore_str = f"DataStore info"
+            datastore_str = "DataStore info"
         elif self.datastore_active:
-            datastore_str = f"DataStore active"
+            datastore_str = "DataStore active"
+        elif not self.datastore_info_queried:
+            datastore_str = "DataStore ???"
         else:
-            datastore_str = f"no DataStore"
+            datastore_str = "no DataStore"
         return f"Resource '{self.name}' ({self.id}) [{self.state}, {datastore_str}]"
 
     @staticmethod
@@ -658,7 +662,7 @@ class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         return copy.deepcopy(self)
 
     def datastore_queried(self, *, error_not_queried:bool=False) -> bool:
-        ds_was_queried = self.datastore_info is not None or self.datastore_info_error is not None
+        ds_was_queried = self.datastore_info is not None or self.datastore_info_error is not None or self.datastore_info_queried
         if error_not_queried and not ds_was_queried:
             raise MissingDataStoreInfoError(self.id)
         return ds_was_queried
