@@ -277,7 +277,7 @@ class CkanField(CkanConfigurableObjectABC):
                             for synonyms in field_type_synonyms.values():
                                 if d["type"] in synonyms and field_info["type_override"] in synonyms:
                                     type_inconsistent = False
-                            if field_info["type_override"].startswith("geometry(") and d["type"] == "geometry":
+                            if field_info["type_override"].lower().strip().startswith("geometry(") and d["type"].lower().strip() == "geometry":
                                 type_inconsistent = False
                             if type_inconsistent:
                                 msg = f"Inconsistency between data type and type override for field {obj.name} (data: {d['type']} vs. override: {field_info['type_override']})"

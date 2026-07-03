@@ -1,7 +1,7 @@
 #!python3
 # -*- coding: utf-8 -*-
 """
-Shapefile format support
+geoparquet format support
 """
 from typing import Union, Dict
 from types import SimpleNamespace
@@ -21,9 +21,9 @@ from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileForma
 from ckanapi_harvesters.harvesters.file_formats.auxiliary_defs import GeoFileStoreEpsgConversion
 
 
-class ShapeFileFormat(FileFormatABC):
-    default_read_kwargs = dict(encoding='utf-8')  # read
-    default_write_kwargs = dict(encoding='utf-8')  # write
+class GeoParquetFileFormat(FileFormatABC):
+    default_read_kwargs = dict()  # read
+    default_write_kwargs = dict()  # write
 
     def __init__(self, options_string:str=None, *, read_kwargs:dict=None, write_kwargs:dict=None) -> None:
         global gpd, pyproj
@@ -42,10 +42,10 @@ class ShapeFileFormat(FileFormatABC):
     def read_by_chunks_allowed(self) -> bool:
         return False
 
-    def read_file(self, file_path: Union[str,io.StringIO], fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: Union[str,io.BytesIO], fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
         # target EPSG = EPSG used in CKAN, source EPSG read from SHP file
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
-        gdf = gpd.read_file(file_path, **read_kwargs)
+        gdf = gpd.read_parquet(file_path, **read_kwargs)
         geo_columns = list(gdf.select_dtypes('geometry'))
         for field_name in geo_columns:
             gdf.set_geometry(field_name, inplace=True)  # select the current column for geometry computations
@@ -81,7 +81,7 @@ class ShapeFileFormat(FileFormatABC):
         df = gdf.to_wkb(hex=True)  # converts all geometric fields to WKB and returns a standard DataFrame object
         return df
 
-    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    def read_buffer_full(self, buffer: io.BytesIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
         return self.read_file(buffer, fields=fields)
 
     # write: saving a file after download -------------
@@ -112,15 +112,15 @@ class ShapeFileFormat(FileFormatABC):
         # this writes the shp file and auxiliary shx, dbf, cpg, prj files
         write_kwargs = self._get_write_kwargs()
         gdf = self.downloaded_df_to_gdf(df, fields=fields, context=file_path)
-        gdf.to_file(file_path, driver="ESRI Shapefile", **write_kwargs)
+        gdf.to_parquet(file_path, **write_kwargs)
 
     def write_in_memory(self, df: pd.DataFrame, fields: Union[Dict[str, CkanField],None]) -> bytes:
         # TODO: how could this work because there are multiple files?
         write_kwargs = self._get_write_kwargs()
         gdf = self.downloaded_df_to_gdf(df, fields=fields)
-        with io.StringIO() as buffer:
-            gdf.to_file(buffer, driver="ESRI Shapefile", **write_kwargs)
-            return buffer.getvalue().encode("utf8")
+        with io.BytesIO() as buffer:
+            gdf.to_parquet(buffer, **write_kwargs)
+            return buffer.getvalue()
 
     def append_allowed(self) -> bool:
         # NB: not all drivers support appending.
@@ -133,19 +133,19 @@ class ShapeFileFormat(FileFormatABC):
                     fields: Union[Dict[str, CkanField], None]) -> None:
         write_kwargs = self._get_write_kwargs()
         gdf = self.downloaded_df_to_gdf(df, fields=fields, context=file_path)
-        gdf.to_file(file_path, mode='a', driver="ESRI Shapefile", **write_kwargs)
+        gdf.to_parquet(file_path, mode='a', **write_kwargs)
 
     def append_in_memory(self, stream: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
         write_kwargs = self._get_write_kwargs()
         gdf = self.downloaded_df_to_gdf(df, fields=fields)
-        with io.StringIO(stream.decode("utf8")) as string_buffer:
-            gdf.to_file(string_buffer, mode='a', driver="ESRI Shapefile", **write_kwargs)
-            return string_buffer.getvalue().encode("utf8")
+        with io.BytesIO() as string_buffer:
+            gdf.to_parquet(string_buffer, mode='a', **write_kwargs)
+            return string_buffer.getvalue()
 
     # misc ------------------
     def copy(self, dest=None):
         if dest is None:
-            dest = ShapeFileFormat(self.options_string, read_kwargs=self.read_kwargs, write_kwargs=self.write_kwargs)
+            dest = GeoParquetFileFormat(self.options_string, read_kwargs=self.read_kwargs, write_kwargs=self.write_kwargs)
         super().copy(dest=dest)
         dest.download_conversion = self.download_conversion
         dest.require_field_crs = self.require_field_crs

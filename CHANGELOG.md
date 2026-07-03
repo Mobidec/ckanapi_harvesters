@@ -9,6 +9,14 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ## [Unreleased] - 2026-05-12
 
+### Added
+
+- Support for parquet and geoparquet file formats
+
+### Fixed
+
+- Case-insensitive geometric type specifications
+
 
 ## [0.0.32] - 2026-05-12
 

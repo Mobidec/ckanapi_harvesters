@@ -5,14 +5,18 @@ File format keyword selection
 """
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 from ckanapi_harvesters.harvesters.file_formats.csv_format import CsvFileFormat
+from ckanapi_harvesters.harvesters.file_formats.parquet_format import ParquetFileFormat
 from ckanapi_harvesters.harvesters.file_formats.shp_format import ShapeFileFormat
+from ckanapi_harvesters.harvesters.file_formats.geoparquet_format import GeoParquetFileFormat
 from ckanapi_harvesters.harvesters.file_formats.xls_format import ExcelFileFormat
 from ckanapi_harvesters.harvesters.file_formats.json_format import JsonFileFormat
 from ckanapi_harvesters.harvesters.file_formats.user_format import UserFileFormat
 
 file_format_dict = {
     "csv": CsvFileFormat,
+    "parquet": ParquetFileFormat,
     "shp": ShapeFileFormat,
+    "geoparquet": GeoParquetFileFormat,
     "xls": ExcelFileFormat,
     "json": JsonFileFormat,
 }

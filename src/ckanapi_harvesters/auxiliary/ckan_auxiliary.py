@@ -34,7 +34,7 @@ class CkanIdFieldTreatment(IntEnum):
 
 re_geometry = r"geometry\((\w+),\s*(\d+)\)"
 def parse_geometry_native_type(geometry_type:str) -> Tuple[str,int]:
-    match = re.search(re_geometry, geometry_type)
+    match = re.search(re_geometry, geometry_type, flags=re.IGNORECASE)
     geometry_type = match.group(1)
     geo_epsg = int(match.group(2))
     return geometry_type, geo_epsg

@@ -616,7 +616,7 @@ class CkanApiManage(CkanApiReadWrite):
         if resource_format is None:
             resource_format = "unknown"
         resource_format = resource_format.lower()
-        if resource_format in {"csv", "shp", "xls"} or (is_datastore and resource_format == "json"):
+        if resource_format in {"csv", "shp", "xls", "parquet", "geoparquet"} or (is_datastore and resource_format == "json"):
             title = "Table"
             view_type = "recline_view"  # Data Explorer
         elif resource_format in {"json", "txt", "py"}:

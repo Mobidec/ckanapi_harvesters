@@ -11,6 +11,7 @@ sqlalchemy[extras] >= 2.0.48  # optional requirement for harvesters (PostgreSQL)
 shapely[extras] >= 2.1.2    # GeoJSON support
 pyproj[extras] >= 3.7.2     # GeoJSON transformations
 geopandas[extras] >= 1.1.2  # Shapefile reading functions
+pyarrow[extras] >= 24.0.0  # Parquet reading functions
 # harvesters
 pymongo[harvesters] >= 4.8.0    # optional requirement for harvesters (MongoDB), includes a bson implementation
 psycopg2[harvesters] >= 2.9.11  # optional requirement for harvesters (PostgreSQL)
