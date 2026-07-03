@@ -62,7 +62,7 @@ class DataSchemeConversion:
             if isinstance(df_local, pd.DataFrame):
                 # df_local_index = df_local.index
                 df_local_index = np.arange(len(df_local))  # DataFrame index can be badly formatted, in the case of parquet files for instance
-                # index_offset += df_local.index[0]  # index of DataFrame in file, not 0 if the file is read by chunks
+                # index_offset -= df_local.index[0]  # index of DataFrame in file, not 0 if the file is read by chunks
                 assert_or_raise(not(self.upload_index_column in df_local.keys()), KeyError(f"{self.upload_index_column} already exists"))
                 df_local[self.upload_index_column] = df_local_index + index_offset
             else:

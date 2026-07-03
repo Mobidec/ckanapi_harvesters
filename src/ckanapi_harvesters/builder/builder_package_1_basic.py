@@ -1112,10 +1112,12 @@ class BuilderPackageBasic:
         self.update_package_name_in_resources()
         self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         if progress_callback is not None:
+            progress_callback.add_context(f"package_name={self.package_name}", level=CkanCallbackLevel.Packages)
             progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources, units=CkanProgressUnits.Items)
         for resource_index, resource_builder in enumerate(self.resource_builders.values()):
             if progress_callback is not None:
                 resource_builder.progress_callback = progress_callback
+                progress_callback.add_context(f"name={resource_builder.name}", level=CkanCallbackLevel.Resources)
                 progress_callback.update_task(resource_index + 1, len(self.resource_builders), level=CkanCallbackLevel.Resources)
             if create_default_view is not None:
                 resource_builder.create_default_view = create_default_view
@@ -1145,6 +1147,8 @@ class BuilderPackageBasic:
             #     assert(isinstance(resource_builder, BuilderMultiFile))
         self._patch_request_final_any(ckan)
         if progress_callback is not None:
+            progress_callback.remove_context(level=CkanCallbackLevel.Packages)
+            progress_callback.remove_context(level=CkanCallbackLevel.Resources)
             progress_callback.end_task(len(self.resource_builders), level=CkanCallbackLevel.Resources)
         if ckan.params.verbose_extra:
             print(f"Done update of package metadata & resources for package {ckan.get_package_page_url(self.package_name)}")

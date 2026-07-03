@@ -910,10 +910,15 @@ class CkanApiManage(CkanApiReadWrite):
                 else:
                     return resource_info
         # here: the resource does not exist => create a new one
+        if progress_callback is not None:
+            progress_callback.add_context(f"resource_create resource_name={name}", level=CkanCallbackLevel.Requests)
         resource_info = self._api_resource_create(package_id, name, format=format, description=description, state=state,
                                                   url=url,
                                                   files=files, file_path=file_path, df=df,
                                                   payload=payload, payload_name=payload_name, params=params)
+        if progress_callback is not None:
+            progress_callback.end_task(1, level=CkanCallbackLevel.Requests)
+            progress_callback.remove_context(level=CkanCallbackLevel.Requests)
         resource_info.newly_created = True
         resource_info.newly_updated = False
         if create_default_view:
@@ -926,7 +931,8 @@ class CkanApiManage(CkanApiReadWrite):
                 # remove data which was uploaded by datapusher
                 self.datastore_clear(resource_info.id, error_not_found=False, bypass_admin=True)
             info = self.datastore_create(resource_info.id, records=records, fields=fields, primary_key=primary_key,
-                                         indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner)
+                                         indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner,
+                                         progress_callback=progress_callback, inhibit_datastore_patch_indexes=False)
         return resource_info
 
     def _api_datastore_create(self, resource_id:str, *, records:Union[dict, List[dict], pd.DataFrame]=None,
@@ -1082,11 +1088,13 @@ class CkanApiManage(CkanApiReadWrite):
             df_upload_partial, df_upload_upsert = records, None
         if df_upload_partial is not None and progress_callback is not None:
             progress_callback.start_task(len(df_upload_partial), level=CkanCallbackLevel.Requests, context="datastore_create", units=CkanProgressUnits.Records)
+            progress_callback.add_context(f"datastore_create resource_id={resource_id}", level=CkanCallbackLevel.Requests)
         info = self._api_datastore_create(resource_id, records=df_upload_partial, fields=fields,
                                           primary_key=primary_key, indexes=indexes, aliases=aliases,
                                           params=params, force=force)
         if df_upload_partial is not None and progress_callback is not None:
             progress_callback.end_task(len(df_upload_partial), level=CkanCallbackLevel.Requests, context="datastore_create")
+            progress_callback.remove_context(level=CkanCallbackLevel.Requests)
         if df_upload_upsert is not None:
             self.datastore_upsert(df_upload_upsert, resource_id, method=UpsertChoice.Insert,
                                   always_last_condition=None, data_cleaner=self.data_cleaner_upload,

@@ -688,26 +688,33 @@ class CkanApiReadWrite(CkanApiPolicy):
             assert(records_generator is None)
             # exclude_generator_mode = True  # records argument cannot accept generators
             records_generator = records
+        if progress_callback is not None:
+            resource_info = self.map.get_resource_info(resource_id, error_not_mapped=False)
+            resource_name = resource_info.name if resource_info is not None else "<unknown name>"
+            progress_callback.add_context(f"datastore_upsert resource_id={resource_id} ({resource_name})", level=CkanCallbackLevel.Requests)
         if isinstance(records_generator, pd.DataFrame) or isinstance(records_generator, list):
             # direct call to function
-            return self._datastore_upsert_df(records_generator, resource_id=resource_id, dry_run=dry_run,
-                                             limit_per_request=limit_per_request, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
-                                             force=force, method=method, params=params,
-                                             apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
-                                             return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback,
-                                             return_documents=return_documents, return_counters=return_counters)
+            res = self._datastore_upsert_df(records_generator, resource_id=resource_id, dry_run=dry_run,
+                                            limit_per_request=limit_per_request, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
+                                            force=force, method=method, params=params,
+                                            apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
+                                            return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback,
+                                            return_documents=return_documents, return_counters=return_counters)
         else:
             if exclude_generator_mode:
                 raise TypeError("Detected upsert as a generator mode but this is locked by option exclude_generator_mode=True")
             if return_documents:
                 msg = "return_documents is not recommended with generator implementation, especially for large datasets"
                 warn(msg)
-            return self._datastore_upsert_generator(records_generator, resource_id=resource_id, dry_run=dry_run,
-                                                    limit_per_request=limit_per_request, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
-                                                    force=force, request_threshold=request_threshold, method=method, params=params,
-                                                    apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
-                                                    return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback,
-                                                    return_documents=return_documents, return_counters=return_counters)
+            res = self._datastore_upsert_generator(records_generator, resource_id=resource_id, dry_run=dry_run,
+                                                   limit_per_request=limit_per_request, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
+                                                   force=force, request_threshold=request_threshold, method=method, params=params,
+                                                   apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
+                                                   return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback,
+                                                   return_documents=return_documents, return_counters=return_counters)
+        if progress_callback is not None:
+            progress_callback.remove_context(level=CkanCallbackLevel.Requests)
+        return res
 
 
     ## Resource updates ------------------

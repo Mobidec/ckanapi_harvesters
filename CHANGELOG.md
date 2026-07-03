@@ -12,6 +12,7 @@ When publishing a new release, copy the relevant section on the [Github release 
 ### Added
 
 - Support for parquet and geoparquet file formats
+- More context in progress messages
 
 ### Fixed
 

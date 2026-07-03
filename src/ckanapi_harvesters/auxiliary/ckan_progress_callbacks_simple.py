@@ -27,13 +27,19 @@ def default_progress_callback(position:int, total:int, info:Any=None, *, context
     msg = None
     if level == CkanCallbackLevel.Packages:
         msg = f"Package {position}/{total}"
+        if context is not None:
+            msg = msg + f" ({context})"
     elif level == CkanCallbackLevel.Resources:
         if end_message:
             msg = f"Done all {total} resources"
         else:
             msg = f"Resource {position}/{total}"
+        if context is not None:
+            msg = msg + f" ({context})"
     elif level == CkanCallbackLevel.MultiFileResource:
         msg = f"Multi-file resource / file {position}/{total}"
+        if context is not None:
+            msg = msg + f" ({context})"
     elif level == CkanCallbackLevel.ResourceChunks:
         if context is None:
             context = ""
