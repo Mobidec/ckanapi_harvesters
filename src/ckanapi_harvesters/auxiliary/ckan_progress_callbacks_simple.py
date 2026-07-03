@@ -101,6 +101,7 @@ class CkanProgressCallbackSimple(CkanProgressCallbackABC):
     def update_task(self, position:int, total:int, *, info:Any=None, context:str=None,
                     file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
                     canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
+                    print_msg:bool=True,
                     **kwargs) -> Union[str,None]:
         """
         Progress callback function. Use to implement a progress indication for the user.
@@ -150,16 +151,16 @@ class CkanProgressCallbackSimple(CkanProgressCallbackABC):
             else:
                 task_start_time = None
             # call user-defined function
-            print_msg = self.progress_callback_fun(position, total, info=info, context=context,
-                                              file_index=file_index, file_count=file_count,
-                                              lines_chunk=lines_chunk, total_lines_read=total_lines_read,
-                                              canceled_upload=canceled_request, end_message=end_message,
-                                              level=level, start_time=task_start_time,
-                                              last_position=last_position, last_file_index=last_file_index,
-                                              **self.progress_callback_kwargs, **kwargs)
+            text_msg = self.progress_callback_fun(position, total, info=info, context=context,
+                                                  file_index=file_index, file_count=file_count,
+                                                  lines_chunk=lines_chunk, total_lines_read=total_lines_read,
+                                                  canceled_upload=canceled_request, end_message=end_message,
+                                                  level=level, start_time=task_start_time,
+                                                  last_position=last_position, last_file_index=last_file_index,
+                                                  **self.progress_callback_kwargs, **kwargs)
             self.simple_semaphore.release()
-            if print_msg is not None:
-                print(print_msg)
-            return print_msg
+            if text_msg is not None and print_msg:
+                print(text_msg)
+            return text_msg
         else:
             self.simple_semaphore.release()

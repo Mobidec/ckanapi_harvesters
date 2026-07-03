@@ -108,16 +108,19 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
     def update_task(self, position:int, total:int, *, info:Any=None, context:str=None,
                     file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
                     canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
-                    **kwargs) -> Union[str,None]:
+                    print_msg:bool=True, **kwargs) -> Union[str,None]:
         self.tqdm_semaphore.acquire()
         # if level is not None:
         #     # last_position = self.last_progress_position[level]
         #     last_position = self.progress_bars[level].last_print_n
-        msg = super().update_task(position=position, total=total, file_index=file_index, file_count=file_count, level=level,
+        text_msg = super().update_task(position=position, total=total, file_index=file_index, file_count=file_count, level=level,
                                   context=context, lines_chunk=lines_chunk, total_lines_read=total_lines_read,
-                                  canceled_request=canceled_request, end_message=end_message, info=info, **kwargs)
+                                  canceled_request=canceled_request, end_message=end_message, info=info,
+                                  print_msg=False, **kwargs)
+        used_progress_bar = None
         if level is not None and position is not None:
             if self.progress_bars[level] is not None:
+                used_progress_bar = self.progress_bars[level]
                 if total < 0: total = 1  # avoid division by zero
                 delta = position - self.progress_bars[level].last_print_n
                 if position >= total:  # or end_message:
@@ -132,8 +135,11 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
                     self.progress_bars[level].update(delta)
                     self.last_progress_displayed[level] += delta
                     self.last_progress_update_time[level] = time.time()
+        if used_progress_bar is None and print_msg and print_msg is not None:
+            # do not display text if a progress bar is used
+            print(text_msg)
         self.tqdm_semaphore.release()
-        return msg
+        return text_msg
 
     def release_resources(self) -> None:
         for progress_bar in self.progress_bars.values():

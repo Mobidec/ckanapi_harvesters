@@ -168,6 +168,8 @@ class CkanMap(CkanMapABC):
                 raise NotMappedObjectNameError(f"Resource {resource_name} is not mapped or does not exist.")
             else:
                 resource_id = None
+        elif error_not_mapped:
+            raise NotMappedObjectNameError(f"Resource {resource_name} is not mapped or does not exist.")
         else:
             resource_id = None
         # sanity check

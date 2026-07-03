@@ -1088,7 +1088,9 @@ class CkanApiManage(CkanApiReadWrite):
             df_upload_partial, df_upload_upsert = records, None
         if df_upload_partial is not None and progress_callback is not None:
             progress_callback.start_task(len(df_upload_partial), level=CkanCallbackLevel.Requests, context="datastore_create", units=CkanProgressUnits.Records)
-            progress_callback.add_context(f"datastore_create resource_id={resource_id}", level=CkanCallbackLevel.Requests)
+            resource_info = self.map.get_resource_info(resource_id, error_not_mapped=False)
+            resource_name = resource_info.name if resource_info is not None else "<unknown name>"
+            progress_callback.add_context(f"datastore_create resource_id={resource_id} ({resource_name})", level=CkanCallbackLevel.Requests)
         info = self._api_datastore_create(resource_id, records=df_upload_partial, fields=fields,
                                           primary_key=primary_key, indexes=indexes, aliases=aliases,
                                           params=params, force=force)

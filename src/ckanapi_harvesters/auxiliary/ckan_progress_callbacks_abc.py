@@ -153,7 +153,7 @@ class CkanProgressCallbackABC(ABC):
     def update_task(self, position:int, total:int, *, info:Any=None, context:str=None,
                     file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
                     canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
-                    **kwargs) -> Union[str,None]:
+                    print_msg:bool=True, **kwargs) -> Union[str,None]:
         raise NotImplementedError()
 
 
@@ -175,6 +175,6 @@ class CkanProgressCallbackEmpty(CkanProgressCallbackABC):
     def update_task(self, position:int, total:int, *, info:Any=None, context:str=None,
                     file_index:int=0, file_count:int=None, lines_chunk:int=None, total_lines_read:int=None,
                     canceled_request: bool=False, end_message: bool=False, level:CkanCallbackLevel=None,
-                    **kwargs) -> Union[str,None]:
+                    print_msg:bool=True, **kwargs) -> Union[str,None]:
         return None
 
