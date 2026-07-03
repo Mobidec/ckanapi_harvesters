@@ -9,6 +9,7 @@ from typing import Dict, List, Callable, Any, Union, Set
 import copy
 import os
 
+import numpy as np
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
@@ -59,9 +60,11 @@ class DataSchemeConversion:
             # insert an extra column keeping track of the last read line (default primary key)
             index_offset = total_lines_read - len(df_local)
             if isinstance(df_local, pd.DataFrame):
-                index_offset -= df_local.index[0]  # index of DataFrame in file, not 0 if the file is read by chunks
+                # df_local_index = df_local.index
+                df_local_index = np.arange(len(df_local))  # DataFrame index can be badly formatted, in the case of parquet files for instance
+                # index_offset += df_local.index[0]  # index of DataFrame in file, not 0 if the file is read by chunks
                 assert_or_raise(not(self.upload_index_column in df_local.keys()), KeyError(f"{self.upload_index_column} already exists"))
-                df_local[self.upload_index_column] = df_local.index + index_offset
+                df_local[self.upload_index_column] = df_local_index + index_offset
             else:
                 for index, line in enumerate(df_local):
                     assert_or_raise(not(self.upload_index_column in line.keys()), KeyError(f"{self.upload_index_column} already exists"))

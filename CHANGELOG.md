@@ -16,6 +16,7 @@ When publishing a new release, copy the relevant section on the [Github release 
 ### Fixed
 
 - Case-insensitive geometric type specifications
+- `py_upload_index` was inherited from DataFrame index and could cause non-unique identifiers
 
 
 ## [0.0.32] - 2026-05-12
