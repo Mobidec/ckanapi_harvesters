@@ -75,6 +75,7 @@ instance/
 
 # Sphinx documentation
 sphinx/_build/
+sphinx/src/
 sphinx/modules/
 sphinx/jupyter_execute/
 

@@ -15,6 +15,8 @@ When publishing a new release, copy the relevant section on the [Github release 
 ### Added
 
 - Support for parquet and geoparquet file formats
+- Environment variables on the currently edited dataset. 
+Download directory can be specified as `%CKAN_RESOURCES_DIR%\download`
 - More context in progress messages
 - Virtual file read by chunks: added support for reading a DataFrame by chunks for file formats which do not support 
 being read by chunks. The downside is that the file must be entirely read before upload.
