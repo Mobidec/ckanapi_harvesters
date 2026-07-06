@@ -7,7 +7,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 When publishing a new release, copy the relevant section on the [Github release page](https://github.com/Mobidec/ckanapi_harvesters/releases).
 
 
-## [Unreleased] - 2026-05-12
+## [Unreleased] - 2026-07-06
+
+
+## [0.0.33] - 2026-07-06
 
 ### Added
 

@@ -113,6 +113,12 @@ class BuilderPackageBasic:
     default_to_json_reduced_size:bool = False
     default_sample_url_suffix:str = "-sample"
     default_sample_title_suffix:str = " - Sample"
+    # environment variables (to use in path definitions)
+    ENV_CKAN_PACKAGE_NAME = "CKAN_PACKAGE_NAME"
+    ENV_CKAN_BUILDER_FILE = "CKAN_BUILDER_FILE"
+    ENV_CKAN_BUILDER_DIR = "CKAN_BUILDER_DIR"
+    ENV_CKAN_RESOURCES_DIR = "CKAN_RESOURCES_DIR"
+    ENV_CKAN_DOWNLOAD_DIR = "CKAN_DOWNLOAD_DIR"
 
     def __init__(self, package_name:str=None, *, package_id:str=None,
                  title: str = None, description: str = None, private: bool = None, state: CkanState = None,
@@ -268,6 +274,7 @@ class BuilderPackageBasic:
     def package_name(self, value:str):
         self.package_attributes.name = value
         self.update_package_name_in_resources()
+        os.environ[BuilderPackageBasic.ENV_CKAN_PACKAGE_NAME] = value
 
     @property
     def resources_base_dir(self) -> str:
@@ -316,7 +323,7 @@ class BuilderPackageBasic:
         if resources_base_dir_src is None:
             resources_base_dir = base_dir
         else:
-            resources_base_dir_src = os.path.expanduser(resources_base_dir_src)
+            resources_base_dir_src = os.path.expanduser(os.path.expandvars(resources_base_dir_src))
             if os.path.isabs(resources_base_dir_src):
                 resources_base_dir = resources_base_dir_src
             else:
@@ -331,6 +338,7 @@ class BuilderPackageBasic:
                 resources_base_dir = f.readline().strip()
                 f.close()
         self._resources_base_dir = sanitize_path(resources_base_dir)
+        os.environ[BuilderPackageBasic.ENV_CKAN_RESOURCES_DIR] = self._resources_base_dir
 
     def _get_resources_base_dir_src(self, base_dir:str):
         return make_path_relative(self._resources_base_dir, base_dir)
@@ -353,7 +361,7 @@ class BuilderPackageBasic:
             out_dir = None  # by default, do not define an output dir
         else:
             out_dir_keyword = out_dir_src.lower().strip()
-            out_dir_src = os.path.expanduser(out_dir_src)
+            out_dir_src = os.path.expanduser(os.path.expandvars(out_dir_src))
             if out_dir_keyword == "none":
                 out_dir = None  # by default, do not define an output dir
             elif os.path.isabs(out_dir_src):
@@ -370,12 +378,14 @@ class BuilderPackageBasic:
                     msg = f"Default output directory {out_dir} does not exist! It will be created if you call the download function with no out_dir."
                     warn(msg)
                     self._default_out_dir = out_dir
+                    os.environ[BuilderPackageBasic.ENV_CKAN_DOWNLOAD_DIR] = self._default_out_dir_src
                     return
             # the field points to a text file containing the out_dir
             with open(out_dir, "r") as f:
                 out_dir = f.readline().strip()
                 f.close()
         self._default_out_dir = sanitize_path(out_dir)
+        os.environ[BuilderPackageBasic.ENV_CKAN_DOWNLOAD_DIR] = self._default_out_dir_src
 
     def _get_out_dir_src(self, base_dir:str):
         return make_path_relative(self._default_out_dir_src, base_dir)
@@ -398,8 +408,19 @@ class BuilderPackageBasic:
         package_df.columns = package_df.columns.map(str.lower)
         package_df.columns = package_df.columns.map(str.strip)
         renamed_columns = list(package_df.columns)
+        # package name
+        if "name" in package_df.columns:
+            # deprecated: package "Name" column was renamed "Name in URL"
+            self.package_name = _string_from_element(package_df.pop("name")).strip()
+            self._user_fields_used.add("name")
+            msg = "Package attribute 'Name' was renamed to 'Name in URL'. Previous name 'Name' is deprecated. Use 'Name in URL' instead."
+            warn(msg)
+        else:
+            self.package_name = _string_from_element(package_df.pop("name in url")).strip()
+            self._user_fields_used.add("name in url")
         # info
         base_dir = self.get_base_dir(base_dir=base_dir)
+        os.environ[BuilderPackageBasic.ENV_CKAN_BUILDER_DIR] = base_dir
         if "builder format version" in package_df.columns:
             self.builder_format_version = _string_from_element(package_df.pop("builder format version")).strip()
             assert_or_raise(self.builder_format_version == BUILDER_VER, UnsupportedBuilderVersionError(self.builder_format_version))
@@ -427,16 +448,6 @@ class BuilderPackageBasic:
             self.comment = _string_from_element(package_df.pop("comment"), empty_value="")
             self._user_fields_used.add("comment")
         # package attributes
-        self.package_attributes: CkanPackageInfo
-        if "name" in package_df.columns:
-            # deprecated: package "Name" column was renamed "Name in URL"
-            self.package_name = _string_from_element(package_df.pop("name")).strip()
-            self._user_fields_used.add("name")
-            msg = "Package attribute 'Name' was renamed to 'Name in URL'. Previous name 'Name' is deprecated. Use 'Name in URL' instead."
-            warn(msg)
-        else:
-            self.package_name = _string_from_element(package_df.pop("name in url")).strip()
-            self._user_fields_used.add("name in url")
         self.package_attributes.title = _string_from_element(package_df.pop("title"))
         if "known id" in package_df.columns:
             self.package_attributes.id = _string_from_element(package_df.pop("known id"))
@@ -868,6 +879,7 @@ class BuilderPackageBasic:
         warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')  # openpyxl produces warnings concerning data validation
         mdl = BuilderPackageBasic()
         mdl.builder_source_file = path_or_stream
+        os.environ[BuilderPackageBasic.ENV_CKAN_BUILDER_FILE] = path_or_stream
         with open(path_or_stream, "rb") as stream:  # enforce read-only mode
             with pd.ExcelFile(stream, engine=engine, **kwargs) as xls:
                 sheet_names = set(xls.sheet_names)
@@ -1251,6 +1263,7 @@ class BuilderPackageBasic:
         self.upload_file_checks(resource_names, resources_base_dir=resources_base_dir, ckan=ckan, verbose=True, raise_error=True)
         mono_resource_used_files = self._get_mono_resource_used_files(resources_base_dir, ckan)
         if progress_callback is not None:
+            progress_callback.add_context(f"package_name={self.package_name}", level=CkanCallbackLevel.Packages)
             progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources, units=CkanProgressUnits.Items)
         multi_resource_reupload = not only_missing
         for resource_index, resource_builder in enumerate(self.resource_builders.values()):
@@ -1324,7 +1337,7 @@ class BuilderPackageBasic:
         return {resource_name for resource_name, resource_builder in self.resource_builders.items() if not isinstance(resource_builder, BuilderMultiFile)}
 
     def download_request_full(self, ckan:CkanApi, out_dir:str=None, enforce_none_out_dir:bool=False, resource_name:str=None, full_download:bool=False,
-                              threads:int=None, skip_existing:bool=True, progress_callback:Callable=None,
+                              threads:int=None, skip_existing:bool=True, progress_callback:Union[CkanProgressCallbackABC,Callable]=None,
                               force:bool=False, rm_dir:bool=False) -> None:
         """
         Downloads the full package resources into out_dir.
@@ -1341,6 +1354,8 @@ class BuilderPackageBasic:
         :param force: option to bypass the enable_download attribute of resources
         :return:
         """
+        if not isinstance(progress_callback, CkanProgressCallbackABC):
+            progress_callback = CkanProgressCallback(progress_callback)
         if threads is None:
             threads = self.ckan_builder.default_thread_count
         out_dir = self.get_default_out_dir(out_dir, enforce_none=enforce_none_out_dir)
@@ -1355,24 +1370,37 @@ class BuilderPackageBasic:
         self.update_package_name_in_resources()
         self.init_resources_options_and_metadata(ckan, base_dir=self.get_base_dir())
         mono_resource_names = self._get_mono_resource_names()
-        for resource_builder in resource_builders.values():
+        if progress_callback is not None:
+            progress_callback.add_context(f"package_name={self.package_name}", level=CkanCallbackLevel.Packages)
+            progress_callback.start_task(len(self.resource_builders), level=CkanCallbackLevel.Resources, units=CkanProgressUnits.Items)
+        for resource_index, resource_builder in enumerate(resource_builders.values()):
             if skip_existing is not None:
                 resource_builder.download_skip_existing = skip_existing
             if not (isinstance(resource_builder, BuilderDataStoreMultiABC) or isinstance(resource_builder, BuilderMultiFile)):
+                if progress_callback is not None:
+                    resource_builder.progress_callback = progress_callback
+                    progress_callback.update_task(resource_index, len(self.resource_builders), context=f"resource {resource_builder.name}", level=CkanCallbackLevel.Resources)
+                    progress_callback.add_context(f"download {resource_builder.name}", level=CkanCallbackLevel.Requests)
                 resource_builder.download_request(ckan, out_dir=out_dir, full_download=full_download,
                                                   threads=threads, force=force)
-        for resource_builder in resource_builders.values():
+        for resource_index, resource_builder in enumerate(resource_builders.values()):
             if isinstance(resource_builder, BuilderDataStoreMultiABC):
                 if progress_callback is not None:
                     resource_builder.progress_callback = progress_callback
+                    progress_callback.update_task(resource_index, len(self.resource_builders), context=f"resource {resource_builder.name}", level=CkanCallbackLevel.Resources)
+                    progress_callback.add_context(f"download {resource_builder.name}", level=CkanCallbackLevel.Requests)
                 resource_builder.download_request(ckan, out_dir=out_dir, full_download=full_download,
                                                   threads=threads, force=force)
-        for resource_builder in resource_builders.values():
+        for resource_index, resource_builder in enumerate(resource_builders.values()):
             if isinstance(resource_builder, BuilderMultiFile):
                 if progress_callback is not None:
                     resource_builder.progress_callback = progress_callback
+                    progress_callback.update_task(resource_index, len(self.resource_builders), context=f"resource {resource_builder.name}", level=CkanCallbackLevel.Resources)
+                    progress_callback.add_context(f"download {resource_builder.name}", level=CkanCallbackLevel.Requests)
                 resource_builder.download_request(ckan, out_dir=out_dir, full_download=full_download,
                                                   threads=threads, force=force, excluded_resource_names=mono_resource_names)
+        if progress_callback is not None:
+            resource_builder.progress_callback = progress_callback
 
     def download_sample_df(self, ckan:CkanApi, resource_name:str=None, *, search_all:bool=False,
                            **kwargs) -> Dict[str, pd.DataFrame]:

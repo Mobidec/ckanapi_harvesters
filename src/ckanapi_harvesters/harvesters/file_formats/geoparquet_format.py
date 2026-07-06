@@ -100,12 +100,13 @@ class GeoParquetFileFormat(FileFormatABC):
         for field_name in df.columns:
             if field_name in fields.keys():
                 field = fields[field_name]
-                field_data_type = field.data_type
+                field_data_type = field.data_type.lower().strip()
                 if field_data_type == "geometry" or field_data_type.startswith("geometry("):
                     crs_target = pyproj.CRS.from_epsg(field.internal_attrs.epsg_target)
                     if crs_target is None and self.require_field_crs:
                         raise UnknownTargetCRSError(field.internal_attrs.epsg_source, context)
                     gdf[field_name] = gpd.geoseries.from_wkb(df[field_name], crs=crs_target)
+                    gdf.set_geometry(field_name, inplace=True)
                     if (self.download_conversion == GeoFileStoreEpsgConversion.ShapefileProjection
                             and field.internal_attrs.epsg_source is not None and crs_target is not None
                             and not field.internal_attrs.epsg_target == field.internal_attrs.epsg_source):
@@ -133,7 +134,7 @@ class GeoParquetFileFormat(FileFormatABC):
         # The drivers that support appending are listed in fiona.supported_drivers
         # or [Toblerity/Fiona](https://github.com/Toblerity/Fiona/blob/main/fiona/drvsupport.py).
         # ESRI Shapefile driver is supported according to documentation.
-        return True
+        return False
 
     def append_file(self, df: Union[pd.DataFrame, ListRecords], file_path: str,
                     fields: Union[Dict[str, CkanField], None]) -> None:

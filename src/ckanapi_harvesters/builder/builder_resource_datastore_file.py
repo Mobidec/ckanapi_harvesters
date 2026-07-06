@@ -11,7 +11,7 @@ from warnings import warn
 
 import pandas as pd
 
-from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressUnits
+from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressUnits, CkanCallbackLevel
 from ckanapi_harvesters.auxiliary.error_level_message import ContextErrorLevelMessage, ErrorLevel
 from ckanapi_harvesters.auxiliary.path import resolve_rel_path
 from ckanapi_harvesters.builder.builder_errors import ResourceFileNotExistMessage
@@ -125,7 +125,7 @@ class BuilderDataStoreFile(BuilderDataStoreFolder):
                     else:
                         self.local_file_format.append_file(df, self.downloaded_destination, fields=self._get_fields_info())
         else:
-            df_download = ckan.datastore_search(resource_id, search_all=full_download)
+            df_download = ckan.datastore_search(resource_id, search_all=full_download, progress_callback=self.progress_callback)
             self.read_line_counter += len(df_download)
             df = self.df_mapper.df_download_alter(df_download, fields=self._get_fields_info())
             if out_dir is not None:

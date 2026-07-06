@@ -58,7 +58,7 @@ class ParquetFileFormat(FileFormatABC):
             return stream.getvalue().encode("utf8")
 
     def append_allowed(self) -> bool:
-        return True
+        return False
 
     def append_file(self, df: Union[pd.DataFrame, ListRecords], file_path: str,
                     fields: Union[Dict[str, CkanField], None]) -> None:
