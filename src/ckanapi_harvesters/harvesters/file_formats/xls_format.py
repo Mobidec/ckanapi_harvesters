@@ -12,7 +12,7 @@ import pandas as pd
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.list_records import ListRecords
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
-from ckanapi_harvesters.harvesters.file_formats.virtual_df_chunks import df_as_virtual_chunks
+from ckanapi_harvesters.auxiliary.virtual_df_chunks import df_as_virtual_chunks
 
 
 class ExcelFileFormat(FileFormatABC):

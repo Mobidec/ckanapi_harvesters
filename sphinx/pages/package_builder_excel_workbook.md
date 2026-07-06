@@ -38,11 +38,20 @@ See the [resources sheet help](#sheet-resources) for more information.
 ___Warning___: Only execute code if you trust the source.
 - __Resources local directory__: By default, the resources mentioned in this file are in the same folder as the file. This field enables the user to point to a specific folder, relative to this Excel file or as an absolute path. If the path points to a text file, the first line of the text file defines the resources directory.
 - __Download directory__: Default path to download the resources to, relative to this Excel workbook folder.
+An environment variable can be used to make the path relative to another directory e.g. `%CKAN_RESOURCES_DIR%\download`.
 - __Comment__: A place to leave a comment on the file e.g. for specific instructions. This field is preserved during import/exports.
 
 ___Warning___: By default, the execution of the __Auxiliary functions file__ is disabled for security reasons.
 Executing code from untrusted sources could lead to the execution of malicious code. Only execute code if you trust the source !
 To enable the execution of auxiliary functions, call `BuilderPackage.unlock_external_code_execution()`.
+
+When instantiating the package builder, the following environment variables are created. 
+These variables can be used to define paths such as the example given above (download directory).
+- `CKAN_PACKAGE_NAME`: package name (in URL);
+- `CKAN_BUILDER_FILE`: file to the original Excel workbook;
+- `CKAN_BUILDER_DIR`: directory of the original Excel workbook, which serves as the default base directory;
+- `CKAN_RESOURCES_DIR`: directory where files referenced by the Excel workbook are stored for upload;
+- `CKAN_DOWNLOAD_DIR`: directory for download output
 
 
 ### Sheet "ckan"

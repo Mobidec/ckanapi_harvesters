@@ -332,11 +332,13 @@ class BuilderPackageBasic:
                 resources_base_dir = self._resources_base_dir_src
         if resources_base_dir is not None and not os.path.isdir(resources_base_dir):
             if not os.path.exists(resources_base_dir):
-                raise FileOrDirNotExistError(resources_base_dir)
-            # the field points to a text file containing the resources_base_dir
-            with open(resources_base_dir, "r") as f:
-                resources_base_dir = f.readline().strip()
-                f.close()
+                msg = str(FileOrDirNotExistError(resources_base_dir))
+                warn(msg)
+            else:
+                # the field points to a text file containing the resources_base_dir
+                with open(resources_base_dir, "r") as f:
+                    resources_base_dir = f.readline().strip()
+                    f.close()
         self._resources_base_dir = sanitize_path(resources_base_dir)
         os.environ[BuilderPackageBasic.ENV_CKAN_RESOURCES_DIR] = self._resources_base_dir
 

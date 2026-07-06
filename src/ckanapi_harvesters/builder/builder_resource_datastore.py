@@ -82,6 +82,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.reupload_if_needed: bool = True
         self.reupload_needed: Union[bool,None] = None
         self.df_mapper = DataSchemeConversion()
+        self.mapper_kwargs: dict = {}
         self.local_file_format: Union[FileFormatABC,None] = None
         self.column_enable_upload_index: bool = True
         self.column_enable_source_file: bool = False
@@ -109,6 +110,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         dest.column_enable_upload_index = self.column_enable_upload_index
         dest.column_enable_source_file = self.column_enable_source_file
         dest.df_mapper = self.df_mapper.copy()
+        dest.mapper_kwargs = self.mapper_kwargs.copy()
         dest.local_file_format = self.local_file_format.copy()
         return dest
 
@@ -425,7 +427,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         """
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=True)
         df_upload_transformed = self.df_mapper.df_upload_alter(df_upload, total_lines_read=total_lines_read,
-                                                               fields=self._get_fields_info(), file_query=file_name)
+                                                               fields=self._get_fields_info(), file_query=file_name,
+                                                               mapper_kwargs=self.mapper_kwargs)
         ret_df = ckan.datastore_upsert(df_upload_transformed, resource_id, method=method,
                                        apply_last_condition=apply_last_condition,
                                        always_last_condition=always_last_condition,

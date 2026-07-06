@@ -4,7 +4,6 @@
 geoparquet format support
 """
 from typing import Union, Dict, Iterable
-from types import SimpleNamespace
 import io
 from warnings import warn
 
@@ -18,7 +17,7 @@ from ckanapi_harvesters.auxiliary.ckan_errors import FileFormatRequirementError,
 from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckan_target_epsg
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 from ckanapi_harvesters.harvesters.file_formats.auxiliary_defs import GeoFileStoreEpsgConversion
-from ckanapi_harvesters.harvesters.file_formats.virtual_df_chunks import df_as_virtual_chunks
+from ckanapi_harvesters.auxiliary.virtual_df_chunks import df_as_virtual_chunks
 
 
 class GeoParquetFileFormat(FileFormatABC):

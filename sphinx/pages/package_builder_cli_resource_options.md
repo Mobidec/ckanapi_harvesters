@@ -96,6 +96,16 @@ This method can read geographic file formats manages by `geopandas`. The underly
 The default arguments for read/write are `encoding='utf-8'`.
 
 
+#### PARQUET: parquet file format
+
+Parquet files can store efficiently tabular data. The underlying function is `pandas.read_parquet`. 
+
+
+#### GEOPARQUET: parquet file format with geographic columns
+
+This is an extension to the parquet format with geographic column types. The underlying function is `geopandas.read_parquet`. 
+
+
 #### XLS: Excel/ODS file format
 
 This method reads the following file formats: xls, xlsx, xlsm, xlsb, odf, ods and odt. 

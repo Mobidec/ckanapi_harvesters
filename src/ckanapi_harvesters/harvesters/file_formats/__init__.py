@@ -5,7 +5,6 @@ Classes to read specific file formats to load DataStore DataFrame/records from a
 """
 
 from . import auxiliary_defs
-from . import virtual_df_chunks
 from . import file_format_abc
 from . import user_format
 from . import user_format_prototypes

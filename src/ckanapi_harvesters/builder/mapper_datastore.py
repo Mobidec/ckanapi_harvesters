@@ -50,10 +50,11 @@ class DataSchemeConversion:
         :return: the DataFrame ready for upload, converted in the format of the database
         """
         if mapper_kwargs is None: mapper_kwargs = {}
-        mapper_kwargs["file_query"] = file_query
-        mapper_kwargs["file_name"] = file_query  # retro-compatible argument (deprecated)
-        mapper_kwargs["fields"] = fields
-        mapper_kwargs["total_lines_read"] = total_lines_read
+        mapper_file_kwargs = {}
+        mapper_file_kwargs["file_query"] = file_query
+        mapper_file_kwargs["file_name"] = file_query  # retro-compatible argument (deprecated)
+        mapper_file_kwargs["fields"] = fields
+        mapper_file_kwargs["total_lines_read"] = total_lines_read
         if file_query is not None and (isinstance(df_local, pd.DataFrame) or isinstance(df_local, ListRecords)):
             df_local.attrs["source"] = file_query
         if self.upload_index_column:
@@ -76,7 +77,7 @@ class DataSchemeConversion:
         if self.df_upload_fun is not None:
             # df_database = df_local.copy()  # unnecessary copy
             df_upload_fun = self.df_upload_fun
-            df_database = df_upload_fun(df_database, **mapper_kwargs, **kwargs)
+            df_database = df_upload_fun(df_database, **mapper_file_kwargs, **mapper_kwargs, **kwargs)
         if not isinstance(df_database, pd.DataFrame):
             if isinstance(df_database, ListRecords):
                 pass  # also accept ListRecords (List[dict])
@@ -98,14 +99,15 @@ class DataSchemeConversion:
         :return: the dataframe ready to save, converted in the local format
         """
         if mapper_kwargs is None: mapper_kwargs = {}
-        mapper_kwargs["file_query"] = file_query
+        mapper_file_kwargs = {}
+        mapper_file_kwargs["file_query"] = file_query
         if file_query is not None:
             df_database.attrs["query"] = file_query
         df_local = df_database
         if self.df_download_fun is not None:
             # df_local = df_database.copy()  # unnecessary copy
             df_download_fun = self.df_download_fun
-            df_local = df_download_fun(df_local, fields=fields, **mapper_kwargs, **kwargs)
+            df_local = df_download_fun(df_local, fields=fields, **mapper_file_kwargs, **mapper_kwargs, **kwargs)
         if not isinstance(df_local, pd.DataFrame):
             if isinstance(df_local, ListRecords):
                 pass  # also accept ListRecords (List[dict])

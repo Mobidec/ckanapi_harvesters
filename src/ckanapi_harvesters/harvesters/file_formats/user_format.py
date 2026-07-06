@@ -25,6 +25,7 @@ class UserFileFormat(FileFormatABC):
         self.df_read_fun:Union[Callable[[Any], GeneralDataFrame_Iterable], None] = df_read_fun
         self.df_write_fun:Union[Callable[[pd.DataFrame, Any], pd.DataFrame], None] = df_write_fun
         self.option_append_allowed: bool = False
+        self.user_kwargs: dict = {}
 
     @staticmethod
     def _setup_cli_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
@@ -63,7 +64,9 @@ class UserFileFormat(FileFormatABC):
             raise MissingIOFunctionError("Read function")
         read_kwargs = self._get_read_kwargs(allow_chunks=allow_chunks)
         self._clear_user_metadata()
-        output = self.df_read_fun(file_path, fields=fields, allow_chunks=self.read_by_chunks_enabled(allow_chunks=allow_chunks), params=self, **read_kwargs)
+        output = self.df_read_fun(file_path, fields=fields,
+                                  allow_chunks=self.read_by_chunks_enabled(allow_chunks=allow_chunks),
+                                  params=self, **read_kwargs, **self.user_kwargs)
         # NB: metadata attributes as well (resource_attributes_from_file, primary_key_from_file) can be returned using the params argument
         return output
 
@@ -72,7 +75,7 @@ class UserFileFormat(FileFormatABC):
             raise MissingIOFunctionError("Read function")
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
         self._clear_user_metadata()
-        output = self.df_read_fun(buffer, fields=fields, allow_chunks=False, params=self, **read_kwargs)
+        output = self.df_read_fun(buffer, fields=fields, allow_chunks=False, params=self, **read_kwargs, **self.user_kwargs)
         # NB: metadata attributes as well (resource_attributes_from_file, primary_key_from_file) can be returned using the params argument
         return output
 
@@ -81,7 +84,7 @@ class UserFileFormat(FileFormatABC):
         if self.df_write_fun is None:
             raise MissingIOFunctionError("Write function")
         write_kwargs = self._get_write_kwargs()
-        self.df_write_fun(df, file_path, append=False, fields=fields, params=self, **write_kwargs)
+        self.df_write_fun(df, file_path, append=False, fields=fields, params=self, **write_kwargs, **self.user_kwargs)
 
     def append_allowed(self) -> bool:
         return self.option_append_allowed
@@ -91,14 +94,14 @@ class UserFileFormat(FileFormatABC):
         if self.df_write_fun is None:
             raise MissingIOFunctionError("Write function")
         write_kwargs = self._get_write_kwargs()
-        self.df_write_fun(df, file_path, append=True, fields=fields, params=self, **write_kwargs)
+        self.df_write_fun(df, file_path, append=True, fields=fields, params=self, **write_kwargs, **self.user_kwargs)
 
     def write_in_memory(self, df: pd.DataFrame, fields: Union[Dict[str, CkanField],None]) -> bytes:
         if self.df_write_fun is None:
             raise MissingIOFunctionError("Write function")
         with io.StringIO() as buffer:
             write_kwargs = self._get_write_kwargs()
-            self.df_write_fun(df, buffer, append=False, fields=fields, params=self, **write_kwargs)
+            self.df_write_fun(df, buffer, append=False, fields=fields, params=self, **write_kwargs, **self.user_kwargs)
             return buffer.getvalue().encode("utf8")
 
     def append_in_memory(self, stream: bytes, df: Union[pd.DataFrame, ListRecords], fields: Union[Dict[str, CkanField],None]) -> bytes:
@@ -106,7 +109,7 @@ class UserFileFormat(FileFormatABC):
             raise MissingIOFunctionError("Write function")
         with io.StringIO(stream.decode("utf8")) as string_stream:
             write_kwargs = self._get_write_kwargs()
-            self.df_write_fun(df, string_stream, append=True, fields=fields, params=self, **write_kwargs)
+            self.df_write_fun(df, string_stream, append=True, fields=fields, params=self, **write_kwargs, **self.user_kwargs)
             return string_stream.getvalue().encode("utf8")
 
     # misc ------------------
@@ -115,5 +118,6 @@ class UserFileFormat(FileFormatABC):
             dest = UserFileFormat(self.options_string, read_kwargs=self.read_kwargs, write_kwargs=self.write_kwargs,
                                   df_read_fun=self.df_read_fun, df_write_fun=self.df_write_fun)
         super().copy(dest=dest)
+        dest.user_kwargs = self.user_kwargs.copy()
         return dest
 
