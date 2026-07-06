@@ -61,12 +61,12 @@ class VirtualChunkedDataFrameGenerator(Iterator):
         start = self.start
         end = start + self.chunk_size
         self.start = end  # for next iteration
-        if start > len(self.df):
+        if start >= len(self.df):
             raise StopIteration
         else:
-            df = self.df.iloc[start:end]
-            # df.attrs["file_position"] = start
-            return df
+            df_chunk = self.df.iloc[start:end]
+            # df_chunk.attrs["file_position"] = start
+            return df_chunk
 
     # Context Manager behavior ----------
     # to use VirtualChunkedDataFrameGenerator in a "with" statement
