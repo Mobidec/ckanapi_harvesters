@@ -3,13 +3,14 @@
 """
 Parquet file format support
 """
-from typing import Union, Dict
+from typing import Union, Dict, Iterable
 import io
 
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.list_records import ListRecords
+from ckanapi_harvesters.harvesters.file_formats.virtual_df_chunks import df_as_virtual_chunks
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 
 
@@ -19,8 +20,11 @@ class ParquetFileFormat(FileFormatABC):
     default_write_kwargs = dict()  # write
 
     # read -------------------
+    def read_by_chunks_virtual(self) -> bool:
+        return True
+
     def read_by_chunks_allowed(self) -> bool:
-        return False
+        return True
 
     def _get_read_kwargs(self, allow_chunks:bool=True) -> dict:
         kwargs = super()._get_read_kwargs(allow_chunks=allow_chunks)
@@ -30,11 +34,15 @@ class ParquetFileFormat(FileFormatABC):
         #    kwargs["chunksize"] = None
         return kwargs
 
-    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=False) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         read_kwargs = self._get_read_kwargs(allow_chunks=allow_chunks)
-        return pd.read_parquet(file_path, **read_kwargs)
+        df = pd.read_parquet(file_path, **read_kwargs)
+        if self.read_by_chunks_enabled(allow_chunks=allow_chunks):
+            return df_as_virtual_chunks(df, self.chunk_size)
+        else:
+            return df
 
-    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
         return pd.read_parquet(buffer, **read_kwargs)
 

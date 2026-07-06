@@ -3,13 +3,12 @@
 """
 Shapefile format support
 """
-from typing import Union, Dict
+from typing import Union, Dict, Iterable
 from types import SimpleNamespace
 import io
 from warnings import warn
 
 import pandas as pd
-
 
 from ckanapi_harvesters.auxiliary.lazy_imports import gpd, lazy_import_geopandas_gpd
 from ckanapi_harvesters.auxiliary.lazy_imports import pyproj, lazy_import_pyproj
@@ -19,6 +18,7 @@ from ckanapi_harvesters.auxiliary.ckan_errors import FileFormatRequirementError,
 from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckan_target_epsg
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 from ckanapi_harvesters.harvesters.file_formats.auxiliary_defs import GeoFileStoreEpsgConversion
+from ckanapi_harvesters.harvesters.file_formats.virtual_df_chunks import df_as_virtual_chunks
 
 
 class ShapeFileFormat(FileFormatABC):
@@ -36,13 +36,16 @@ class ShapeFileFormat(FileFormatABC):
         super().__init__(options_string=options_string, read_kwargs=read_kwargs, write_kwargs=write_kwargs)
         self.require_field_crs:bool = True
         self.download_conversion = GeoFileStoreEpsgConversion.ShapefileProjection
-        self.allow_chunks = False  # override: reading by chunks is not available
+        # self.allow_chunks = False  # override: reading by chunks is not available
 
     # read: loading a file before upload ----------------
-    def read_by_chunks_allowed(self) -> bool:
-        return False
+    def read_by_chunks_virtual(self) -> bool:
+        return True
 
-    def read_file(self, file_path: Union[str,io.StringIO], fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
+    def read_by_chunks_allowed(self) -> bool:
+        return True
+
+    def read_file(self, file_path: Union[str,io.StringIO], fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         # target EPSG = EPSG used in CKAN, source EPSG read from SHP file
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
         gdf = gpd.read_file(file_path, **read_kwargs)
@@ -79,9 +82,12 @@ class ShapeFileFormat(FileFormatABC):
             else:
                 raise NotImplementedError(f"Field {field_data_type} is not implemented or not compatible with geometric representations.")
         df = gdf.to_wkb(hex=True)  # converts all geometric fields to WKB and returns a standard DataFrame object
-        return df
+        if self.read_by_chunks_enabled(allow_chunks=allow_chunks):
+            return df_as_virtual_chunks(df, self.chunk_size)
+        else:
+            return df
 
-    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         return self.read_file(buffer, fields=fields)
 
     # write: saving a file after download -------------

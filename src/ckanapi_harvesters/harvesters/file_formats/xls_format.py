@@ -3,7 +3,7 @@
 """
 The basic file format for DataStore: XLS
 """
-from typing import Union, Dict
+from typing import Union, Dict, Iterable
 import io
 import argparse
 
@@ -12,6 +12,7 @@ import pandas as pd
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.list_records import ListRecords
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
+from ckanapi_harvesters.harvesters.file_formats.virtual_df_chunks import df_as_virtual_chunks
 
 
 class ExcelFileFormat(FileFormatABC):
@@ -20,10 +21,9 @@ class ExcelFileFormat(FileFormatABC):
 
     Recommended: use with CLI argument `--read-kwargs sheet_name=your_sheet` (default is 0 i.e. the first sheet)
     """
-
     def __init__(self, options_string: str, *, read_kwargs: dict=None, write_kwargs: dict=None) -> None:
         super().__init__(options_string=options_string, read_kwargs=read_kwargs, write_kwargs=write_kwargs)
-        self.allow_chunks = False  # override: reading by chunks is not possible
+        # self.allow_chunks = False  # override: reading by chunks is not possible
 
     @staticmethod
     def _setup_cli_parser(parser: argparse.ArgumentParser = None) -> argparse.ArgumentParser:
@@ -39,11 +39,18 @@ class ExcelFileFormat(FileFormatABC):
             self.write_kwargs["sheet_name"] = args.sheet_name
 
     # read -------------------
-    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
-        read_kwargs = self._get_read_kwargs(allow_chunks=False)
-        return pd.read_excel(file_path, **read_kwargs)
+    def read_by_chunks_virtual(self) -> bool:
+        return True
 
-    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
+        read_kwargs = self._get_read_kwargs(allow_chunks=False)
+        df = pd.read_excel(file_path, **read_kwargs)
+        if self.read_by_chunks_enabled(allow_chunks=allow_chunks):
+            return df_as_virtual_chunks(df, self.chunk_size)
+        else:
+            return df
+
+    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
         return pd.read_excel(buffer, **read_kwargs)
 

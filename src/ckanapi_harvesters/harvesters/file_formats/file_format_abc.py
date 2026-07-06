@@ -6,7 +6,7 @@ File format base class
 import argparse
 import shlex
 from abc import ABC, abstractmethod
-from typing import Union, Dict, List
+from typing import Union, Dict, List, Iterable
 import io
 
 import pandas as pd
@@ -109,6 +109,9 @@ class FileFormatABC(ABC):
         self._apply_arguments(args, extra_args)
 
     # read -------------------
+    def read_by_chunks_virtual(self) -> bool:
+        return False
+
     @abstractmethod
     def read_by_chunks_allowed(self) -> bool:
         raise NotImplementedError()
@@ -117,14 +120,14 @@ class FileFormatABC(ABC):
         return self.read_by_chunks_allowed() and self.allow_chunks and allow_chunks
 
     @abstractmethod
-    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         """
         Read a file from the file system, either fully (returning DataFrame or ListRecords) or by chunks (Iterator over a number of records).
         """
         raise NotImplementedError()
 
     @abstractmethod
-    def read_buffer_full(self, buffer: io.IOBase, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    def read_buffer_full(self, buffer: io.IOBase, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         """
         Read a file from memory, as a DataFrame or ListRecords. This function reads entirely the file.
         """

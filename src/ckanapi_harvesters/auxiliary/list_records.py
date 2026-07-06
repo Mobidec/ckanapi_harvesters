@@ -4,7 +4,7 @@
 Give partial DataFrame behavior to a list of dictionaries
 """
 import pandas as pd
-from typing import Union, List, TypeAlias
+from typing import Union, List, TypeAlias, Iterable
 from copy import deepcopy
 
 
@@ -73,3 +73,4 @@ def records_to_df(records: Union[List[dict], ListRecords], df_args:dict=None, *,
 
 # new type union
 GeneralDataFrame: TypeAlias = Union[ListRecords, pd.DataFrame]
+GeneralDataFrame_Iterable: TypeAlias = Union[ListRecords, pd.DataFrame, Iterable[ListRecords], Iterable[pd.DataFrame]]

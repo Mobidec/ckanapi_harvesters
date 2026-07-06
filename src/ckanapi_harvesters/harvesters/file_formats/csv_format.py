@@ -3,7 +3,7 @@
 """
 The basic file format for DataStore: CSV
 """
-from typing import Union, Dict
+from typing import Union, Dict, Iterable
 import io
 
 import pandas as pd
@@ -31,11 +31,11 @@ class CsvFileFormat(FileFormatABC):
             kwargs["chunksize"] = None
         return kwargs
 
-    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         read_kwargs = self._get_read_kwargs(allow_chunks=allow_chunks)
         return pd.read_csv(file_path, **read_kwargs)
 
-    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
         return pd.read_csv(buffer, **read_kwargs)
 

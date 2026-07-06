@@ -141,7 +141,7 @@ class BuilderMultiABC(ABC):
             end_index = positive_end_index(end_index, total)
             self.read_line_counter = 0
             self.progress_callback.start_task(self.get_local_file_total_size(), file_count=total, units=self.get_local_file_size_units(),
-                                              context=f"{ckan.identifier} single-thread upload", level=CkanCallbackLevel.ResourceChunks)
+                                              context=f"{ckan.identifier} single-thread upload {self.name}", level=CkanCallbackLevel.ResourceChunks)
             for overall_chunk_index, file_chunk in enumerate(self.get_local_df_chunk_generator(resources_base_dir=resources_base_dir, ckan=ckan, allow_chunks=allow_chunks, **kwargs)):
                 if external_stop_event is not None and external_stop_event.is_set():
                     print(f"{ckan.identifier} Interrupted")
@@ -150,7 +150,7 @@ class BuilderMultiABC(ABC):
                                         start_index=start_index, end_index=end_index, file_count=total,
                                         inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes, **kwargs)
             self.progress_callback.end_task(self.get_local_file_total_size(), file_count=total, total_lines_read=self.read_line_counter,
-                                         context=f"{ckan.identifier} single-thread upload", level=CkanCallbackLevel.ResourceChunks)
+                                         context=f"{ckan.identifier} single-thread upload {self.name}", level=CkanCallbackLevel.ResourceChunks)
             # at last, apply final actions:
             self.upload_request_final(ckan)
 
@@ -191,7 +191,7 @@ class BuilderMultiABC(ABC):
         self.init_local_files_list(resources_base_dir=resources_base_dir, ckan=ckan, cancel_if_present=True, **kwargs)
         self._prepare_for_multithreading(ckan)
         self.progress_callback.start_task(self.get_local_file_total_size(), file_count=self.get_local_file_count(), units=self.get_local_file_size_units(),
-                                          context=f"{ckan.identifier} multi-thread upload", level=CkanCallbackLevel.ResourceChunks)
+                                          context=f"{ckan.identifier} multi-thread upload {self.name}", level=CkanCallbackLevel.ResourceChunks)
         try:
             with ThreadPoolExecutor(max_workers=threads, initializer=self._init_thread, initargs=(ckan,)) as executor:
                 if ckan.params.verbose_extra:
@@ -203,7 +203,7 @@ class BuilderMultiABC(ABC):
                 for future in futures:
                     future.result()  # This will propagate the exception
             self.progress_callback.end_task(self.get_local_file_total_size(), file_count=self.get_local_file_count(),
-                                         context=f"{ckan.identifier} multi-thread upload", level=CkanCallbackLevel.ResourceChunks)
+                                         context=f"{ckan.identifier} multi-thread upload {self.name}", level=CkanCallbackLevel.ResourceChunks)
         except Exception as e:
             self.stop_event.set()  # Ensure all threads stop
             if ckan.params.verbose_extra:
@@ -288,7 +288,7 @@ class BuilderMultiABC(ABC):
             total = self.get_file_query_count()
             end_index = positive_end_index(end_index, total)
             self.read_line_counter = 0
-            self.progress_callback.start_task(total, file_count=total, context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.ResourceChunks,
+            self.progress_callback.start_task(total, file_count=total, context=f"{ckan.identifier} single-thread download {self.name}", level=CkanCallbackLevel.ResourceChunks,
                                               units=CkanProgressUnits.Pages)
             for index, file_query_item in enumerate(self.get_file_query_generator()):
                 if external_stop_event is not None and external_stop_event.is_set():
@@ -296,7 +296,7 @@ class BuilderMultiABC(ABC):
                     return None
                 self._unit_download_apply(ckan=ckan, file_query_item=file_query_item, out_dir=out_dir,
                                           index=index, start_index=start_index, end_index=end_index, total=total, **kwargs)
-            self.progress_callback.end_task(total, file_count=total, context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.ResourceChunks)
+            self.progress_callback.end_task(total, file_count=total, context=f"{ckan.identifier} single-thread download {self.name}", level=CkanCallbackLevel.ResourceChunks)
 
     def download_file_query_item_graceful(self, ckan: CkanApi, out_dir: str, file_query_item: Any, index:int,
                                           external_stop_event=None, start_index:int=0, end_index:int=None, **kwargs) -> None:
@@ -332,7 +332,7 @@ class BuilderMultiABC(ABC):
         self._prepare_for_multithreading(ckan)
         self.read_line_counter = 0
         total = self.get_file_query_count()
-        self.progress_callback.start_task(total, file_count=total, context=f"multi-thread download", level=CkanCallbackLevel.ResourceChunks, units=CkanProgressUnits.Pages)
+        self.progress_callback.start_task(total, file_count=total, context=f"multi-thread download {self.name}", level=CkanCallbackLevel.ResourceChunks, units=CkanProgressUnits.Pages)
         try:
             with ThreadPoolExecutor(max_workers=threads, initializer=self._init_thread, initargs=(ckan,)) as executor:
                 if ckan.params.verbose_extra:
@@ -342,7 +342,7 @@ class BuilderMultiABC(ABC):
                            for index, file_chunk in enumerate(self.get_file_query_generator())]
                 for future in futures:
                     future.result()  # This will propagate the exception
-            self.progress_callback.end_task(total, file_count=total, context=f"multi-thread download", level=CkanCallbackLevel.ResourceChunks)
+            self.progress_callback.end_task(total, file_count=total, context=f"multi-thread download {self.name}", level=CkanCallbackLevel.ResourceChunks)
         except Exception as e:
             self.stop_event.set()  # Ensure all threads stop
             if ckan.params.verbose_extra:

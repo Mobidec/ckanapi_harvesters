@@ -3,7 +3,7 @@
 """
 The basic file format for DataStore: CSV
 """
-from typing import Union, Dict, Callable, Any
+from typing import Union, Dict, Callable, Any, Iterable
 import io
 import argparse
 from warnings import warn
@@ -11,18 +11,18 @@ from warnings import warn
 import pandas as pd
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField, CkanResourceInfo
-from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame
+from ckanapi_harvesters.auxiliary.list_records import ListRecords, GeneralDataFrame_Iterable
 from ckanapi_harvesters.auxiliary.ckan_errors import MissingCodeFileError, MissingIOFunctionError, UnknownCliArgumentError
 from ckanapi_harvesters.auxiliary.external_code_import import PythonUserCode
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
 
 
 class UserFileFormat(FileFormatABC):
-    def __init__(self, options_string: str, *, df_read_fun:Callable[[Any], GeneralDataFrame] = None,
-                 df_write_fun:Callable[[GeneralDataFrame, Any], Any] = None,
+    def __init__(self, options_string: str, *, df_read_fun:Callable[[Any], GeneralDataFrame_Iterable] = None,
+                 df_write_fun:Callable[[GeneralDataFrame_Iterable, Any], Any] = None,
                  read_kwargs:dict=None, write_kwargs:dict=None) -> None:
         super().__init__(options_string=options_string, read_kwargs=read_kwargs, write_kwargs=write_kwargs)
-        self.df_read_fun:Union[Callable[[Any], GeneralDataFrame], None] = df_read_fun
+        self.df_read_fun:Union[Callable[[Any], GeneralDataFrame_Iterable], None] = df_read_fun
         self.df_write_fun:Union[Callable[[pd.DataFrame, Any], pd.DataFrame], None] = df_write_fun
         self.option_append_allowed: bool = False
 
@@ -58,7 +58,7 @@ class UserFileFormat(FileFormatABC):
     def read_by_chunks_allowed(self) -> bool:
         return True
 
-    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         if self.df_read_fun is None:
             raise MissingIOFunctionError("Read function")
         read_kwargs = self._get_read_kwargs(allow_chunks=allow_chunks)
@@ -67,7 +67,7 @@ class UserFileFormat(FileFormatABC):
         # NB: metadata attributes as well (resource_attributes_from_file, primary_key_from_file) can be returned using the params argument
         return output
 
-    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         if self.df_read_fun is None:
             raise MissingIOFunctionError("Read function")
         read_kwargs = self._get_read_kwargs(allow_chunks=False)

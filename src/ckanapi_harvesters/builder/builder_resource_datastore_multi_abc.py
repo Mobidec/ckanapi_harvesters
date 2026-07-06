@@ -198,7 +198,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
                                              total_lines_read=file_chunk.read_line_counter, file_name=file_chunk.file_path,
                                              apply_last_condition=datastore_multi_apply_last_condition_intermediary)
         else:
-            # self._call_progress_callback(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip")
+            # self._call_progress_callback(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip {self.name}")
             pass
 
     def get_datastore_len(self, ckan:CkanApi) -> int:
@@ -248,7 +248,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         #         self._unit_upload_apply(ckan=ckan, file=file,
         #                                 index=index, start_index=start_index, end_index=end_index, total=total,
         #                                 method=method)
-        #     self._call_progress_callback(total, total, context=f"{ckan.identifier} single-thread upload")
+        #     self._call_progress_callback(total, total, context=f"{ckan.identifier} single-thread upload {self.name}")
         #     # at last, apply final actions:
         #     self.upload_request_final(ckan, force=not datastore_multi_apply_last_condition_intermediary)
 
@@ -299,7 +299,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     #             for future in futures:
     #                 future.result()  # This will propagate the exception
     #         total = self.get_local_file_len()
-    #         self._call_progress_callback(total, total, context=f"{ckan.identifier} multi-thread upload")
+    #         self._call_progress_callback(total, total, context=f"{ckan.identifier} multi-thread upload {self.name}")
     #     except Exception as e:
     #         self.stop_event.set()  # Ensure all threads stop
     #         if ckan.verbose_extra:
@@ -334,11 +334,11 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
             self.progress_callback.update_task(index, total, info=file_query_item, level=self.process_level,
                                                file_index=index, file_count=total,
                                                total_lines_read=self.read_line_counter,
-                                               context=f"{ckan.identifier} single-thread download")
+                                               context=f"{ckan.identifier} single-thread download {self.name}")
             self.download_file_query_item(ckan=ckan, out_dir=out_dir, file_query_item=file_query_item)
         else:
             pass
-            # self._call_progress_callback(index, total, info=file_query_item, context=f"{ckan.identifier} single-thread skip")
+            # self._call_progress_callback(index, total, info=file_query_item, context=f"{ckan.identifier} single-thread skip {self.name}")
 
     def download_request_full(self, ckan: CkanApi, out_dir: str, threads:int=1, external_stop_event=None,
                               start_index:int=0, end_index:int=None, force:bool=False) -> None:
@@ -368,7 +368,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
         #             return
         #         self._unit_download_apply(ckan=ckan, file_query_item=file_query_item,
         #                                   index=index, start_index=start_index, end_index=end_index, total=total)
-        #     self._call_progress_callback(total, total, context=f"{ckan.identifier} single-thread download")
+        #     self._call_progress_callback(total, total, context=f"{ckan.identifier} single-thread download {self.name}")
 
     def download_request_generator(self, ckan: CkanApi, out_dir: str) -> Generator[Tuple[Any, pd.DataFrame], Any, None]:
         """
@@ -420,7 +420,7 @@ class BuilderDataStoreMultiABC(BuilderDataStoreABC, BuilderMultiABC, ABC):
     #             for future in futures:
     #                 future.result()  # This will propagate the exception
     #         total = self.get_file_query_len()
-    #         self._call_progress_callback(total, total, context=f"multi-thread download")
+    #         self._call_progress_callback(total, total, context=f"multi-thread download {self.name}")
     #     except Exception as e:
     #         self.stop_event.set()  # Ensure all threads stop
     #         if ckan.verbose_extra:

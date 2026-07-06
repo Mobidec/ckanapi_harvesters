@@ -13,6 +13,8 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 - Support for parquet and geoparquet file formats
 - More context in progress messages
+- Virtual file read by chunks: added support for reading a DataFrame by chunks for file formats which do not support 
+being read by chunks. The downside is that the file must be entirely read before upload.
 
 ### Fixed
 

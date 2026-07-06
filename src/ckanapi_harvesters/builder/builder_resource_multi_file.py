@@ -221,12 +221,12 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         if (start_index <= index) and (index < end_index) and file_path not in excluded_files:
             self.progress_callback.update_task(self.get_local_file_offset(file_chunk), self.get_local_file_total_size(), info=file_path,
                                                file_index=file_chunk.file_index, file_count=self.get_local_file_count(),
-                                               context=f"{ckan.identifier} upload", level=CkanCallbackLevel.MultiFileResource)
+                                               context=f"{ckan.identifier} upload {self.name}", level=CkanCallbackLevel.MultiFileResource)
             self.upload_file_chunk(ckan=ckan, package_id=package_id, file_chunk=file_chunk,
                                    reupload=reupload, cancel_if_present=only_missing,
                                    inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
         else:
-            # self.progress_callback.call(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip", level=CkanCallbackLevel.MultiFileResource)
+            # self.progress_callback.call(index, total, info=df_upload_local, context=f"{ckan.identifier} single-thread skip {self.name}", level=CkanCallbackLevel.MultiFileResource)
             pass
 
     def upload_request_full(self, ckan:CkanApi, resources_base_dir:str, *,
@@ -266,7 +266,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         #                                 reupload=reupload, only_missing=only_missing,
         #                                 index=index, start_index=start_index, end_index=end_index, total=total,
         #                                 excluded_files=excluded_files)
-        #     self._call_progress_callback(total, total, context=f"{ckan.identifier} single-thread upload")
+        #     self._call_progress_callback(total, total, context=f"{ckan.identifier} single-thread upload {self.name}")
         #     # at last, apply final actions:
         #     self.upload_request_final(ckan)
 
@@ -321,7 +321,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
     #             for future in futures:
     #                 future.result()  # This will propagate the exception
     #         total = self.get_local_file_len()
-    #         self._call_progress_callback(total, total, context=f"{ckan.identifier} multi-thread upload")
+    #         self._call_progress_callback(total, total, context=f"{ckan.identifier} multi-thread upload {self.name}")
     #     except Exception as e:
     #         self.stop_event.set()  # Ensure all threads stop
     #         if ckan.verbose_extra:
@@ -415,11 +415,11 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
                              excluded_resource_names:Set[str]) -> Any:
         if (start_index <= index) and (index < end_index) and file_query_item not in excluded_resource_names:
             self.progress_callback.update_task(index, total, info=file_query_item,
-                                               context=f"{ckan.identifier} single-thread download", level=CkanCallbackLevel.MultiFileResource)
+                                               context=f"{ckan.identifier} single-thread download {self.name}", level=CkanCallbackLevel.MultiFileResource)
             self.download_file_query_item(ckan=ckan, out_dir=out_dir, file_query_item=file_query_item)
         else:
             pass
-            # self.progress_callback.call(index, total, info=file_query_item, context=f"{ckan.identifier} single-thread skip", level=CkanCallbackLevel.MultiFileResource)
+            # self.progress_callback.call(index, total, info=file_query_item, context=f"{ckan.identifier} single-thread skip {self.name}", level=CkanCallbackLevel.MultiFileResource)
 
     def download_request_full(self, ckan: CkanApi, out_dir: str, threads:int=1, external_stop_event=None,
                               start_index:int=0, end_index:int=None, force:bool=False,
@@ -454,7 +454,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
         #         self._unit_download_apply(ckan=ckan, file_query_item=file_query_item, out_dir=out_dir,
         #                                   index=index, start_index=start_index, end_index=end_index, total=total,
         #                                   excluded_resource_names=excluded_resource_names)
-        #     self._call_progress_callback(total, total, context=f"{ckan.identifier} single-thread download")
+        #     self._call_progress_callback(total, total, context=f"{ckan.identifier} single-thread download {self.name}")
 
     # def download_file_query_item_graceful(self, ckan: CkanApi, out_dir: str, resource_name: str, index:int,
     #                                       external_stop_event=None, start_index:int=0, end_index:int=None,
@@ -502,7 +502,7 @@ class BuilderMultiFile(BuilderResourceABC, BuilderMultiABC):
     #             for future in futures:
     #                 future.result()  # This will propagate the exception
     #         total = self.get_file_query_len()
-    #         self._call_progress_callback(total, total, context=f"multi-thread download")
+    #         self._call_progress_callback(total, total, context=f"multi-thread download {self.name}")
     #     except Exception as e:
     #         self.stop_event.set()  # Ensure all threads stop
     #         if ckan.verbose_extra:

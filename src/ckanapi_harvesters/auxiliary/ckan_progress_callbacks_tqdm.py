@@ -135,7 +135,7 @@ class CkanProgressCallbackTqdm(CkanProgressCallbackSimple):
                     self.progress_bars[level].update(delta)
                     self.last_progress_displayed[level] += delta
                     self.last_progress_update_time[level] = time.time()
-        if used_progress_bar is None and print_msg and print_msg is not None:
+        if used_progress_bar is None and print_msg and text_msg is not None:
             # do not display text if a progress bar is used
             print(text_msg)
         self.tqdm_semaphore.release()

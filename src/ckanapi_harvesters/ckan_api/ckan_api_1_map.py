@@ -445,7 +445,7 @@ class CkanApiMap(CkanApiBase):
             return datastore_info
         elif request_missing:
             try:
-                datastore_info = self.datastore_info(resource_id)
+                datastore_info = self.datastore_info(resource_id, display_request_not_found=error_not_found)
                 return datastore_info
             except CkanActionNotFoundError as e:
                 if error_not_found:

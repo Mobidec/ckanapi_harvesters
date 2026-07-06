@@ -3,7 +3,7 @@
 """
 The basic file format for DataStore: JSON
 """
-from typing import Union, Dict
+from typing import Union, Dict, Iterable
 import io
 
 import pandas as pd
@@ -11,6 +11,7 @@ import pandas as pd
 from ckanapi_harvesters.auxiliary.ckan_model import CkanField
 from ckanapi_harvesters.auxiliary.list_records import ListRecords
 from ckanapi_harvesters.harvesters.file_formats.file_format_abc import FileFormatABC
+from ckanapi_harvesters.harvesters.file_formats.virtual_df_chunks import df_as_virtual_chunks
 
 
 
@@ -30,8 +31,10 @@ class JsonFileFormat(FileFormatABC):
     default_read_kwargs = dict(orient="records", lines=False)
     # by default, write one line per row (lines=True)
     default_write_kwargs = dict(orient="records", lines=True)
-
     # read -------------------
+    def read_by_chunks_virtual(self) -> bool:
+        return not self.read_by_chunks_allowed()
+
     def read_by_chunks_allowed(self) -> bool:
         return "lines" in self.read_kwargs.keys() and self.read_kwargs["lines"]
 
@@ -43,11 +46,16 @@ class JsonFileFormat(FileFormatABC):
             kwargs.pop("chunksize")
         return kwargs
 
-    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords]:
+    def read_file(self, file_path: str, fields: Union[Dict[str, CkanField],None], allow_chunks:bool=True) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         read_kwargs = self._get_read_kwargs(allow_chunks=allow_chunks)
-        return pd.read_json(file_path, typ="frame", **read_kwargs)
+        df = pd.read_json(file_path, typ="frame", **read_kwargs)
+        if allow_chunks and self.allow_chunks and not self.read_by_chunks_allowed():
+            # particular cases where options are not compatible with chunksize argument
+            return df_as_virtual_chunks(df,self.chunk_size)
+        else:
+            return df
 
-    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords]:
+    def read_buffer_full(self, buffer: io.StringIO, fields: Union[Dict[str, CkanField],None]) -> Union[pd.DataFrame, ListRecords, Iterable[pd.DataFrame], Iterable[ListRecords]]:
         read_kwargs = self._get_read_kwargs(allow_chunks=False)
         return pd.read_json(buffer, typ="frame", **read_kwargs)
 

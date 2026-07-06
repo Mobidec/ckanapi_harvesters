@@ -3,7 +3,7 @@
 """
 User custom IO function examples
 """
-from typing import Union, Dict, List, Generator, Tuple
+from typing import Union, Dict, List, Generator, Tuple, Iterable
 import io
 from contextlib import contextmanager
 
@@ -15,7 +15,7 @@ from ckanapi_harvesters.harvesters.file_formats.user_format import UserFileForma
 
 def read_function_example_df(file_path_or_stream:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
                              allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) \
-        -> Union[pd.DataFrame, List[dict]]:
+        -> Union[pd.DataFrame, List[dict], Iterable[pd.DataFrame], Iterable[List[dict]]]:
     """
     Read a file/IO stream and return a unique DataFrame.
     This case is the simplest implementation.
@@ -24,7 +24,7 @@ def read_function_example_df(file_path_or_stream:Union[str, io.IOBase], *, field
 
 def read_function_example_df_with_metadata(file_path_or_stream:Union[str, io.IOBase], *, fields: Union[Dict[str, CkanField],None],
                                            allow_chunks:bool=True, params:UserFileFormat = None, **kwargs) \
-        -> Tuple[Union[pd.DataFrame, List[dict]], CkanResourceInfo]:
+        -> Tuple[Union[pd.DataFrame, List[dict], Iterable[pd.DataFrame], Iterable[List[dict]]], CkanResourceInfo]:
     """
     Read a file/IO stream and return a unique DataFrame.
     This case returns as well metadata which can be read from the file.
