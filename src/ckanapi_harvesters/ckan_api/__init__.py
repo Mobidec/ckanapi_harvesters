@@ -11,6 +11,7 @@ from . import ckan_api_2_readonly
 from . import ckan_api_3_policy
 from . import ckan_api_4_readwrite
 from . import ckan_api_5_manage
+from . import ckan_api_6_user_access
 from . import ckan_api
 from . import dev
 # from . import deprecated

@@ -57,6 +57,7 @@ class CkanMap(CkanMapABC):
         self.organizations_title_index:Dict[str, str] = {} # organization title -> id
         self.users:Dict[str,CkanUserInfo] = {}          # user id -> info
         self.users_id_index:Dict[str, str] = {}         # user name -> id
+        self.users_fullname_index:Dict[str, str] = {}   # user fullname -> id
         self.users_email_hash_index:Dict[str, str] = {} # user email_hash -> id
         self.groups:Dict[str,CkanGroupInfo] = {}        # group id -> info
         self.groups_id_index:Dict[str, str] = {}        # group name -> id
@@ -91,6 +92,7 @@ class CkanMap(CkanMapABC):
         self.organizations_listed_all_users:bool = False
         self.users:Dict[str,CkanUserInfo] = {}          # user id -> info
         self.users_id_index:Dict[str, str] = {}         # user name -> id
+        self.users_fullname_index:Dict[str, str] = {}   # user fullname -> id
         self.users_email_hash_index:Dict[str, str] = {} # user email_hash -> id
         self.groups:Dict[str,CkanGroupInfo] = {}        # group id -> info
         self.groups_id_index:Dict[str, str] = {}        # group name -> id
@@ -428,6 +430,78 @@ class CkanMap(CkanMapABC):
         self.licenses.update({license.id: license for license in license_info})
         self.licenses_title_index.update({license.title: license.id for license in license_info})
 
+    def get_group_id(self, group_name: str, *, error_not_mapped: bool = True) -> str:
+        """
+        Retrieve the ID of a group based on the mapped data.
+
+        :param group_name: group name or id.
+        :return:
+        """
+        if group_name is None:
+            raise ValueError("group_name cannot be None")
+        if group_name in self.groups.keys():
+            # recognized group_id
+            group_id = group_name
+        elif group_name in self.groups_id_index.keys():
+            group_id = self.groups_id_index[group_name]
+        elif group_name in self.groups_title_index.keys():
+            group_id = self.groups_title_index[group_name]
+        elif error_not_mapped:
+            raise NotMappedObjectNameError(f"Group {group_name} is not mapped or does not exist.")
+        else:
+            group_id = None
+        return group_id
+
+    def get_group_info(self, group_name: str, *, error_not_mapped: bool = True) -> Union[CkanGroupInfo,None]:
+        """
+        Retrieve the information on a group based on the mapped data.
+
+        :param group_name: group title or id.
+        :return:
+        """
+        group_id = self.get_group_id(group_name, error_not_mapped=error_not_mapped)
+        if group_id is not None:
+            return self.groups[group_id]
+        else:
+            return None
+
+    def get_user_id(self, user_name: str, *, error_not_mapped: bool = True) -> str:
+        """
+        Retrieve the ID of a user based on the mapped data.
+
+        :param user_name: user name, email hash or id.
+        :return:
+        """
+        if user_name is None:
+            raise ValueError("user_name cannot be None")
+        if user_name in self.users.keys():
+            # recognized group_id
+            user_id = user_name
+        elif user_name in self.users_id_index.keys():
+            user_id = self.users_id_index[user_name]
+        elif user_name in self.users_fullname_index.keys():
+            user_id = self.users_fullname_index[user_name]
+        elif user_name in self.users_email_hash_index.keys():
+            user_id = self.users_email_hash_index[user_name]
+        elif error_not_mapped:
+            raise NotMappedObjectNameError(f"User {user_name} is not mapped or does not exist.")
+        else:
+            user_id = None
+        return user_id
+
+    def get_user_info(self, user_name: str, *, error_not_mapped: bool = True) -> Union[CkanUserInfo,None]:
+        """
+        Retrieve the information on a user based on the mapped data.
+
+        :param user_name: user name, email hash or id.
+        :return:
+        """
+        user_id = self.get_user_id(user_name, error_not_mapped=error_not_mapped)
+        if user_id is not None:
+            return self.users[user_id]
+        else:
+            return None
+
     ## Package record changes  ------------------
     def _record_package_update(self, pkg_info: CkanPackageInfo) -> None:
         package_id = pkg_info.id
@@ -534,5 +608,11 @@ class CkanMap(CkanMapABC):
         self.users.update({info.id: info for info in user_info})
         self.users_id_index.update({info.name: info.id for info in user_info})
         self.users_email_hash_index.update({info.email_hash: info.id for info in user_info})
+        self.users_fullname_index.update({info.fullname: info.id for info in user_info})
+        for group_info in self.groups.values():
+            if group_info.user_dict is not None:
+                for info in user_info:
+                    if info.id in group_info.user_dict.keys():
+                        group_info.user_dict[info.id] = info
 
 

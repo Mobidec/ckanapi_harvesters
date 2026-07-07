@@ -31,7 +31,7 @@ from . import ckan_progress_callbacks_prototypes
 from . import deprecated
 
 from .ckan_map import CkanMap
-from .ckan_model import CkanField, CkanState
+from .ckan_model import CkanField, CkanState, CkanCapacity
 from .ckan_auxiliary import RequestType
 from .external_code_import import unlock_external_code_execution
 from .ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel, CkanProgressBarType, CkanProgressCallbackEmpty

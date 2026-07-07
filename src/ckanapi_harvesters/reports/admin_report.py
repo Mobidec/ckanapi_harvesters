@@ -13,9 +13,9 @@ from warnings import warn
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallback
 from ckanapi_harvesters.ckan_api import CkanApi
-from ckanapi_harvesters.auxiliary.ckan_errors import CkanAuthorizationError
-from ckanapi_harvesters.auxiliary.ckan_auxiliary import to_jsons_indent_lists_single_line, round_size, size_str_mb
-from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanUserInfo, CkanPackageInfo
+from ckanapi_harvesters.auxiliary.ckan_errors import CkanAuthorizationError, UnexpectedError
+from ckanapi_harvesters.auxiliary.ckan_auxiliary import to_jsons_indent_lists_single_line, round_size, assert_or_raise
+from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanUserInfo
 from ckanapi_harvesters.policies.policy_report import PackagePolicyReport
 from ckanapi_harvesters.policies.data_format_policy_errors import ErrorCount
 
@@ -234,6 +234,7 @@ class CkanAdminReport:
                 # TODO: do all users have write access if package is Public
                 package_report["users"] = "all (Public)"
                 public_packages[package_name] = ckan.get_package_page_url(package_name)
+            assert_or_raise(package_info.groups is not None, UnexpectedError("groups in ckan.map should not be None"))
             package_report["groups"] = sorted([group_info.name for group_info in package_info.groups])
             if self.include_policy_messages:
                 package_report["policy_messages"] = [message.to_dict() for message in package_policy_report.messages]
@@ -280,8 +281,8 @@ class CkanAdminReport:
         groups_report = {group_info.name: OrderedDict([
             ("group_title", group_info.title),
             ("package_count", group_info.package_count),
-            ("users_count", len(group_info.user_members) if group_info.user_members is not None else None),
-            ("users", OrderedDict(sorted({ckan.map.users[user_id].name: str(capacity) for user_id, capacity in group_info.user_members.items()}.items())) if group_info.user_members is not None else None),
+            ("users_count", len(group_info.user_capacities) if group_info.user_capacities is not None else None),
+            ("users", OrderedDict(sorted({ckan.map.users[user_id].name: str(capacity) for user_id, capacity in group_info.user_capacities.items()}.items())) if group_info.user_capacities is not None else None),
         ]) for group_info in ckan.map.groups.values()}
         groups_report = OrderedDict(sorted(groups_report.items()))
         elapsed_time_report_and_updates = time.time() - start

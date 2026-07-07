@@ -406,8 +406,15 @@ class CkanGroupInfo(CkanIdentifiedObject):
         self.package_count:Union[None,int] = d.get("package_count")
         self.details:dict = d
         # to be initialized with specific requests:
-        self.user_members:Union[dict[str,CkanCapacity],None] = None
+        self.user_capacities:Union[dict[str,CkanCapacity],None] = None
+        self.user_dict:Union[dict[str,CkanUserInfo],None] = None
         self.package_members:Union[dict[str,CkanCapacity],None] = None
+        if "users" in d.keys():
+            user_list = [CkanUserInfo(user_dict) for user_dict in d["users"]]
+            self.user_dict = {user_info.id: user_info for user_info in user_list}
+            self.user_capacities = {user_info.id: CkanCapacity.from_str(user_dict["capacity"]) for
+                                    user_info, user_dict in zip(user_list, d["users"])}
+            # self.map._update_user_info(list(self.user_dict.values()))  # update map must be done by caller
 
     def __str__(self):
         return f"Group '{self.title}' ({self.id})"
@@ -744,9 +751,11 @@ class CkanCollaboration:
         self.capacity:CkanCapacity = capacity
         self.group_id:Union[str,None] = group_id
         self.modified: Union[datetime.datetime,None] = modified
+        self.details:Union[dict,None] = d
         if d is not None:
             self.capacity = CkanCapacity.from_str(d["capacity"])
-            self.modified:datetime.datetime = datetime.datetime.fromisoformat(d["modified"])
+            if "modified" in d.keys():
+                self.modified:datetime.datetime = datetime.datetime.fromisoformat(d["modified"])
 
     def __str__(self):
         return str(self.capacity)
@@ -795,7 +804,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
 
     def __init__(self, d:dict=None, *, package_name:str=None, package_id:str=None,
                  title:str=None, description:str=None, private:bool=None, state:CkanState=None, version:str=None,
-                 url:str=None, tags:List[str]=None):
+                 url:str=None, tags:List[str]=None, package_type:str=None):
         super().__init__()
         self.id:Union[str, None] = package_id
         self.name:Union[str, None] = package_name
@@ -810,7 +819,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         self.resources_id_index:Dict[str,str] = {}  # resource name -> id
         self.resources_id_index_counts:Dict[str,int] = {}  # resource name -> counter
         self.organization_info: Union[CkanOrganizationInfo, None] = None
-        self.groups:List[CkanGroupInfo] = []
+        self.groups:Union[List[CkanGroupInfo],None] = None
         self.license_id:Union[str, None] = None
         self.author:Union[str, None] = None
         self.author_email:Union[str, None] = None
@@ -826,6 +835,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         self.collaborators:Union[None,Dict[str,CkanCollaboration]] = None  # given by API package_collaborator_list
         self.user_access:Union[None,Dict[str,CkanCollaboration]] = None  # given by function map_user_rights
         self.package_size:Union[None,CkanPackageSizeInfo] = None  # given by function _update_package_size_fields
+        self.package_type:Union[str, None] = package_type
 
         if d is not None:
             self.id = d["id"]
@@ -870,6 +880,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
             self.url = d["url"]
             self.tags_info = {tag_dict["name"]: CkanTagInfo(tag_dict) for tag_dict in d["tags"]} if d["tags"] is not None else None
             self.tags = list(self.tags_info.keys()) if self.tags_info is not None else None
+            self.package_type = d["type"]
             self.updated:bool = False
 
     def __str__(self):
@@ -883,7 +894,6 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         return copy.deepcopy(self)
 
     def update(self, refresh: "CkanPackageInfo"):
-        refresh: CkanPackageInfo
         self.id = refresh.id
         self.name = refresh.name
         self.state = refresh.state
@@ -891,6 +901,24 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         self.package_resources = refresh.package_resources
         self.resources_id_index = refresh.resources_id_index
         self.resources_id_index_counts = refresh.resources_id_index_counts
+        self.title = refresh.title
+        self.description = refresh.description
+        self.private = refresh.private
+        self.version = refresh.version
+        self.custom_fields = refresh.custom_fields
+        self.organization_info = refresh.organization_info
+        self.license_id = refresh.license_id
+        self.author = refresh.author
+        self.author_email = refresh.author_email
+        self.maintainer = refresh.maintainer
+        self.maintainer_email = refresh.maintainer_email
+        self.metadata_created = refresh.metadata_created
+        self.metadata_modified = refresh.metadata_modified
+        self.url = refresh.url
+        self.tags_info = refresh.tags_info
+        self.tags = refresh.tags
+        self.package_type = refresh.package_type
+        self.groups = refresh.groups
 
     def get_resource_index(self, resource_id:str) -> int:
         i_found = None
@@ -925,16 +953,19 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
                  "tags": self.tags, "url": self.url,
                  "author": self.author, "author_email": self.author_email,
                  "maintainer": self.maintainer, "maintainer_email": self.maintainer_email,
-                 "groups": [group.to_dict(include_details=include_details) for group in self.groups],
                  "license_id": self.license_id,
                  "resources": [resource.to_dict(include_details=include_details) for resource in self.package_resources.values()],
                  })
+        if self.groups is not None:
+            d["groups"] = [group.to_dict(include_details=include_details) for group in self.groups]
         if self.metadata_created is not None:
             d["metadata_created"] = self.metadata_created.isoformat()
         if self.metadata_modified is not None:
             d["metadata_modified"] = self.metadata_modified.isoformat()
         if self.state is not None:
             d["state"] = str(self.state)
+        if self.package_type is not None:
+            d["type"] = str(self.package_type)
         if self.custom_fields is not None:
             d["extras"] = [{"key": key, "value": value} for key, value in self.custom_fields.items()]
         if self.organization_info is not None:

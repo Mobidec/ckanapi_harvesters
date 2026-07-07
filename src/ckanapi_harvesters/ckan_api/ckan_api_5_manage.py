@@ -21,7 +21,7 @@ from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCal
 from ckanapi_harvesters.auxiliary.ckan_configuration import default_ckanext_has_postgis, default_ckan_target_epsg
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanResourceInfo, CkanViewInfo, CkanField,
-                                                     CkanState, UpsertChoice)
+                                                     CkanState, UpsertChoice, CkanGroupInfo)
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, ckan_package_name_re, datastore_id_col
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import upload_prepare_requests_files_arg, RequestType
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionNotFoundError
@@ -1165,6 +1165,7 @@ class CkanApiManage(CkanApiReadWrite):
                            state:Union[CkanState,str]=None, license_id:str=None, tags:List[str]=None, tags_list_dict:List[Dict[str, str]]=None,
                            url:str=None, version:str=None, custom_fields_update:dict=None, custom_fields:dict=None,
                            author:str=None, author_email:str=None, maintainer:str=None, maintainer_email:str=None,
+                           package_type:str=None, groups:List[Union[dict,str,CkanGroupInfo]]=None,
                            params:dict=None) -> CkanPackageInfo:
         """
         API call to package_patch. Use to change the properties of a package.
@@ -1236,6 +1237,21 @@ class CkanApiManage(CkanApiReadWrite):
                 params["state"] = str(state)
         if license_id is not None:
             params["license_id"] = license_id
+        if package_type is not None:
+            params["type"] = package_type
+        if groups is not None:
+            if not(isinstance(groups, list)):
+                groups = [groups]
+            groups_arg = [None] * len(groups)
+            for i, group_identification in enumerate(groups):
+                if isinstance(group_identification, CkanGroupInfo):
+                    groups_arg[i] = group_identification.id
+                elif isinstance(group_identification, dict):
+                    groups_arg[i] = group_identification
+                else:  # str
+                    group_info = self.get_group_info_or_request(group_identification)
+                    groups_arg[i] = {"id": group_info.id}
+            params["groups"] = groups_arg
         response = self._api_action_request(f"package_patch", method=RequestType.Post, json=params)
         if response.success:
             # update map
@@ -1249,14 +1265,15 @@ class CkanApiManage(CkanApiReadWrite):
                            state:Union[CkanState,str]=None, license_id:str=None, tags:List[str]=None, tags_list_dict:List[Dict[str, str]]=None,
                            url:str=None, version:str=None, custom_fields_update:dict=None, custom_fields:dict=None,
                            author:str=None, author_email:str=None, maintainer:str=None, maintainer_email:str=None,
+                           package_type:str=None, groups:List[Union[dict,str]]=None,
                            params:dict=None) -> CkanPackageInfo:
         # function alias
         return self._api_package_patch(package_id=package_id, package_name=package_name, private=private,
                                        title=title, notes=notes, owner_org=owner_org, state=state,
                                        license_id=license_id, tags=tags, tags_list_dict=tags_list_dict, url=url, version=version,
                                        custom_fields_update=custom_fields_update, custom_fields=custom_fields, author=author, author_email=author_email,
-                                       maintainer=maintainer, maintainer_email=maintainer_email,
-                                       params=params)
+                                       maintainer=maintainer, maintainer_email=maintainer_email, package_type=package_type,
+                                       groups=groups, params=params)
 
     def package_state_change(self, package_id:str, state:CkanState) -> CkanPackageInfo:
         """
@@ -1273,6 +1290,7 @@ class CkanApiManage(CkanApiReadWrite):
                             url: str = None, version: str = None, custom_fields: dict = None,
                             author: str = None, author_email: str = None,
                             maintainer: str = None, maintainer_email: str = None,
+                            package_type:str=None, groups:List[Union[dict,str,CkanGroupInfo]]=None,
                             params:dict=None) -> CkanPackageInfo:
         """
         API call to package_create.
@@ -1285,6 +1303,7 @@ class CkanApiManage(CkanApiReadWrite):
         :param state:
         :param license_id:
         :param tags:
+        :param groups: argument to manage groups of a package (user access rights) - list of either group_id, {"id": group_id} or {"name": group_name}
         :param params:
         :return:
         """
@@ -1329,6 +1348,20 @@ class CkanApiManage(CkanApiReadWrite):
                 params["state"] = str(state)
         if license_id is not None:
             params["license_id"] = license_id
+        if package_type is not None:
+            params["type"] = package_type
+        if groups is not None:
+            if not(isinstance(groups, list)):
+                groups = [groups]
+            groups_arg = [None] * len(groups)
+            for i, group_identification in enumerate(groups):
+                if isinstance(group_identification, CkanGroupInfo):
+                    groups_arg[i] = group_identification.id
+                elif isinstance(group_identification, dict):
+                    groups_arg[i] = group_identification
+                else:  # str
+                    groups_arg[i] = {"id": group_identification}
+            params["groups"] = groups_arg
         response = self._api_action_request(f"package_create", method=RequestType.Post, json=params)
         if response.success:
             # update map
@@ -1342,7 +1375,8 @@ class CkanApiManage(CkanApiReadWrite):
                        state: Union[CkanState, str] = None, license_id: str = None, tags: List[str] = None, tags_list_dict:List[Dict[str, str]]=None,
                        url: str = None, version: str = None, custom_fields_update: dict = None, custom_fields: dict = None,
                        author: str = None, author_email: str = None,
-                       maintainer: str = None, maintainer_email: str = None,
+                       maintainer: str = None, maintainer_email: str = None, package_type:str=None,
+                       groups:List[Union[dict,str,CkanGroupInfo]]=None,
                        params:dict=None, cancel_if_exists:bool=True, update_if_exists=True,
                        clear_if_deleted_state:bool=None) -> CkanPackageInfo:
         """
@@ -1384,9 +1418,9 @@ class CkanApiManage(CkanApiReadWrite):
                                               owner_org=owner_org, state=state, license_id=license_id, tags=tags,
                                               tags_list_dict=tags_list_dict,
                                               url=url, version=version, custom_fields_update=custom_fields_update, custom_fields=custom_fields,
-                                              author=author, author_email=author_email,
+                                              author=author, author_email=author_email, package_type=package_type,
                                               maintainer=maintainer, maintainer_email=maintainer_email,
-                                              params=params)
+                                              groups=groups, params=params)
             pkg_info.newly_created = False
             return pkg_info
         else:
@@ -1400,14 +1434,14 @@ class CkanApiManage(CkanApiReadWrite):
                                                 owner_org=owner_org, state=state, license_id=license_id, tags=tags,
                                                 tags_list_dict=tags_list_dict,
                                                 url=url, version=version, custom_fields=custom_fields,
-                                                author=author, author_email=author_email,
+                                                author=author, author_email=author_email, package_type=package_type,
                                                 maintainer=maintainer, maintainer_email=maintainer_email,
-                                                params=params)
+                                                groups=groups, params=params)
             pkg_info.newly_created = True
             return pkg_info
 
     def _api_package_delete(self, package_id:str,
-                            *, params:dict=None) -> dict:
+                            *, bypass_admin:bool=False, params:dict=None) -> dict:
         """
         API call to package_delete.
         This marks the package as deleted and does not remove data.
@@ -1416,7 +1450,7 @@ class CkanApiManage(CkanApiReadWrite):
         :param params:
         :return:
         """
-        assert_or_raise(self.params.enable_admin, AdminFeatureLockedError())
+        assert_or_raise(bypass_admin or self.params.enable_admin, AdminFeatureLockedError())
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         if params is None: params = {}
         params["id"] = package_id
@@ -1452,7 +1486,7 @@ class CkanApiManage(CkanApiReadWrite):
     package_resource_reorder = _api_package_resource_reorder
 
     def _api_dataset_purge(self, package_id:str,
-                           *, params:dict=None) -> dict:
+                           *, bypass_admin:bool=False, params:dict=None) -> dict:
         """
         API call to dataset_purge.
         This fully removes the package.
@@ -1463,7 +1497,7 @@ class CkanApiManage(CkanApiReadWrite):
         :param params:
         :return:
         """
-        assert_or_raise(self.params.enable_admin, AdminFeatureLockedError())
+        assert_or_raise(bypass_admin or self.params.enable_admin, AdminFeatureLockedError())
         assert_or_raise(not self.params.read_only, ReadOnlyError())
         if params is None: params = {}
         params["id"] = package_id
@@ -1487,10 +1521,11 @@ class CkanApiManage(CkanApiReadWrite):
         for resource_id in resource_ids:
             self.resource_delete(resource_id, bypass_admin=bypass_admin)
 
-    def package_delete(self, package_id:str, definitive_delete:bool=False, *, params:dict=None) -> dict:
+    def package_delete(self, package_id:str, definitive_delete:bool=False,
+                       *, bypass_admin:bool=False, params:dict=None) -> dict:
         """
-        Alias function for package removal. Either calls API package_delete to simply mark for deletion or dataset_purge
-        to definitively delete the package.
+        Alias function for package removal. Either calls API package_delete to simply mark for deletion (recycle bin)
+        or dataset_purge to definitively delete the package (requires admin privileges).
 
         :param package_id:
         :param definitive_delete: True: calls dataset_purge (action not reversible), False: calls API package_delete.
@@ -1498,8 +1533,8 @@ class CkanApiManage(CkanApiReadWrite):
         :return:
         """
         if definitive_delete:
-            return self._api_dataset_purge(package_id, params=params)
+            return self._api_dataset_purge(package_id, bypass_admin=bypass_admin, params=params)
         else:
-            return self._api_package_delete(package_id, params=params)
+            return self._api_package_delete(package_id, bypass_admin=bypass_admin, params=params)
 
 

@@ -1071,15 +1071,35 @@ class BuilderPackageBasic:
             url=self.package_attributes.url, version=self.package_attributes.version,
             author=self.package_attributes.author, author_email=self.package_attributes.author_email,
             maintainer=self.package_attributes.maintainer, maintainer_email=self.package_attributes.maintainer_email,
-            license_id=license_id,
+            license_id=license_id, package_type=self.package_attributes.package_type,
             cancel_if_exists=True, update_if_exists=True, clear_if_deleted_state=None)
+        if self.package_attributes.groups is not None:
+            # package builder is in additive mode for package group membership
+            # NB: groups are to be configured programmatically (not managed by Excel file because this concerns user access rights)
+            ckan.package_group_add(package_info.id, self.package_attributes.groups)
+        if self.package_attributes.user_access is not None:
+            # package builder is in additive mode for package user membership
+            # NB: users are to be configured programmatically (not managed by Excel file because this concerns user access rights)
+            for user_id, collaboration in self.package_attributes.user_access.items():
+                ckan.package_collaborator_create(package_info.id, user_id, capacity=collaboration.capacity)
         if ckan.params.verbose_extra:
             print("Package created. URL:", self.get_package_page_url(ckan))
         return package_info
 
     def package_delete_resources(self, ckan: CkanApi, *, bypass_admin:bool=False):
+        """
+        Definitively deletes the package resources
+        """
         package_id = self.package_attributes.id
         ckan.package_delete_resources(package_id, bypass_admin=bypass_admin)
+
+    def package_delete(self, ckan: CkanApi, *, definitive_delete:bool=False, bypass_admin:bool=False):
+        """
+        Either calls API package_delete to simply mark for deletion (recycle bin)
+        or dataset_purge to definitively delete the package (requires admin privileges).
+        """
+        package_id = self.package_attributes.id
+        ckan.package_delete(package_id, definitive_delete=definitive_delete, bypass_admin=bypass_admin)
 
     def patch_request_full(self, ckan:CkanApi, *,
                            reupload:bool=False, override_ckan:bool=False, resources_base_dir:str=None,

@@ -20,7 +20,7 @@ from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionError, CkanActionNotFoundError, CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
-from ckanapi_harvesters.auxiliary.ckan_errors import IntegrityError, NotMappedObjectNameError
+from ckanapi_harvesters.auxiliary.ckan_errors import IntegrityError, NotMappedObjectNameError, UnexpectedError
 from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import CkanApiBase, use_ckan_owner_org_for_requests
@@ -544,6 +544,44 @@ class CkanApiMap(CkanApiBase):
         else:
             return None
 
+    def get_group_info_or_request(self, group_name:str, *,
+                                     request_missing:bool=True, error_not_mapped:bool=False,
+                                     error_not_found:bool=True) -> Union[CkanGroupInfo,None]:
+        group_info = self.map.get_group_info(group_name, error_not_mapped=error_not_mapped)
+        if group_info is None and request_missing:
+            try:
+                group_info = self.group_show(group_name)
+            except CkanActionNotFoundError as e:
+                if error_not_found:
+                    raise e from e
+                else:
+                    return None
+        return group_info
+
+    def get_user_info_or_request(self, user_name:str, *,
+                                 request_missing:bool=True, error_not_mapped:bool=False,
+                                 error_not_found:bool=True) -> Union[CkanUserInfo,None]:
+        user_info = self.map.get_user_info(user_name, error_not_mapped=error_not_mapped)
+        if user_info is None and request_missing:
+            try:
+                user_info = self.user_show(user_name)
+            except CkanActionNotFoundError as e:
+                if error_not_found:
+                    raise e from e
+                else:
+                    return None
+        return user_info
+
+    def get_user_id_or_request(self, user_name:str, *,
+                               request_missing:bool=True, error_not_mapped:bool=False,
+                               error_not_found:bool=True) -> Union[str,None]:
+        user_info = self.get_user_info_or_request(user_name, error_not_mapped=error_not_mapped,
+                                                  request_missing=request_missing, error_not_found=error_not_found)
+        if user_info is not None:
+            return user_info.id
+        else:
+            return None
+
     def get_resource_ids_of_package_list(self, package_list:Union[List[str],str]=None,
                                          *, return_package_dict:bool=False, only_missing: bool=True) \
             -> Union[List[str], Tuple[List[str], Dict[str, CkanPackageInfo]]]:
@@ -1030,13 +1068,15 @@ class CkanApiMap(CkanApiBase):
                 raise e from e
         return True
 
-    def _api_user_show(self, *, params:dict=None) -> Union[CkanUserInfo,None]:
+    def _api_user_show(self, user_name:Union[str,None], *, params:dict=None) -> Union[CkanUserInfo,None]:
         """
         API call to user_show. With no params, returns the name of the current user logged in.
 
         :return: dict with information on the current user
         """
         if params is None: params = {}
+        if user_name is not None:
+            params["id"] = user_name
         response = self._api_action_request("user_show", method=RequestType.Get, params=params, timeout=5)
         if response.success:
             user_info = CkanUserInfo(response.result)
@@ -1047,11 +1087,15 @@ class CkanApiMap(CkanApiBase):
         else:
             raise response.default_error(self)
 
+    def user_show(self, user_name:str, *, params:dict=None) -> Union[CkanUserInfo,None]:
+        # function alias
+        return self._api_user_show(user_name, params=params)
+
     def query_current_user(self, *, verbose:bool=None, error_not_found:bool=False) -> Union[CkanUserInfo,None]:
         if verbose is None:
             verbose = self.params.verbose_extra
         try:
-            user_info = self._api_user_show()
+            user_info = self._api_user_show(user_name=None)
         except CkanActionNotFoundError as e:
             if error_not_found:
                 raise e from e
@@ -1159,6 +1203,35 @@ class CkanApiMap(CkanApiBase):
         return self._api_package_collaborator_list(package_id=package_id, params=params,
                                                    cancel_if_present=cancel_if_present)
 
+    def _api_group_show(self, group_name:str, *,
+                        include_users:bool=True,
+                        params:dict=None) -> CkanGroupInfo:
+        """
+        API call to group_show.
+
+        :param params:
+        :return:
+        """
+        if params is None: params = {}
+        params["id"] = group_name
+        params["include_users"] = include_users
+        response = self._api_action_request(f"group_show", method=RequestType.Post, json=params)
+        if response.success:
+            group_info = CkanGroupInfo(response.result)
+            self.map._update_group_info(group_info)
+            self.map._update_user_info(list(group_info.user_dict.values()))
+            return group_info.copy()
+        elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
+            raise CkanActionNotFoundError(self, "Package", response)
+        else:
+            raise response.default_error(self)
+
+    def group_show(self, group_name:str, *,
+                        include_users:bool=True,
+                        params:dict=None) -> CkanGroupInfo:
+        # function alias
+        return self._api_group_show(group_name=group_name, include_users=include_users, params=params)
+
     def _api_group_list(self, *, limit_per_request:int=None, offset:int=0, groups:List[str]=None,
                         all_fields:bool=True, include_users:bool=True,
                         params:dict=None) -> Union[List[CkanGroupInfo], List[str]]:
@@ -1187,9 +1260,7 @@ class CkanApiMap(CkanApiBase):
                 # update map:
                 if include_users:
                     for group_info in group_list:
-                        user_list = [CkanUserInfo(user_dict) for user_dict in group_info.details["users"]]
-                        self.map._update_user_info(user_list)
-                        group_info.user_members = {user_info.id: CkanCapacity.from_str(user_dict["capacity"]) for user_info, user_dict in zip(user_list, group_info.details["users"])}
+                        self.map._update_user_info(list(group_info.user_dict.values()))
                 self.map._update_group_info(group_list)
                 return copy.deepcopy(group_list)
             else:
@@ -1254,11 +1325,14 @@ class CkanApiMap(CkanApiBase):
             # merge collaborators with groups of the package
             if package_info.collaborators is not None:
                 package_info.user_access = package_info.collaborators.copy()
-                for group in package_info.groups:
-                    group_info = self.map.groups[group.id]
-                    for user_id, user_capacity in group_info.user_members.items():
-                        if user_id not in package_info.user_access.keys():
-                            package_info.user_access[user_id] = CkanCollaboration(user_capacity, None, group_id=group.id)
+                if package_info.groups is not None:
+                    for group in package_info.groups:
+                        group_info = self.map.groups[group.id]
+                        for user_id, user_capacity in group_info.user_capacities.items():
+                            if user_id not in package_info.user_access.keys():
+                                package_info.user_access[user_id] = CkanCollaboration(user_capacity, None, group_id=group.id)
+                else:
+                    raise UnexpectedError("groups in ckan.map should not be None")
         if progress_callback is not None:
             progress_callback.end_task(num_packages, level=CkanCallbackLevel.Packages)
         return self.map

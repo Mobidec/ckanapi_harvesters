@@ -7,7 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 When publishing a new release, copy the relevant section on the [Github release page](https://github.com/Mobidec/ckanapi_harvesters/releases).
 
 
-## [Unreleased] - 2026-07-06
+## [Unreleased] - 2026-07-07
+
+
+## [0.0.34] - 2026-07-07
+
+### Added
+
+- API calls to manage user access to packages, groups and organizations.
+- Auxiliary functions to manage group access to packages.
 
 
 ## [0.0.33] - 2026-07-06

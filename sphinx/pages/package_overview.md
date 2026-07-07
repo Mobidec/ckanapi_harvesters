@@ -28,6 +28,7 @@ The package is divided in the following sections:
      (creating, patching, or removing packages, resources, and DataStores).
      These functions enable the user to change the metadata for these objects.
      The other objects are meant to be managed through the API. 
+  6) functions to manage user access to packages, groups and organizations and group access to packages.
 - `policies`: functions to check data format policies. A data format policy defines which attributes 
   are mandatory for a package or resource. 
   Specific rules can be implemented to restrict   package tags to certain lists, 
