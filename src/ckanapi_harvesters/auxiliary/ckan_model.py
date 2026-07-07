@@ -613,6 +613,7 @@ class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         self.datastore_active:Union[bool,None] = None
         self.download_url:Union[str,None] = None
         self.format:Union[str,None] = format
+        self.resource_type:Union[str,None] = None
         self.description:Union[str,None] = description
         self.datastore_info:Union[CkanDataStoreInfo,None] = None
         self.datastore_info_queried: bool = False
@@ -632,6 +633,7 @@ class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
             self.datastore_active = d["datastore_active"]
             self.download_url = d["url"]
             self.format = d["format"] if str_is_not_empty(d["format"]) else None
+            self.resource_type = d["resource_type"]
             self.description = d["description"] if str_is_not_empty(d["description"]) else None
             if "datastore_info" in d.keys():
                 self.datastore_info = CkanDataStoreInfo.from_dict(d["datastore_info"])
@@ -724,6 +726,7 @@ class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         d.update({"id": self.id, "name": self.name, "package_id": self.package_id,
                  "datastore_active": self.datastore_active, "url": self.download_url,
                  "format": self.format, "description": self.description,
+                  "resource_type": self.resource_type,
                   })
         if self.state is not None:
             d["state"] = str(self.state)
@@ -869,7 +872,8 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
                     assert_or_raise(d["owner_org"] is None, IntegrityError("Unexpected: organization != owner_org"))
             else:
                 assert_or_raise("owner_org" not in d.keys() or d["owner_org"] == "", IntegrityError("Unexpected: organization is not present but owner_org was found"))
-            self.groups = [CkanGroupInfo(info) for info in d["groups"]]
+            if "groups" in d.keys():  # may be absent if restored from to_dict output
+                self.groups = [CkanGroupInfo(info) for info in d["groups"]]
             self.license_id = d["license_id"]
             self.author = d["author"]
             self.author_email = d["author_email"]
@@ -954,6 +958,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
                  "author": self.author, "author_email": self.author_email,
                  "maintainer": self.maintainer, "maintainer_email": self.maintainer_email,
                  "license_id": self.license_id,
+                 "type": self.package_type,
                  "resources": [resource.to_dict(include_details=include_details) for resource in self.package_resources.values()],
                  })
         if self.groups is not None:
