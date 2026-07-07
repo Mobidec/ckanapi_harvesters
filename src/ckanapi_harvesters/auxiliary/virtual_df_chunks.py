@@ -4,37 +4,18 @@
 Virtual chunked DataFrame
 """
 from typing import Iterator
-# from contextlib import contextmanager
 
-# import numpy as np
-import pandas as pd
+# import pandas as pd
 
-
-# def df_as_virtual_chunks_generator(df: pd.DataFrame, chunk_size:int) -> Generator[pd.DataFrame, None, None]:
-#     """
-#     Iterate over chunks of an existing DataFrame.
-#     The file was read entirely but this method allows to apply the same treatments as other "chunkable" files.
-#     """
-#     assert(chunk_size>0)
-#     for start in range(0, len(df), chunk_size):
-#         yield df.iloc[start:start + chunk_size]
-#     # for chunk in np.array_split(df, chunk_size):
-#     #     yield chunk
-#
-# @contextmanager
-# def df_as_virtual_chunks_incomplete(df: pd.DataFrame, chunk_size:int) -> Generator[pd.DataFrame, None, None]:
-#     try:
-#         yield df_as_virtual_chunks_generator(df, chunk_size)
-#     finally:
-#         pass
+from ckanapi_harvesters.auxiliary.list_records import GeneralDataFrame
 
 
 class VirtualChunkedDataFrameBuffer:
     def __init__(self, parent: "VirtualChunkedDataFrameGenerator"):
-        self.parent_generator: "VirtualChunkedDataFrameGenerator" = parent
+        self.__parent_generator: "VirtualChunkedDataFrameGenerator" = parent
 
     def tell(self):
-        return self.parent_generator.start
+        return self.__parent_generator._start
 
 
 class VirtualChunkedDataFrameHandle:
@@ -51,16 +32,21 @@ class VirtualChunkedDataFrameGenerator(Iterator):
     """
     Emulate a DataFrame used for a file read by chunks, with __next__, __exit__ behaviors and handles reporting the position in the DataFrame
     """
-    def __init__(self, df: pd.DataFrame, chunk_size:int) -> None:
-        self.df: pd.DataFrame = df
+    def __init__(self, df: GeneralDataFrame, chunk_size:int) -> None:
+        self.df: GeneralDataFrame = df
         self.chunk_size: int = chunk_size
-        self.start: int = 0
-        self.handles: VirtualChunkedDataFrameHandles = VirtualChunkedDataFrameHandles(self)
+        self._start: int = 0
+        self.__handles: VirtualChunkedDataFrameHandles = VirtualChunkedDataFrameHandles(self)
 
-    def __next__(self) -> pd.DataFrame:
-        start = self.start
+    # read-only property
+    @property
+    def handles(self) -> VirtualChunkedDataFrameHandles:
+        return self.__handles
+
+    def __next__(self) -> GeneralDataFrame:
+        start = self._start
         end = start + self.chunk_size
-        self.start = end  # for next iteration
+        self._start = end  # for next iteration
         if start >= len(self.df):
             raise StopIteration
         else:
@@ -76,7 +62,13 @@ class VirtualChunkedDataFrameGenerator(Iterator):
     def __exit__(self, exc_type, exc_val, exc_tb):
         pass
 
+    def __del__(self):
+        self.df = None
 
-def df_as_virtual_chunks(df: pd.DataFrame, chunk_size:int) -> Iterator[pd.DataFrame]:
+    def restart(self):
+        self._start = 0
+
+
+def df_as_virtual_chunks(df: GeneralDataFrame, chunk_size:int) -> Iterator[GeneralDataFrame]:
     return VirtualChunkedDataFrameGenerator(df, chunk_size)
 

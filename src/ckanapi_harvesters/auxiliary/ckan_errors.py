@@ -84,6 +84,9 @@ class ForbiddenNameError(Exception):
     def __init__(self, object_type:str, names:Iterable[str]):
         super().__init__(f"Forbidden name for {object_type}: {','.join(names)}")
 
+class MultipleResultsError(Exception):
+    pass
+
 class IntegrityError(Exception):
     pass
 

@@ -10,6 +10,13 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-07-07
 
 
+## [0.0.35] - 2026-07-07
+
+### Added
+
+- Function to search user by email address
+
+
 ## [0.0.34] - 2026-07-07
 
 ### Added

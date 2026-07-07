@@ -515,7 +515,7 @@ class CkanApiBase(CkanApiABC):
 
 
     ## Authentification ------------------
-    def load_apikey(self, apikey_file:str=None, base_dir:str=None, error_not_found:bool=True):
+    def load_apikey(self, apikey_file:str=None, base_dir:str=None, error_not_found:bool=True, verbose:bool=False):
         """
         Load the CKAN API key from file.
         The file should contain a valid API key in the first line of text.
@@ -524,7 +524,7 @@ class CkanApiBase(CkanApiABC):
         :param base_dir: base directory, if the apikey_file is a relative path
         :return:
         """
-        self.apikey.load_apikey(apikey_file=apikey_file, base_dir=base_dir, error_not_found=error_not_found)
+        self.apikey.load_apikey(apikey_file=apikey_file, base_dir=base_dir, error_not_found=error_not_found, verbose=verbose)
 
     def _prepare_headers(self, headers:dict=None, include_ckan_auth:bool=False) -> dict:
         """

@@ -5,7 +5,6 @@ Package with helper function for CKAN requests using pandas DataFrames.
 """
 
 from . import lazy_imports
-from . import virtual_df_chunks
 from . import ckan_defs
 from . import path
 from . import login
@@ -14,6 +13,7 @@ from . import proxy_config
 from . import ssh_tunnel
 from . import external_code_import
 from . import list_records
+from . import virtual_df_chunks
 from . import ckan_action
 from . import ckan_errors
 from . import ckan_configuration

@@ -258,7 +258,7 @@ class BuilderCkan:
             self.set_policy_file(ckan.policy_source, load_error=False)
 
     def init_ckan(self, base_dir:str, ckan:CkanApi=None, default_proxies:dict=None,
-                  proxies:Union[str,dict,ProxyConfig]=None) -> CkanApi:
+                  proxies:Union[str,dict,ProxyConfig]=None, apikey_file:str=None) -> CkanApi:
         """
         Initialize a CKAN instance, following the parameters of the Excel workbook.
         The parameters from Excel have precedence on the values already contained in the CKAN object.
@@ -274,8 +274,10 @@ class BuilderCkan:
             ckan = CkanApi(url=self.url)
         if self.url is not None:
             ckan.url = self.url.strip()
-        if self.apikey_file is not None:
-            ckan.load_apikey(self.apikey_file, base_dir=base_dir)
+        if apikey_file is None:
+            apikey_file = self.apikey_file
+        if apikey_file is not None:
+            ckan.load_apikey(apikey_file, base_dir=base_dir, verbose=ckan.params.verbose_extra)
         if self.ckan_ca is not None:
             ckan.ckan_ca = self.ckan_ca
         if self.extern_ca is not None:

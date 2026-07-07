@@ -9,11 +9,11 @@ from copy import deepcopy
 
 
 class _ListRecords_index:
-    def __init__(self, parent) -> None:
-        self.parent = parent
+    def __init__(self, parent: "ListRecords") -> None:
+        self.__parent: "ListRecords" = parent
 
     def __getitem__(self, slice):
-        return self.parent[slice]
+        return self.__parent[slice]
 
     # def __setitem__(self, slice, value):
     #     self.parent[slice] = value
@@ -30,10 +30,12 @@ class ListRecords(list):  # List[dict]
         else:
             self.columns = []
         self.attrs: dict = {}
+        self.__iloc = _ListRecords_index(self)
 
+    # read-only property
     @property
-    def iloc(self):
-        return _ListRecords_index(self)
+    def iloc(self) -> _ListRecords_index:
+        return self.__iloc
 
     def copy(self) -> "ListRecords":
         dest = ListRecords(deepcopy(list(self)))

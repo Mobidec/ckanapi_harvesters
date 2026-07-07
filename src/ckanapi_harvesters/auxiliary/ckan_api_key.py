@@ -111,7 +111,7 @@ class ApiKey:
         """
         return False
 
-    def load_apikey(self, apikey_file:str=None, *, base_dir:str=None, error_not_found:bool=True) -> bool:
+    def load_apikey(self, apikey_file:str=None, *, base_dir:str=None, error_not_found:bool=True, verbose:bool=False) -> bool:
         """
         Load the API key from file.
         The file should contain a valid API key in the first line of text.
@@ -145,6 +145,8 @@ class ApiKey:
             f.close()
         self.value = apikey
         self.apikey_file = apikey_file
+        if verbose:
+            print(f"API key loaded from file: {apikey_file}")
         return True
 
     def get_auth_header(self) -> Dict[str, str]:
@@ -205,7 +207,8 @@ class CkanApiKey(ApiKey):
     API_KEY_FILE_DEFAULT_LIST = [os.path.expanduser(os.path.join("~", ".config", "__CKAN_API_KEY__.txt")),
                                  os.path.expanduser(os.path.join("~", ".ckan", "__CKAN_API_KEY__.txt"))]  # default API key file locations for CKAN
 
-    def __init__(self, apikey:str=None, *, remote_url:str=None, apikey_file:str=None, apikey_auto_load:bool=True):
+    def __init__(self, apikey:str=None, *, remote_url:str=None, apikey_file:str=None, apikey_auto_load:bool=True,
+                 verbose:bool=False):
         """
         CKAN Database API key storage class.
 
@@ -224,9 +227,9 @@ class CkanApiKey(ApiKey):
         super().__init__(remote_url=remote_url, apikey=apikey, apikey_file=apikey_file, api_key_header_name=self.CKAN_API_KEY_HEADER_NAME)
         if apikey_auto_load:
             if self.is_empty() and apikey_file is not None:
-                self.load_apikey(error_not_found=False)
+                self.load_apikey(error_not_found=False, verbose=verbose)
             if self.is_empty():
-                if self.load_from_environ(error_not_found=False, empty_warning=False):
+                if self.load_from_environ(error_not_found=False, empty_warning=False) and verbose:
                     print(f"API key loaded from file: {self.apikey_file}")
 
     def copy(self, *, dest=None) -> "CkanApiKey":

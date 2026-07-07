@@ -1588,7 +1588,8 @@ class BuilderPackageBasic:
         return out_dir
 
     def init_ckan(self, ckan:CkanApi=None, *, base_dir:str=None, set_owner_org:bool=False,
-                  default_proxies:dict=None, proxies:Union[str,dict,ProxyConfig]=None) -> CkanApi:
+                  default_proxies:dict=None, proxies:Union[str,dict,ProxyConfig]=None,
+                  apikey_file:str=None) -> CkanApi:
         """
         Initialize the CKAN instance from the parameters defined in the "ckan" tab of the Excel workbook.
 
@@ -1602,7 +1603,7 @@ class BuilderPackageBasic:
         """
         base_dir = self.get_base_dir(base_dir)  # base_dir is necessary to find the API key file, if provided
         ckan = self.ckan_builder.init_ckan(base_dir, ckan=ckan, default_proxies=default_proxies,
-                                           proxies=proxies)
+                                           proxies=proxies, apikey_file=apikey_file)
         if set_owner_org and self.organization_name is not None:
             ckan.owner_org = self.get_owner_org(ckan)
         return ckan

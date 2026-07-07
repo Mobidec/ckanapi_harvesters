@@ -372,7 +372,7 @@ class CkanUserInfo(CkanIdentifiedObject):
         self.details: Union[dict,None] = d
 
     def __str__(self):
-        return f"User '{self.name}' ({self.id})"
+        return f"User '{self.fullname}' ({self.id})"
 
     @staticmethod
     def get_resource_type() -> str:

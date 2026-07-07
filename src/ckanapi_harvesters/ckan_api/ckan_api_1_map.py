@@ -9,6 +9,7 @@ import time
 import copy
 from warnings import warn
 import argparse
+import hashlib
 
 from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanLicenseInfo, CkanDataStoreInfo, CkanResourceInfo,
                                                      CkanOrganizationInfo, CkanViewInfo, CkanField, CkanUserInfo,
@@ -20,7 +21,8 @@ from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
 from ckanapi_harvesters.auxiliary.ckan_action import CkanActionError, CkanActionNotFoundError, CkanNotFoundError
 from ckanapi_harvesters.auxiliary.ckan_map import CkanMap
 from ckanapi_harvesters.auxiliary.ckan_api_key import CkanApiKey
-from ckanapi_harvesters.auxiliary.ckan_errors import IntegrityError, NotMappedObjectNameError, UnexpectedError
+from ckanapi_harvesters.auxiliary.ckan_errors import (IntegrityError, NotMappedObjectNameError, UnexpectedError,
+                                                      MultipleResultsError, ArgumentError)
 from ckanapi_harvesters.auxiliary.ckan_defs import environ_keyword
 from ckanapi_harvesters.ckan_api.ckan_api_params import CkanApiParamsBasic
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import CkanApiBase, use_ckan_owner_org_for_requests
@@ -1108,6 +1110,13 @@ class CkanApiMap(CkanApiBase):
                 print("User not authenticated")
         return user_info
 
+    def current_user_is_sysadmin(self) -> bool:
+        user_info = self.query_current_user(verbose=False, error_not_found=False)
+        if user_info is not None and user_info.sysadmin:
+            return True
+        else:
+            return False
+
     def test_ckan_login(self, *, raise_error:bool=False, verbose:bool=None,
                         empty_key_connected:bool=False) -> bool:
         """
@@ -1172,6 +1181,41 @@ class CkanApiMap(CkanApiBase):
                 return result
         else:
             return self._api_user_list(q=q, email=email, params=params)
+
+    def user_search(self, *, user_name:str=None, user_email:str=None,
+                    error_not_found:bool=True, sysadmin_requests:bool=None) -> Union[CkanUserInfo,None]:
+        """
+        Search a user by name or email.
+        """
+        if user_email is None and user_name is None:
+            raise ArgumentError("Either user_email or user_name must be specified")
+        user_info = None
+        if sysadmin_requests is None:
+            sysadmin_requests = self.current_user_is_sysadmin()
+        if user_name is not None:
+            user_info = self.map.get_user_info(user_name, error_not_mapped=False)
+            if user_info is None:
+                user_info = self.user_show(user_name=user_name)
+        if user_email is not None:
+            email_hash = hashlib.md5(user_email.encode()).hexdigest()
+            if not sysadmin_requests:
+                # list all users before search in basic user mode
+                self.user_list(cancel_if_present=True)  # list all users
+            # search by email hash
+            if email_hash in self.map.users_email_hash_index.keys():
+                user_id = self.map.users_email_hash_index[email_hash]
+                user_info = self.map.users[user_id]
+            if sysadmin_requests and user_info is None:
+                # direct search possible through API if sysadmin
+                ckan_users = self.user_list(params=dict(email=user_email))
+                if len(ckan_users) > 0:
+                    user_info = ckan_users[0]
+                    if len(ckan_users) > 1:
+                        msg = str(MultipleResultsError("Multiple users found - returning first result"))
+                        warn(msg)
+        if user_info is None and error_not_found:
+            raise CkanNotFoundError("User", f"User '{user_name}' / email '{user_email}'  not found")
+        return user_info
 
     def _api_package_collaborator_list(self, package_id:str, *, params:dict=None,
                                        cancel_if_present:bool=False) -> Dict[str,CkanCollaboration]:
