@@ -9,6 +9,13 @@ When publishing a new release, copy the relevant section on the [Github release 
 
 ## [Unreleased] - 2026-07-07
 
+### Added
+
+- Functions to list packages visible to a given user.
+- Functions to follow dataset queries if the source of a dataset points to an existing dataset on the same CKAN instance (url field).
+- Admin report with fewer details on dataset resources.
+- Better support for access rights listing.
+
 
 ## [0.0.35] - 2026-07-07
 

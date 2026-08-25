@@ -9,7 +9,7 @@ from warnings import warn
 import copy
 
 from ckanapi_harvesters.auxiliary.ckan_model import CkanPackageInfo, CkanResourceInfo, CkanState, CkanDataStoreInfo, \
-    CkanOrganizationInfo, CkanLicenseInfo, CkanViewInfo, CkanGroupInfo, CkanUserInfo, CkanStatus
+    CkanOrganizationInfo, CkanLicenseInfo, CkanViewInfo, CkanGroupInfo, CkanUserInfo, CkanStatus, ckan_email_hash
 from ckanapi_harvesters.auxiliary.ckan_errors import NotMappedObjectNameError, IntegrityError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
 
@@ -59,6 +59,7 @@ class CkanMap(CkanMapABC):
         self.users_id_index:Dict[str, str] = {}         # user name -> id
         self.users_fullname_index:Dict[str, str] = {}   # user fullname -> id
         self.users_email_hash_index:Dict[str, str] = {} # user email_hash -> id
+        self.users_email_index:Dict[str, str] = {}      # user email -> id
         self.groups:Dict[str,CkanGroupInfo] = {}        # group id -> info
         self.groups_id_index:Dict[str, str] = {}        # group name -> id
         self.groups_title_index:Dict[str, str] = {}     # group title -> id
@@ -465,11 +466,12 @@ class CkanMap(CkanMapABC):
         else:
             return None
 
-    def get_user_id(self, user_name: str, *, error_not_mapped: bool = True) -> str:
+    def get_user_id(self, user_name: str, *, error_not_mapped: bool = True, search_hash: bool = False) -> str:
         """
         Retrieve the ID of a user based on the mapped data.
 
         :param user_name: user name, email hash or id.
+        :param search_hash: enables to search by email directly
         :return:
         """
         if user_name is None:
@@ -483,6 +485,8 @@ class CkanMap(CkanMapABC):
             user_id = self.users_fullname_index[user_name]
         elif user_name in self.users_email_hash_index.keys():
             user_id = self.users_email_hash_index[user_name]
+        elif search_hash and ckan_email_hash(user_name) in self.users_email_hash_index.keys():
+            user_id = self.users_email_hash_index[ckan_email_hash(user_name)]
         elif error_not_mapped:
             raise NotMappedObjectNameError(f"User {user_name} is not mapped or does not exist.")
         else:

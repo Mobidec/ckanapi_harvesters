@@ -5,6 +5,7 @@ Action response common treatments
 """
 from typing import Union, Collection
 import json
+from collections import OrderedDict
 
 import requests
 
@@ -36,7 +37,7 @@ class CkanActionResponse:
             self.len = 0
         else:
             try:
-                response_dict = json.loads(response.content.decode())
+                response_dict = json.loads(response.content.decode(), object_pairs_hook=OrderedDict)
                 self.response_dict = response_dict
                 self.success_json_loads = True
                 if (response.status_code == 200 and "success" in response_dict.keys() and "result" in response_dict.keys()

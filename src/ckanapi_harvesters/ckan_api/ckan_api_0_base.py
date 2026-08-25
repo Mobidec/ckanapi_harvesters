@@ -684,7 +684,8 @@ class CkanApiBase(CkanApiABC):
 
     def _api_action_request(self, action:str, *, method:RequestType, params:dict=None,
                             headers:dict=None, data:Union[dict,str,bytes]=None, json:dict=None, files:List[tuple]=None,
-                            timeout:float=None, _attempt_counts:int=0, _attempt_traceback:List[str]=None) -> CkanActionResponse:
+                            timeout:float=None,
+                            max_attempts:int=None, _attempt_counts:int=0, _attempt_traceback:List[str]=None) -> CkanActionResponse:
         """
         Send API action request and return response.
 
@@ -696,11 +697,14 @@ class CkanApiBase(CkanApiABC):
         :param files: files to upload in the request (only for POST method)
         :param headers: headers for the request (authentication tokens are added by the function)
         :param timeout: request timeout in seconds
+        :param max_attempts: maximum number of attempts to make before giving up
         :param _attempt_counts: internal argument in case of re-post of the request to count retries
         :param _attempt_traceback: internal argument in case of re-post of the request to list error history
         :return:
         """
         if params is None: params = {}
+        if max_attempts is None:
+            max_attempts = self.params.max_requests_attempts
         base = self._get_api_url("action")
         url = base + urlsep + action
         headers = self._prepare_headers(headers, include_ckan_auth=True)
@@ -762,7 +766,7 @@ class CkanApiBase(CkanApiABC):
                              or isinstance(e, HttpRetryCodeError)
                              or (response is not None and response.status_code in HTTP_STATUS_CODE_RETRY.keys())
                              or isinstance(e, ProxyError) or isinstance(e, ReadTimeout))
-            if (is_retry_case and _attempt_counts <= self.params.max_requests_attempts):
+            if (is_retry_case and _attempt_counts <= max_attempts):
                 # current_response = CkanActionResponse(response, self.params.dry_run)
                 time_wait = self.params.time_between_attempts * _attempt_counts
                 msg = f"Waiting {time_wait} seconds to retry API call to {action} after server error (attempt {_attempt_counts}): {str(e)}"

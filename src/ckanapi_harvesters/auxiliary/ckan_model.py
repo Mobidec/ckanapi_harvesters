@@ -13,6 +13,7 @@ from packaging import version
 from packaging.version import Version
 from dataclasses import dataclass
 import datetime
+import hashlib
 
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise, _bool_from_string, bytes_to_megabytes
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanFieldInternalAttrs
@@ -113,11 +114,12 @@ class CkanLicenseDomain(IntFlag):
 
 class CkanCapacity(IntEnum):
     Excluded = 0
-    Member = 1
-    Editor = 2  # only for collaborators of a package
-    Admin = 3   # only for members of a group
-    SysAdmin = 4
-    Public = 5  # to notify access is publicly available
+    Public = 1  # to notify access is publicly available
+    Member = 3
+    Editor = 4  # only for collaborators of a package
+    Owner = 5   # only for packages
+    Admin = 6   # only for members of a group
+    SysAdmin = 7
 
     def __str__(self):
         return self.name.lower()
@@ -344,6 +346,12 @@ class CkanAliasInfo(CkanIdentifiedObject):
         return d
 
 ## Users and groups ------------------
+def ckan_email_hash(email:str) -> str:
+    """
+    Hash function used in CKAN to obfuscate user email addresses.
+    """
+    return hashlib.md5(email.encode()).hexdigest()
+
 class CkanUserInfo(CkanIdentifiedObject):
     def __init__(self, d: dict = None):
         super().__init__()
@@ -406,14 +414,14 @@ class CkanGroupInfo(CkanIdentifiedObject):
         self.package_count:Union[None,int] = d.get("package_count")
         self.details:dict = d
         # to be initialized with specific requests:
-        self.user_capacities:Union[dict[str,CkanCapacity],None] = None
-        self.user_dict:Union[dict[str,CkanUserInfo],None] = None
-        self.package_members:Union[dict[str,CkanCapacity],None] = None
+        self.user_capacities:Union[OrderedDict[str,CkanCapacity],None] = None
+        self.user_dict:Union[OrderedDict[str,CkanUserInfo],None] = None
+        self.package_members:Union[OrderedDict[str,CkanCapacity],None] = None
         if "users" in d.keys():
             user_list = [CkanUserInfo(user_dict) for user_dict in d["users"]]
-            self.user_dict = {user_info.id: user_info for user_info in user_list}
-            self.user_capacities = {user_info.id: CkanCapacity.from_str(user_dict["capacity"]) for
-                                    user_info, user_dict in zip(user_list, d["users"])}
+            self.user_dict = OrderedDict([(user_info.id, user_info) for user_info in user_list])
+            self.user_capacities = OrderedDict([(user_info.id, CkanCapacity.from_str(user_dict["capacity"])) for
+                                    user_info, user_dict in zip(user_list, d["users"])])
             # self.map._update_user_info(list(self.user_dict.values()))  # update map must be done by caller
 
     def __str__(self):
@@ -750,9 +758,11 @@ class CkanResourceInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
 
 
 class CkanCollaboration:
-    def __init__(self, capacity:CkanCapacity=None, modified:datetime.datetime=None, group_id:str=None, d:dict=None):
+    def __init__(self, capacity:CkanCapacity=None, modified:datetime.datetime=None,
+                 group_id:str=None, organization_id:str=None, d:dict=None):
         self.capacity:CkanCapacity = capacity
         self.group_id:Union[str,None] = group_id
+        self.organization_id:Union[str,None] = organization_id
         self.modified: Union[datetime.datetime,None] = modified
         self.details:Union[dict,None] = d
         if d is not None:
@@ -761,17 +771,25 @@ class CkanCollaboration:
                 self.modified:datetime.datetime = datetime.datetime.fromisoformat(d["modified"])
 
     def __str__(self):
-        return str(self.capacity)
+        if self.group_id is not None:
+            return f"{str(self.capacity)} from group {self.group_id}"
+        elif self.organization_id is not None:
+            return f"{str(self.capacity)} from organization {self.organization_id}"
+        else:
+            return str(self.capacity)
 
     def copy(self) -> "CkanCollaboration":
         return copy.deepcopy(self)
 
-    def to_dict(self, user_info: CkanUserInfo, group_table: Dict[str,CkanGroupInfo], date_format:str) -> dict:
+    def to_dict(self, *, user_info: CkanUserInfo,
+                group_table: Dict[str,CkanGroupInfo], organization_table: Dict[str,"CkanOrganizationInfo"],
+                date_format:str,
+                include_user_org:bool=False) -> dict:
         d = OrderedDict([
             ("full_name", user_info.fullname),
             ("capacity", str(self.capacity)),
         ])
-        if user_info.organizations is not None:
+        if include_user_org and user_info.organizations is not None:
             d["organizations"] = sorted(user_info.organizations)
         if self.modified is not None:
             if date_format is None:
@@ -780,6 +798,8 @@ class CkanCollaboration:
                 d["date_modified"] = self.modified.strftime(date_format)
         if self.group_id is not None:
             d["from_group"] = group_table[self.group_id].name
+        if self.organization_id is not None:
+            d["from_organization"] = organization_table[self.organization_id].name
         return d
 
 
@@ -837,6 +857,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         self.newly_created:bool = False
         self.collaborators:Union[None,Dict[str,CkanCollaboration]] = None  # given by API package_collaborator_list
         self.user_access:Union[None,Dict[str,CkanCollaboration]] = None  # given by function map_user_rights
+        self.creator_user_id:Union[None,str] = None
         self.package_size:Union[None,CkanPackageSizeInfo] = None  # given by function _update_package_size_fields
         self.package_type:Union[str, None] = package_type
 
@@ -875,6 +896,8 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
             if "groups" in d.keys():  # may be absent if restored from to_dict output
                 self.groups = [CkanGroupInfo(info) for info in d["groups"]]
             self.license_id = d["license_id"]
+            if "creator_user_id" in d.keys():
+                self.creator_user_id = d["creator_user_id"]
             self.author = d["author"]
             self.author_email = d["author_email"]
             self.maintainer = d["maintainer"]
@@ -982,6 +1005,71 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
     def from_dict(d:dict) -> "CkanPackageInfo":
         return CkanPackageInfo(d)
 
+    def expand_user_access(self, *, user_table: Dict[str,CkanUserInfo],
+                           group_table: Dict[str,CkanGroupInfo], organization_table: Dict[str,"CkanOrganizationInfo"],
+                           change_creator:bool=True, expand_groups:bool=True, expand_public:bool=True,
+                           expand_excluded:bool=False) -> Union[Dict[str,CkanCollaboration],None]:
+        """
+        List all users having access to this package with their rights. Users are listed by their ID.
+        Pre-requisites: having mapped all users, necessary groups and organizations and called ckan.map_user_rights.
+
+        :param user_table: Mapped user table
+        :param group_table: Mapped group table
+        :param organization_table: Mapped organization table
+        :param change_creator: Whether to mark the user as creator if already present as a member
+        :param expand_groups: Whether to expand group and organization memberships
+        :param expand_public: Whether to include all remaining users if package is not private
+        :param expand_excluded: Whether to include all remaining users as excluded if package is private
+        """
+        if self.collaborators is None:
+            return None
+        expanded_user_access = self.collaborators.copy()
+        if self.creator_user_id is not None:
+            user_info = user_table.get(self.creator_user_id, None)
+            if user_info.id in expanded_user_access.keys():
+                collaboration = expanded_user_access[user_info.id]
+                if change_creator:
+                    collaboration.capacity = max(collaboration.capacity, CkanCapacity.Owner)
+            else:
+                expanded_user_access[user_info.id] = CkanCollaboration(capacity=CkanCapacity.Owner)
+        if expand_groups:
+            for package_group_info in self.groups:
+                # obtain full group info from ckan map and add users
+                group_info = group_table.get(package_group_info.id, None)
+                if group_info.user_capacities is not None:
+                    for user_id, capacity in group_info.user_capacities.items():
+                        user_info = user_table.get(user_id, None)
+                        if user_info.id in expanded_user_access.keys():
+                            collaboration = expanded_user_access[user_info.id]
+                            if capacity > collaboration.capacity:
+                                collaboration.capacity = capacity
+                                collaboration.group_id = group_info.id
+                        else:
+                            collaboration = CkanCollaboration(capacity=capacity, group_id=package_group_info.id)
+                            expanded_user_access[user_info.id] = collaboration
+            # obtain full organization info from ckan map and add users
+            organization_info = organization_table.get(self.organization_info.id, None)
+            if organization_info.user_members is not None:
+                for user_id, capacity in organization_info.user_members.items():
+                    user_info = user_table.get(user_id, None)
+                    if user_info.id in expanded_user_access.keys():
+                        collaboration = expanded_user_access[user_info.id]
+                        if capacity > collaboration.capacity:
+                            collaboration.capacity = capacity
+                            collaboration.organization_id = organization_info.id
+                    else:
+                        collaboration = CkanCollaboration(capacity=capacity, organization_id=organization_info.id)
+                        expanded_user_access[user_info.id] = collaboration
+        if self.private:
+            remaining_capacity = CkanCapacity.Excluded
+        else:
+            remaining_capacity = CkanCapacity.Public
+        if (expand_public and not self.private) or (expand_excluded and self.private):
+            for user_info in user_table.values():
+                if user_info.name not in expanded_user_access.keys():
+                    expanded_user_access[user_info.id] = CkanCollaboration(capacity=remaining_capacity)
+        return expanded_user_access
+
 
 class CkanOrganizationInfo(CkanIdentifiedObject):
     def __init__(self, d:dict):
@@ -1035,4 +1123,36 @@ class CkanStatus:
 
     def __str__(self):
         return f"CKAN v{self.ckan_version} {self.site_url} ({self.site_title}) with ext {','.join(self.extensions)}"
+
+
+class CkanApiTokenInfo(CkanIdentifiedObject):
+    def __init__(self, d:dict):
+        super().__init__()
+        self.id: str = d["id"]
+        self.name: str = d["name"]
+        self.user_id: str = d["user_id"]
+        self.created_at: datetime.datetime = datetime.datetime.fromisoformat(d["created_at"]) if d["created_at"] is not None else None
+        self.last_access: datetime.datetime = datetime.datetime.fromisoformat(d["last_access"]) if d["last_access"] is not None else None
+        self.details = d
+
+    def __str__(self):
+        return f"Token '{self.name}' ({self.id})"
+
+    def copy(self) -> "CkanApiTokenInfo":
+        return copy.deepcopy(self)
+
+    def to_dict(self, include_details:bool=True) -> dict:
+        d = dict()
+        if self.details is not None and include_details:
+            d.update(self.details)
+        d.update({"id": self.id, "name": self.name, "user_id": self.user_id})
+        if self.created_at is not None:
+            d["created_at"] = self.created_at.isoformat()
+        if self.last_access is not None:
+            d["last_access"] = self.last_access.isoformat()
+        return d
+
+    @staticmethod
+    def from_dict(d:dict) -> "CkanApiTokenInfo":
+        return CkanApiTokenInfo(d)
 

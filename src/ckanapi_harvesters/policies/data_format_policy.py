@@ -264,7 +264,8 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         else:
             return success
 
-    def enforce(self, values: CkanPackageInfo, *, context:dict=None, verbose: bool = True, buffer:List[DataPolicyError]=None) -> bool:
+    def enforce(self, values: CkanPackageInfo, *, context:dict=None, verbose: bool = True,
+                buffer:List[DataPolicyError]=None, enforce_resources:bool=True) -> bool:
         package_info = values
         success = True
         if context is None:
@@ -285,37 +286,39 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
                 msg = DataPolicyError(context, self.package_author_or_maintainer_level, f"Author/Maintainer not found")
                 _policy_msg(msg, error_level=self.package_author_or_maintainer_level, buffer=buffer, verbose=verbose)
             success &= success_author_or_maintainer
-        resource_name_index = OrderedDict()
-        for resource_info in package_info.package_resources.values():
-            if resource_info.name in resource_name_index.keys():
-                resource_name_index[resource_info.name].append(resource_info.id)
-            else:
-                resource_name_index[resource_info.name] = [resource_info.id]
-            resource_context = context.copy()
-            resource_context["resource"] = resource_info.name
-            if self.resource_format is not None:
-                resource_format_context = resource_context.copy()
-                resource_format_context["resource_attribute"] = "format"
-                success &= self.resource_format.enforce(resource_info.format, context=resource_format_context, verbose=verbose, buffer=buffer)
-            if self.resource_mandatory_attributes is not None:
-                success &= self._enforce_attributes_list(resource_info, self.resource_mandatory_attributes, context=resource_context, verbose=verbose, buffer=buffer)
-            if not resource_info.datastore_queried():
-                raise MissingDataStoreInfoError(resource_info.id)
-            if self.datastore_fields_mandatory_attributes is not None and resource_info.datastore_info is not None:
-                for field_info in resource_info.datastore_info.fields_dict.values():
-                    field_context = resource_context.copy()
-                    field_context["field"] = field_info.name
-                    success &= self._enforce_attributes_list(field_info, self.datastore_fields_mandatory_attributes, context=field_context, verbose=verbose, buffer=buffer)
-        if any([len(resource_ids) > 1 for resource_ids in resource_name_index.values()]):
-            for resource_name, resource_ids in resource_name_index.items():
-                if len(resource_ids) > 1:
-                    msg = DataPolicyError(context, self.resource_same_name_level, f"{len(resource_ids)} resources with same name were found for '{resource_name}' ({', '.join(resource_ids)})")
-                    _policy_msg(msg, error_level=self.resource_same_name_level, buffer=buffer, verbose=verbose)
-            success = False
+        if enforce_resources:
+            resource_name_index = OrderedDict()
+            for resource_info in package_info.package_resources.values():
+                if resource_info.name in resource_name_index.keys():
+                    resource_name_index[resource_info.name].append(resource_info.id)
+                else:
+                    resource_name_index[resource_info.name] = [resource_info.id]
+                resource_context = context.copy()
+                resource_context["resource"] = resource_info.name
+                if self.resource_format is not None:
+                    resource_format_context = resource_context.copy()
+                    resource_format_context["resource_attribute"] = "format"
+                    success &= self.resource_format.enforce(resource_info.format, context=resource_format_context, verbose=verbose, buffer=buffer)
+                if self.resource_mandatory_attributes is not None:
+                    success &= self._enforce_attributes_list(resource_info, self.resource_mandatory_attributes, context=resource_context, verbose=verbose, buffer=buffer)
+                if not resource_info.datastore_queried():
+                    raise MissingDataStoreInfoError(resource_info.id)
+                if self.datastore_fields_mandatory_attributes is not None and resource_info.datastore_info is not None:
+                    for field_info in resource_info.datastore_info.fields_dict.values():
+                        field_context = resource_context.copy()
+                        field_context["field"] = field_info.name
+                        success &= self._enforce_attributes_list(field_info, self.datastore_fields_mandatory_attributes, context=field_context, verbose=verbose, buffer=buffer)
+            if any([len(resource_ids) > 1 for resource_ids in resource_name_index.values()]):
+                for resource_name, resource_ids in resource_name_index.items():
+                    if len(resource_ids) > 1:
+                        msg = DataPolicyError(context, self.resource_same_name_level, f"{len(resource_ids)} resources with same name were found for '{resource_name}' ({', '.join(resource_ids)})")
+                        _policy_msg(msg, error_level=self.resource_same_name_level, buffer=buffer, verbose=verbose)
+                success = False
         return success
 
     def policy_check_package(self, package_info: CkanPackageInfo, *, package_report:PackagePolicyReport=None,
-                             display_message:bool=True, raise_error:bool=False) -> PackagePolicyReport:
+                             display_message:bool=True, raise_error:bool=False,
+                             check_resources:bool=True) -> PackagePolicyReport:
         """
         Main entry-point to check the policy rules against the package.
 
@@ -331,7 +334,8 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
             package_report = PackagePolicyReport(package_name)
         context = OrderedDict()
         context["package"] = package_name
-        success = self.enforce(package_info, context=context, verbose=True, buffer=package_report.messages)
+        success = self.enforce(package_info, context=context, verbose=True, buffer=package_report.messages,
+                               enforce_resources=check_resources)
         error_count = ErrorCount(package_report.messages)
         package_report.error_count = error_count
         package_report.success = success

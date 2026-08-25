@@ -174,7 +174,8 @@ class CkanApiPolicy(CkanApiReadOnly):
     def policy_check(self, package_list:Union[str,List[str]]=None, policy: CkanPackageDataFormatPolicy=None,
                      *, buffer:Dict[str, PackagePolicyReport]=None, raise_error:bool=False,
                      verbose:bool=None, auto_update:bool=None, date_report:datetime.datetime=None,
-                     progress_callback:CkanProgressCallbackABC=None) -> bool:
+                     progress_callback:CkanProgressCallbackABC=None,
+                     check_resources:bool=True) -> bool:
         """
         Enforce policy on mapped packages
 
@@ -190,7 +191,11 @@ class CkanApiPolicy(CkanApiReadOnly):
             verbose = self.params.verbose_policy
         if auto_update is None:
             auto_update = self.params.default_update_policy_on_check
-        self.map_resources(package_list, datastore_info=True, load_policy=True)
+        if check_resources:
+            self.map_resources(package_list, datastore_info=True, load_policy=True)
+        else:
+            self.complete_package_list(package_list)
+            self.load_default_policy(cancel_if_present=True, load_error=False)
         self.map_file_resource_sizes(package_list=package_list)
         self._update_package_size_fields(package_list)
         if policy is None:
@@ -207,7 +212,8 @@ class CkanApiPolicy(CkanApiReadOnly):
             if progress_callback is not None:
                 progress_callback.update_task(i_package, num_packages, level=CkanCallbackLevel.Packages)
             package_info = self.get_package_info_or_request(package_name, datastore_info=True)
-            package_report = policy.policy_check_package(package_info, display_message=verbose, raise_error=raise_error)
+            package_report = policy.policy_check_package(package_info, display_message=verbose, raise_error=raise_error,
+                                                         check_resources=check_resources)
             success &= package_report.success
             if auto_update:
                 policy.package_update_scores(self, package_info, package_report,

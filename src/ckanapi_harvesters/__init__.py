@@ -43,7 +43,8 @@ from . import reports
 
 # usage shortcuts
 from .auxiliary import (CkanMap, RequestType, CkanField, CkanState, CkanProgressCallback, CkanCallbackLevel,
-                        CkanProgressBarType, CkanProgressCallbackEmpty, CkanCapacity)
+                        CkanProgressBarType, CkanProgressCallbackEmpty, CkanCapacity,
+                        ckan_email_hash)
 from .policies import PackagePolicyReport, CkanPackageDataFormatPolicy
 from .reports import CkanAdminReport
 from .ckan_api import CkanApi, CkanApiParams, CKAN_API_VERSION

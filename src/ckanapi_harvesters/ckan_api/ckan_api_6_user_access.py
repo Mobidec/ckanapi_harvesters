@@ -21,6 +21,12 @@ class CkanApiUserAccess(CkanApiManage):
     This class implements requests to modify user access rights.
     """
 
+    def copy(self, new_identifier: str = None, *, dest=None):
+        if dest is None:
+            dest = CkanApiUserAccess()
+        super().copy(new_identifier=new_identifier, dest=dest)
+        return dest
+
     def _user_list_extract_ids(self, users: Union[str,CkanUserInfo,List[Union[str,CkanUserInfo]]]) -> List[str]:
         if not(isinstance(users, list)):
             users = [users]

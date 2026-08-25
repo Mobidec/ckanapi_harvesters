@@ -112,7 +112,8 @@ field_type_synonyms = {
     "integer": {"integer", "int4", "int"},
     "bigint": {"bigint", "int8"},
     "double precision": {"double precision", "double", "float8", "float"},
-    "timestamp": {"timestamp", "timestamp without time zone"}
+    "timestamp": {"timestamp", "timestamp without time zone"},
+    "nested": {"nested", "json"},
 }
 # geometry: special treatment
 # see also: data cleaner ckanapi_harvesters.harvesters.data_cleaner

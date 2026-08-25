@@ -6,8 +6,8 @@ Alias to most complete CkanApi implementation
 
 from ckanapi_harvesters.ckan_api.ckan_api_0_base import CkanApiABC, CKAN_API_VERSION
 from ckanapi_harvesters.ckan_api.ckan_api_1_map import CkanApiMap
-from ckanapi_harvesters.ckan_api.ckan_api_6_user_access import CkanApiUserAccess as CkanApi  # alias
-from ckanapi_harvesters.ckan_api.ckan_api_5_manage import CkanApiExtendedParams as CkanApiParams  # alias
+from ckanapi_harvesters.ckan_api.ckan_api_7_sysadmin import CkanApiSysadmin as CkanApi  # alias
+from ckanapi_harvesters.ckan_api.ckan_api_7_sysadmin import CkanApiSysadminParams as CkanApiParams  # alias
 from ckanapi_harvesters.auxiliary.external_code_import import unlock_external_code_execution
 from ckanapi_harvesters.auxiliary.ckan_configuration import (unlock_external_url_resource_download,
                                                              allow_no_server_ca, unlock_no_server_ca)

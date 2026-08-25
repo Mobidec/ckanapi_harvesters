@@ -25,7 +25,7 @@ def test_03_map_resources(ckan):
 def test_04_report(ckan):
     ckan.map_resources()
     package_list = [list(ckan.map.packages.keys())[0]]
-    report = CkanAdminReport(ckan=ckan, package_list=package_list, full_report=True, auto_exec=False)
+    report = CkanAdminReport(package_list=package_list, ckan=ckan, full_report=True, auto_exec=False)
     report.allow_downgraded_queries = True
     report.execute(ckan)
     print(report.to_jsons())
