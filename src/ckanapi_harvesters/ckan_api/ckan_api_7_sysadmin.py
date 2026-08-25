@@ -27,8 +27,7 @@ class CkanApiSysadminParams(CkanApiExtendedParams):
 class CkanApiSysadmin(CkanApiUserAccess):
     """
     CKAN Database API interface to CKAN server with helper functions using pandas DataFrames.
-    This class implements methods only available to sysadmins among which:
-    - requests to impersonate another user
+    This class implements methods only available to sysadmins... under development.
     """
 
     def __init__(self, url:str=None, *, proxies:Union[str,dict,ProxyConfig]=None,

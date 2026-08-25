@@ -1245,34 +1245,33 @@ class CkanApiReadOnly(CkanApiMap):
                 package_size = package_info.package_size
                 package_size.reset()
                 package_size.resource_count = len(package_info.package_resources)
-                if expand_resources:
-                    for resource_id in package_info.package_resources.keys():
-                        resource_info = self.map.get_resource_info(resource_id)
-                        if not resource_info.datastore_queried():
-                            raise MissingDataStoreInfoError(resource_info.id)
-                        resource_modified = resource_info.last_modified if resource_info.last_modified is not None else resource_info.created
-                        internal_filestore = self.is_url_internal(resource_info.download_url)
-                        if resource_modified is not None:
-                            package_size.date_last_modified_resource = max(package_size.date_last_modified_resource, resource_modified) \
-                                if package_size.date_last_modified_resource else resource_modified
-                        if resource_info.metadata_modified is not None:
-                            package_size.date_last_modified_resource_metadata = max(package_size.date_last_modified_resource_metadata,
-                                                                                    resource_info.metadata_modified) \
-                                if package_size.date_last_modified_resource_metadata else resource_info.metadata_modified
-                        if resource_info.download_url:
-                            if internal_filestore:
-                                if resource_info.download_size_mb is not None:
-                                    package_size.filestore_size_mb += resource_info.download_size_mb
-                            else:
-                                if resource_info.download_size_mb is not None:
-                                    package_size.external_size_mb += resource_info.download_size_mb
-                                package_size.external_resource_count += 1
-                            package_size.filestore_count += 1
-                        if resource_info.datastore_info is not None:
-                            datastore_size = resource_info.datastore_info.table_size_mb + resource_info.datastore_info.index_size_mb
-                            package_size.datastore_size_mb += datastore_size
-                            package_size.datastore_lines += resource_info.datastore_info.row_count
-                            package_size.datastore_count += 1
+                for resource_id in package_info.package_resources.keys():
+                    resource_info = self.map.get_resource_info(resource_id)
+                    if not resource_info.datastore_queried():
+                        raise MissingDataStoreInfoError(resource_info.id)
+                    resource_modified = resource_info.last_modified if resource_info.last_modified is not None else resource_info.created
+                    internal_filestore = self.is_url_internal(resource_info.download_url)
+                    if resource_modified is not None:
+                        package_size.date_last_modified_resource = max(package_size.date_last_modified_resource, resource_modified) \
+                            if package_size.date_last_modified_resource else resource_modified
+                    if resource_info.metadata_modified is not None:
+                        package_size.date_last_modified_resource_metadata = max(package_size.date_last_modified_resource_metadata,
+                                                                                resource_info.metadata_modified) \
+                            if package_size.date_last_modified_resource_metadata else resource_info.metadata_modified
+                    if resource_info.download_url:
+                        if internal_filestore:
+                            if resource_info.download_size_mb is not None:
+                                package_size.filestore_size_mb += resource_info.download_size_mb
+                        else:
+                            if resource_info.download_size_mb is not None:
+                                package_size.external_size_mb += resource_info.download_size_mb
+                            package_size.external_resource_count += 1
+                        package_size.filestore_count += 1
+                    if resource_info.datastore_info is not None:
+                        datastore_size = resource_info.datastore_info.table_size_mb + resource_info.datastore_info.index_size_mb
+                        package_size.datastore_size_mb += datastore_size
+                        package_size.datastore_lines += resource_info.datastore_info.row_count
+                        package_size.datastore_count += 1
 
     ## Mapping of resource aliases from table
     def list_datastore_aliases(self) -> List[CkanAliasInfo]:

@@ -174,14 +174,14 @@ class CkanApiPolicy(CkanApiReadOnly):
     def policy_check(self, package_list:Union[str,List[str]]=None, policy: CkanPackageDataFormatPolicy=None,
                      *, buffer:Dict[str, PackagePolicyReport]=None, raise_error:bool=False,
                      verbose:bool=None, auto_update:bool=None, date_report:datetime.datetime=None,
-                     progress_callback:CkanProgressCallbackABC=None,
-                     check_resources:bool=True) -> bool:
+                     progress_callback:CkanProgressCallbackABC=None) -> bool:
         """
         Enforce policy on mapped packages
 
         :param policy:
         :return:
         """
+        check_resources = True
         success = True
         if package_list is None:
             package_list = self.map.packages.keys()  # check on all packages

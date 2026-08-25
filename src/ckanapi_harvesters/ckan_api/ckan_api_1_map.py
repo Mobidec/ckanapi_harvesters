@@ -1408,7 +1408,7 @@ class CkanApiMap(CkanApiBase):
         """
         List packages visible for another user (or with at least a certain capacity).
         It is recommended to run complete_package_list or map_resources before calling this function.
-        You can run map_user_rights externally with a progress bar (long).
+        You must run map_user_rights externally with default arguments, if wanted, with a progress bar (long).
         To obtain complete information, you must use a sysadmin account.
 
         :param user_name: name of the user to list packages for
@@ -1418,7 +1418,7 @@ class CkanApiMap(CkanApiBase):
         if not self.current_user_is_sysadmin():
             msg = "You should be logged as a sysadmin to obtain a complete list of packages for another user"
             warn(msg)
-        self.map_user_rights(cancel_if_present=True)  # calls expand_user_access with default options
+        # self.map_user_rights(cancel_if_present=True)  # calls expand_user_access with default options
         user_id = self.map.get_user_id(user_name, search_hash=search_hash)
         user_packages = {package_id: (package_info.user_access.get(user_id, CkanCollaboration(capacity=CkanCapacity.Excluded)), package_info)
                          for package_id, package_info in self.map.packages.items()

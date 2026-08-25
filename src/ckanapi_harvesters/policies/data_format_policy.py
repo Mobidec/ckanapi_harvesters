@@ -265,7 +265,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
             return success
 
     def enforce(self, values: CkanPackageInfo, *, context:dict=None, verbose: bool = True,
-                buffer:List[DataPolicyError]=None, enforce_resources:bool=True) -> bool:
+                buffer:List[DataPolicyError]=None, _enforce_on_resources:bool=True) -> bool:
         package_info = values
         success = True
         if context is None:
@@ -286,7 +286,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
                 msg = DataPolicyError(context, self.package_author_or_maintainer_level, f"Author/Maintainer not found")
                 _policy_msg(msg, error_level=self.package_author_or_maintainer_level, buffer=buffer, verbose=verbose)
             success &= success_author_or_maintainer
-        if enforce_resources:
+        if _enforce_on_resources:
             resource_name_index = OrderedDict()
             for resource_info in package_info.package_resources.values():
                 if resource_info.name in resource_name_index.keys():
@@ -317,8 +317,7 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         return success
 
     def policy_check_package(self, package_info: CkanPackageInfo, *, package_report:PackagePolicyReport=None,
-                             display_message:bool=True, raise_error:bool=False,
-                             check_resources:bool=True) -> PackagePolicyReport:
+                             display_message:bool=True, raise_error:bool=False) -> PackagePolicyReport:
         """
         Main entry-point to check the policy rules against the package.
 
@@ -329,13 +328,14 @@ class CkanPackageDataFormatPolicy(DataPolicyABC):
         :param raise_error: option to raise an exception if any rule with a high error level is encountered
         :return: True if no error was encountered
         """
+        check_resources = True
         package_name = package_info.name
         if package_report is None:
             package_report = PackagePolicyReport(package_name)
         context = OrderedDict()
         context["package"] = package_name
         success = self.enforce(package_info, context=context, verbose=True, buffer=package_report.messages,
-                               enforce_resources=check_resources)
+                               _enforce_on_resources=check_resources)
         error_count = ErrorCount(package_report.messages)
         package_report.error_count = error_count
         package_report.success = success
