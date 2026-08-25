@@ -138,8 +138,7 @@ class CkanAdminReport:
             self.enable_policy_check = False
         if self.enable_policy_check:
             ckan.policy_check(buffer=policy_messages, progress_callback=progress_callback,
-                              date_report=self.report_date, auto_update=self.auto_update_ckan,
-                              check_resources=self.expand_resources)
+                              date_report=self.report_date, auto_update=self.auto_update_ckan)
         else:
             self.include_policy_messages = False
 

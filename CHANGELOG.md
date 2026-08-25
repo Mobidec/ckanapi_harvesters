@@ -10,6 +10,13 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-08-25
 
 
+## [0.0.37] - 2026-08-25
+
+### Fixed
+
+- Bugs introduced in previous version
+
+
 ## [0.0.36] - 2026-08-25
 
 ### Added

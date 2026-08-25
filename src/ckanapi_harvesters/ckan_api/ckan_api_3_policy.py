@@ -212,8 +212,7 @@ class CkanApiPolicy(CkanApiReadOnly):
             if progress_callback is not None:
                 progress_callback.update_task(i_package, num_packages, level=CkanCallbackLevel.Packages)
             package_info = self.get_package_info_or_request(package_name, datastore_info=True)
-            package_report = policy.policy_check_package(package_info, display_message=verbose, raise_error=raise_error,
-                                                         check_resources=check_resources)
+            package_report = policy.policy_check_package(package_info, display_message=verbose, raise_error=raise_error)
             success &= package_report.success
             if auto_update:
                 policy.package_update_scores(self, package_info, package_report,
