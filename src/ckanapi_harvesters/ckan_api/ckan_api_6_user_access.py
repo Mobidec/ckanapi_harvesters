@@ -65,7 +65,7 @@ class CkanApiUserAccess(CkanApiManage):
             raise response.default_error(self)
 
     def package_collaborator_create(self, package_id: str, user_name: Union[str,CkanUserInfo,List[Union[str,CkanUserInfo]]],
-                                    capacity: Union[CkanCapacity,str],
+                                    capacity: Union[CkanCapacity,str] = CkanCapacity.Member,
                                     *, bypass_admin:bool=True, params:dict=None) -> List[CkanCollaboration]:
         """
         Function alias of _api_package_collaborator_create.

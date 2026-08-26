@@ -15,7 +15,8 @@ from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCal
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_errors import CkanAuthorizationError, UnexpectedError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import to_jsons_indent_lists_single_line, round_size, assert_or_raise
-from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanUserInfo, CkanCollaboration, CkanCapacity
+from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanUserInfo
+from ckanapi_harvesters.auxiliary.ckan_rules import package_expand_user_access
 from ckanapi_harvesters.policies.policy_report import PackagePolicyReport
 from ckanapi_harvesters.policies.data_format_policy_errors import ErrorCount
 
@@ -175,6 +176,9 @@ class CkanAdminReport:
                 # data_format_policy_scores = ErrorCount(package_policy_report.messages)
                 data_format_policy_scores = package_policy_report.error_count
                 total_policy_errors += data_format_policy_scores
+            else:
+                package_policy_report = None
+                data_format_policy_scores = None
             if self.expand_resources:
                 package_size = package_info.package_size  # computed by _update_package_size_fields
                 if package_size.date_last_modified_resource is not None:
@@ -211,6 +215,7 @@ class CkanAdminReport:
                     resources_report.append(resource_report)
             else:
                 resources_report = None
+                package_size = None
             license_info = ckan.map.licenses[package_info.license_id] if package_info.license_id and package_info.license_id in ckan.map.licenses.keys() else None
             package_report = OrderedDict([
                 ("package_title", package_info.title),
@@ -251,7 +256,7 @@ class CkanAdminReport:
             if package_info.creator_user_id is not None:
                 user_info = ckan.map.users.get(package_info.creator_user_id, None)
                 package_report["creator"] = user_info.name
-            package_info.user_access = package_info.expand_user_access(user_table=ckan.map.users,
+            package_info.user_access = package_expand_user_access(package_info, user_table=ckan.map.users,
                                                                    organization_table=ckan.map.organizations,
                                                                    group_table=ckan.map.groups,
                                                                    expand_groups=self.expand_groups,
