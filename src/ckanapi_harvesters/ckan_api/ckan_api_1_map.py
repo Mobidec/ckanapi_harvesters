@@ -674,13 +674,14 @@ class CkanApiMap(CkanApiBase):
             fq_list = []
         if filter is not None:
             fq_filter = '+'.join([f"{key}:{value}" for key, value in filter.items()])
-            fq_list.insert(0, fq_filter)
+            if fq is None:
+                fq = fq_filter
+            else:
+                fq_list.insert(0, fq_filter)
         if fq is not None:
-            fq_list.insert(0, fq)
+            params["fq"] = fq
         if len(fq_list) > 0:
-            params["fq"] = fq_list[0]
-            if len(fq_list) > 1:
-                params["fq_list"] = fq_list[1:]
+            params["fq_list"] = fq_list
         if sort is not None:
             params["sort"] = sort
         if facet is not None:
