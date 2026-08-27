@@ -192,7 +192,7 @@ class BuilderPackageBasic:
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.clear_secrets_and_disconnect()
-        return True
+        return False
     # -------------
 
     @staticmethod

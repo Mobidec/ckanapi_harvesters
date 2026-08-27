@@ -116,7 +116,7 @@ class CkanProgressCallbackABC(ABC):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.release_resources()
         self.remove_context()
-        return True
+        return False
     # -------------
 
     def add_context(self, context:str, *, level:CkanCallbackLevel=None):

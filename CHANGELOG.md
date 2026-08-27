@@ -7,7 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 When publishing a new release, copy the relevant section on the [Github release page](https://github.com/Mobidec/ckanapi_harvesters/releases).
 
 
-## [Unreleased] - 2026-08-25
+## [Unreleased] - 2026-08-28
+
+
+## [0.0.38] - 2026-08-27
+
+### Fixed
+
+- Using objects in `with` statements did not propagate underlying exceptions (context managers `__exit__` methods must return False).
 
 
 ## [0.0.37] - 2026-08-25

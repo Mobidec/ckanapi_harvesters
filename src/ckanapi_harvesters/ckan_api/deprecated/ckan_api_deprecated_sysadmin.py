@@ -69,7 +69,7 @@ class CkanApiSysadminDeprecated(CkanApiSysadmin):
         super().copy(new_identifier=new_identifier, dest=dest)
         return dest
 
-    ## User impersonation: does not work
+    ## User impersonation (context manager): does not work
     @contextmanager
     def user_impersonate(self, user_name:str, *, token_name:str=None) -> "CkanApiSysadmin":
         user_id = self.get_user_id_or_request(user_name)
