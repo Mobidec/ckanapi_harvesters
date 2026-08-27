@@ -1471,7 +1471,7 @@ class CkanApiMap(CkanApiBase):
         if not (parsed_url_path[1] == "dataset"): return None
         return parsed_url_path[2]
 
-    def package_follow_reflective_sources(self, package_list:List[str]=None, *, name_re:str=None) \
+    def package_follow_recursive_sources(self, package_list:List[str]=None, *, name_re:str=None) \
             -> Dict[str, List[str]]:
         """
         List packages mentionned as source of currently known packages, if source is internal
@@ -1484,6 +1484,7 @@ class CkanApiMap(CkanApiBase):
         elif isinstance(package_list, str):
             package_list = [package_list]
         extra_package_names = []
+        error_package_urls = []
         error_package_names = []
         for package_name in package_list:
             package_info = self.map.get_package_info(package_name)
@@ -1494,9 +1495,11 @@ class CkanApiMap(CkanApiBase):
                     source_package_name = self.get_package_name_from_url(package_source_url)
                     if source_package_name is not None:
                         extra_package_names.append(source_package_name)
+                    else:
+                        error_package_urls.append(package_source_url)
         for package_name in extra_package_names:
             try:
                 self.package_show(package_name)
             except CkanActionNotFoundError as e:
                 error_package_names.append(package_name)
-        return {"extra": extra_package_names, "error": error_package_names}
+        return {"extra": extra_package_names, "error": error_package_names, "url_error": error_package_urls}
