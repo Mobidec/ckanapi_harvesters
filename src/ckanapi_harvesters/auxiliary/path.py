@@ -24,11 +24,11 @@ def unlock_relative_path_constraint(value:bool=True) -> None:
         warn(msg)
 
 
-class BaseDirUndefError(BaseException):
+class BaseDirUndefError(Exception):
     def __init__(self, path: str):
         super().__init__(f"Could not determine the file path because no base_dir was provided: {path}")
 
-class AbsolutePathError(BaseException):
+class AbsolutePathError(Exception):
     def __init__(self, field:str, path: str):
         super().__init__(f"A relative path is highly suggested for this field ({field}): {path}. To disable this error message, run unlock_relative_path_constraint().")
 

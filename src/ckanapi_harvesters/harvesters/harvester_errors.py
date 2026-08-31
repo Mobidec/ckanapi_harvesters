@@ -7,11 +7,11 @@ Errors specific to harvesting data
 from ckanapi_harvesters.auxiliary.ckan_errors import RequirementError
 
 
-class HarvestMethodRequiredError(BaseException):
+class HarvestMethodRequiredError(Exception):
     def __init__(self):
         super().__init__("The harvesting method argument --harvester is required.")
 
-class HarvesterArgumentError(BaseException):
+class HarvesterArgumentError(Exception):
     pass
 
 class HarvesterArgumentRequiredError(HarvesterArgumentError):
@@ -23,7 +23,7 @@ class HarvesterRequirementError(RequirementError):
     def __init__(self, requirement:str, harvest_method:str):
         Exception.__init__(self, f"The package {requirement} is required for this harvester ({harvest_method}).")
 
-class ResourceNotFoundError(BaseException):
+class ResourceNotFoundError(Exception):
     def __init__(self, resource_type:str, table_name:str, host:str):
         super().__init__(f"{resource_type} {table_name} was not found on host ({host}).")
 

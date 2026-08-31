@@ -14,50 +14,50 @@ from ckanapi_harvesters.auxiliary.ckan_action import (CkanActionError, CkanAutho
 from ckanapi_harvesters.auxiliary.path import BaseDirUndefError
 
 
-class MultipleErrors(BaseException):
+class MultipleErrors(Exception):
     def __init__(self, errors: List[Exception]):
         self.errors = errors
         super().__init__(f"Multiple errors occurred: \n- " + "\n- ".join([str(e) for e in errors]))
 
 ## Specific error types ------------------
-class ApiKeyFileError(BaseException):
+class ApiKeyFileError(Exception):
     pass
 
-class LocalApiKeyError(BaseException):
+class LocalApiKeyError(Exception):
     def __init__(self):
         super().__init__("LocalCkanApi action call does not support use of apikey parameter, use context['user'] instead")
 
-class HostContraintError(BaseException):
+class HostContraintError(Exception):
     def __init__(self, target_host_url:str, url:str):
         super().__init__(f"URL {url} does not match constraint from file: {target_host_url}")
 
-class LoginFileError(BaseException):
+class LoginFileError(Exception):
     pass
 
-class InvalidParameterError(BaseException):
+class InvalidParameterError(Exception):
     pass
 
-class FileOrDirNotExistError(BaseException):
+class FileOrDirNotExistError(Exception):
     def __init__(self, path: str):
         super().__init__(f"Path doesn't lead to a file or directory: {path}")
 
-class CkanMandatoryArgumentError(BaseException):
+class CkanMandatoryArgumentError(Exception):
     def __init__(self, action_name: str, attribute_name: str):
         super().__init__(f"Argument '{attribute_name}' is required for {action_name}")
 
-class MandatoryAttributeError(BaseException):
+class MandatoryAttributeError(Exception):
     def __init__(self, object_type: str, attribute_name: str):
         super().__init__(f"Attribute '{attribute_name}' is required for {object_type} to initiate builder")
 
-class UnknownCliArgumentError(BaseException):
+class UnknownCliArgumentError(Exception):
     def __init__(self, extra_args: List[str], context: str):
         super().__init__(f"CLI arguments were not parsed for {context} because unexpected: {shlex.join(extra_args)}")
 
-class MissingIdError(BaseException):
+class MissingIdError(Exception):
     def __init__(self, object_type: str, object_name):
         super().__init__(f"Attribute 'id' is required for {object_type} '{object_name}' to update CKAN map")
 
-class CkanServerError(BaseException):
+class CkanServerError(Exception):
     def __init__(self, ckan, response: requests.Response, msg:str, display_request:bool=True):
         super().__init__(msg)
         self.response = response
@@ -68,65 +68,65 @@ class CkanServerError(BaseException):
     def __str__(self):
         return f"Server code [{self.status_code}]: " + super().__str__()
 
-class DataStoreNotFoundError(BaseException):
+class DataStoreNotFoundError(Exception):
     def __init__(self, resource_id:str, error_message: str):
         super().__init__(f"DataStore not found for resource id {resource_id}. This could mean the DataStore was not initialized. Server message: {error_message}")
 
-class MissingDataStoreInfoError(BaseException):
+class MissingDataStoreInfoError(Exception):
     def __init__(self, resource_id:str):
         super().__init__("DataStore info was not requested for resource {resource_id}. Use option datastore_info=True for the map_resources function.")
 
-class DuplicateNameError(BaseException):
+class DuplicateNameError(Exception):
     def __init__(self, object_type:str, names:Iterable[str]):
         super().__init__(f"Duplicate names were found for {object_type}: {','.join(names)}")
 
-class ForbiddenNameError(BaseException):
+class ForbiddenNameError(Exception):
     def __init__(self, object_type:str, names:Iterable[str]):
         super().__init__(f"Forbidden name for {object_type}: {','.join(names)}")
 
-class MultipleResultsError(BaseException):
+class MultipleResultsError(Exception):
     pass
 
-class IntegrityError(BaseException):
+class IntegrityError(Exception):
     pass
 
-class ReadOnlyError(BaseException):
+class ReadOnlyError(Exception):
     def __init__(self):
         super().__init__("Mode is set to read only. Please set the read_only flag to False.")
 
-class AdminFeatureLockedError(BaseException):
+class AdminFeatureLockedError(Exception):
     def __init__(self):
         super().__init__("Admin features are locked. Please set the enable_admin flag to True.")
 
-class NotMappedObjectNameError(BaseException):
+class NotMappedObjectNameError(Exception):
     pass
 
-class NoPackageSizeError(BaseException):
+class NoPackageSizeError(Exception):
     def __init__(self, package_name:str):
         super().__init__(f"Package size was not computed for package {package_name}.")
 
 class UnexpectedError(RuntimeError):
     pass
 
-class UrlError(BaseException):
+class UrlError(Exception):
     pass
 
-class MaxRequestsCountError(BaseException):
+class MaxRequestsCountError(Exception):
     def __init__(self):
         super().__init__("Maximum requests count was reached.")
 
-class IncompletePatchError(BaseException):
+class IncompletePatchError(Exception):
     pass
 
-class MaxAttemptsError(BaseException):
+class MaxAttemptsError(Exception):
     def __init__(self, accumulated_traceback:List[str]):
         super().__init__("Maximum attempts reached. Combined traceback:\n" + "\n".join(accumulated_traceback))
 
-class CkanArgumentError(BaseException):
+class CkanArgumentError(Exception):
     def __init__(self, api_name:str, argument_name:str):
         super().__init__(f"Argument {argument_name} is not supported by API {api_name}.")
 
-class ArgumentError(BaseException):
+class ArgumentError(Exception):
     pass
 
 class SearchAllNoCountsError(ArgumentError):
@@ -136,26 +136,26 @@ class SearchAllNoCountsError(ArgumentError):
         else:
             super().__init__(f"{api_name} must parse results to compute the number of rows returned. Arguments return_df=False and {argument_name_value} are incompatible with multi-request mode search_all=True")
 
-class FunctionMissingArgumentError(BaseException):
+class FunctionMissingArgumentError(Exception):
     def __init__(self, function_name:str, argument_name:str):
         super().__init__(f"Argument {argument_name} is mandatory for function {function_name}.")
 
-class NoDefaultView(BaseException):
+class NoDefaultView(Exception):
     def __init__(self, resource_format:str):
         super().__init__(f"No default view defined for resource format {resource_format}")
 
-class ExternalUrlLockedError(BaseException):
+class ExternalUrlLockedError(Exception):
     def __init__(self, url:str):
         super().__init__(f"Downloading external urls is blocked by parameter download_external_urls (url {url}). Run unlock_external_url_resource_download to enable this feature.")
 
-class NoCAVerificationError(BaseException):
+class NoCAVerificationError(Exception):
     def __init__(self):
         super().__init__("The CA verification cannot be disabled. To unlock this feature, run unlock_no_ca to enable this feature. Warning: Only allow in a local environment!")
 
-class RequestError(BaseException):
+class RequestError(Exception):
     pass
 
-class HttpRetryCodeError(BaseException):
+class HttpRetryCodeError(Exception):
     def __init__(self, status_code:int, description:str=None):
         if description is None:
             description = ""
@@ -163,7 +163,7 @@ class HttpRetryCodeError(BaseException):
             description = f" ({description})"
         super().__init__(f"HTTP status code {status_code} received{description}. An attempt should be made to retry this request.")
 
-class RequirementError(BaseException):
+class RequirementError(Exception):
     def __init__(self, requirement:str, function:str):
         super().__init__(f"The package {requirement} is required for function {function}.")
 
@@ -171,20 +171,20 @@ class FileFormatRequirementError(RequirementError):
     def __init__(self, requirement:str, file_format:str):
         Exception.__init__(self,f"The package {requirement} is required to support this file format ({file_format}).")
 
-class NameFormatError(BaseException):
+class NameFormatError(Exception):
     pass
 
 # PostGIS
-class UnknownTargetCRSError(BaseException):
+class UnknownTargetCRSError(Exception):
     def __init__(self, source_crs, context:str):
         super().__init__(f"Unknown destination CRS (source={source_crs}) for {context}.")
 
 # Custom code execution
-class MissingCodeFileError(BaseException):
+class MissingCodeFileError(Exception):
     def __init__(self):
         super().__init__("Function names were provided but Auxiliary functions file was not specified")
 
-class MissingIOFunctionError(BaseException):
+class MissingIOFunctionError(Exception):
     def __init__(self, function_type:str):
         super().__init__(f"User custom IO function name was not provided for {function_type}")
 

@@ -45,7 +45,7 @@ def mongo_default_df_conversion(documents: List[dict], **kwargs) -> Union[pd.Dat
     return df
 
 
-class BrokenMongoRefError(BaseException):
+class BrokenMongoRefError(Exception):
     pass
 
 

@@ -37,11 +37,11 @@ class DataPolicyError(ErrorLevelMessage):
             return f"{self.error_level.name}: {self.specific_message} ({reversed_context_str})"
 
 
-class UnsupportedPolicyVersionError(BaseException):
+class UnsupportedPolicyVersionError(Exception):
     def __init__(self, file_version):
         super().__init__(f"Version error: policy file version {file_version} is not supported")
 
-class UrlPolicyLockedError(BaseException):
+class UrlPolicyLockedError(Exception):
     def __init__(self, url):
         super().__init__(f"Url is not allowed a policy definition - feature locked (url: {url})")
 

@@ -20,7 +20,7 @@ from requests.auth import AuthBase, HTTPBasicAuth  #, HTTPProxyAuth
 
 PROXY_AUTH_ENVIRON = "PROXY_AUTH_FILE"
 
-class HttpsProxyDefError(BaseException):
+class HttpsProxyDefError(Exception):
     def __init__(self):
         super().__init__("Only one of http_proxy or https_proxy is set")
 

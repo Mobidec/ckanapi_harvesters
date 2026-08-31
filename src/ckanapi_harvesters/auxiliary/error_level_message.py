@@ -28,7 +28,7 @@ class ErrorLevel(IntEnum):
             raise ValueError(s)
 
 
-class ErrorLevelMessage(BaseException):
+class ErrorLevelMessage(Exception):
     def __init__(self, error_level:ErrorLevel, message: str):
         super().__init__(message)
         self.error_level: ErrorLevel = error_level

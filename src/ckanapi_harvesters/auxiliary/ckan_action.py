@@ -78,7 +78,7 @@ class LocalCkanActionResponse(CkanActionResponse):
 
 
 ## action error codes
-class CkanActionError(BaseException):
+class CkanActionError(Exception):
     def __init__(self, ckan, response: CkanActionResponse, display_request:bool=True):
         super(Exception, self).__init__(response.error_message)
         self.response = response
@@ -89,7 +89,7 @@ class CkanActionError(BaseException):
     def __str__(self):
         return f"Server code [{self.status_code}]: " + super().__str__()
 
-class CkanNotFoundError(BaseException):
+class CkanNotFoundError(Exception):
     def __init__(self, object_type:str, object_query:str):
         super().__init__(f"{object_type} '{object_query}' not found")
         self.object_type = object_type
@@ -110,5 +110,5 @@ class CkanSqlCapabilityError(CkanActionError):
         response.error_message = f"sql capabilities are not activated on CKAN server. See documentation for option ckan.datastore.sqlsearch.enabled"
         super().__init__(ckan, response, display_request=display_request)
 
-class CkanSqlLimitOffsetError(BaseException):
+class CkanSqlLimitOffsetError(Exception):
     pass

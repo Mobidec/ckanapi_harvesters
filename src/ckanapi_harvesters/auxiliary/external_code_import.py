@@ -38,7 +38,7 @@ def clean_var_name(variable_name: str) -> str:
     return re.sub(var_name_subs_re,'_', variable_name)
 
 
-class ExternalUserCodeDisabledException(BaseException):
+class ExternalUserCodeDisabledException(Exception):
     def __init__(self, function_name:str, source_file:str) -> None:
         super().__init__(f"{function_name} in {source_file} cannot be executed because the external code execution is locked. Use unlock_external_code_execution to unlock. Warning: Only run code if you trust the source!")
 

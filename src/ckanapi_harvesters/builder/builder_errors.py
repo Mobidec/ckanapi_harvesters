@@ -11,15 +11,15 @@ class EmptyPackageNameException(RuntimeError):
     def __init__(self):
         super().__init__("Run-time error: the attribute package_name cannot be empty")
 
-class MissingDataStoreColumnsSheet(BaseException):
+class MissingDataStoreColumnsSheet(Exception):
     def __init__(self, resource_name: str, columns_sheet_name: str):
         super().__init__(f"DataStore {resource_name} specifies a DataStore Columns Sheet '{columns_sheet_name}' but it was not found in the spreadsheet.")
 
-class RequiredDataFrameFieldsError(BaseException):
+class RequiredDataFrameFieldsError(Exception):
     def __init__(self, missing_fields:Iterable[str]):
         super().__init__("The following fields are required but absent from the sample DataFrame: {}".format(", ".join(missing_fields)))
 
-class UnsupportedBuilderVersionError(BaseException):
+class UnsupportedBuilderVersionError(Exception):
     def __init__(self, file_version):
         super().__init__(f"Version error: package builder version {file_version} is not supported")
 
@@ -27,5 +27,5 @@ class ResourceFileNotExistMessage(ContextErrorLevelMessage):
     def __init__(self, resource_name:str, error_level:ErrorLevel, specific_message: str):
         super().__init__(f"Resource {resource_name}", error_level, specific_message)
 
-class GroupByError(BaseException):
+class GroupByError(Exception):
     pass
