@@ -106,7 +106,7 @@ class CkanApiBase(CkanApiABC):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.disconnect()
         self._apikey.__del__()
-        return True
+        return False
     # -------------
 
     def __copy__(self):

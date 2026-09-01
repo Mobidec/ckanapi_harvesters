@@ -20,6 +20,7 @@ from . import ckan_configuration
 from . import ckan_api_key
 from . import ckan_field_types
 from . import ckan_model
+from . import ckan_rules
 from . import ckan_map
 from . import ckan_vocabulary_deprecated
 from . import ckan_auxiliary
@@ -31,7 +32,7 @@ from . import ckan_progress_callbacks_prototypes
 from . import deprecated
 
 from .ckan_map import CkanMap
-from .ckan_model import CkanField, CkanState, CkanCapacity, ckan_email_hash
+from .ckan_model import CkanPackageInfo, CkanUserInfo, CkanField, CkanState, CkanCapacity, ckan_email_hash
 from .ckan_auxiliary import RequestType
 from .external_code_import import unlock_external_code_execution
 from .ckan_progress_callbacks import CkanProgressCallback, CkanCallbackLevel, CkanProgressBarType, CkanProgressCallbackEmpty

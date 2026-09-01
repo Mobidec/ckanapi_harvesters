@@ -60,7 +60,7 @@ class VirtualChunkedDataFrameGenerator(Iterator):
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+        return False
 
     def __del__(self):
         self.df = None
@@ -71,4 +71,16 @@ class VirtualChunkedDataFrameGenerator(Iterator):
 
 def df_as_virtual_chunks(df: GeneralDataFrame, chunk_size:int) -> Iterator[GeneralDataFrame]:
     return VirtualChunkedDataFrameGenerator(df, chunk_size)
+
+
+if __name__ == '__main__':
+    import numpy as np
+    import pandas as pd
+
+    df = pd.DataFrame({"A": np.arange(10), "B": np.arange(10)})
+    chunked_df = df_as_virtual_chunks(df, 3)
+    with chunked_df as context_manager_df:
+        for chunk in context_manager_df:
+            print(chunk)
+    print("Exited without error")
 

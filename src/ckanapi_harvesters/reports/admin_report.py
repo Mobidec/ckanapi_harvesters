@@ -15,9 +15,11 @@ from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCal
 from ckanapi_harvesters.ckan_api import CkanApi
 from ckanapi_harvesters.auxiliary.ckan_errors import CkanAuthorizationError, UnexpectedError
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import to_jsons_indent_lists_single_line, round_size, assert_or_raise
-from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanUserInfo, CkanCollaboration, CkanCapacity
+from ckanapi_harvesters.auxiliary.ckan_model import CkanVisibility, CkanUserInfo
+from ckanapi_harvesters.auxiliary.ckan_rules import package_expand_user_access
 from ckanapi_harvesters.policies.policy_report import PackagePolicyReport
 from ckanapi_harvesters.policies.data_format_policy_errors import ErrorCount
+import ckanapi_harvesters.reports.schemas.admin_report as schema
 
 
 class CkanAdminReport:
@@ -37,6 +39,7 @@ class CkanAdminReport:
         self.include_policy_messages: bool = full_report
         self.include_group_report: bool = full_report
         self.include_public_packages_in_header: bool = True
+        self.include_emails: bool = True
         self.enable_policy_check:bool = True
         self.expand_resources: bool = True
         self.expand_groups: bool = True   # expand group and organization members
@@ -49,7 +52,7 @@ class CkanAdminReport:
         self.allow_downgraded_queries:bool = False
         self.owner_org :Union[str,None] = owner_org
         self.auto_update_ckan: bool = True  # update custom fiels on CKAN server, if specified
-        self.report: Union[dict,None] = None  # report output
+        self.report: Union[schema.AdminReportSchema,None] = None  # report output
         if auto_exec and ckan is not None:
             self.execute(ckan, progress_callback=progress_callback)
 
@@ -122,11 +125,16 @@ class CkanAdminReport:
 
     def _consolidate(self, ckan: CkanApi) -> None:
         for user_info in ckan.map.users.values():
-            user_info.organizations = []
+            user_info.groups = {}
+            user_info.organizations = {}
+        for group_info in ckan.map.groups.values():
+            if group_info.user_capacities is not None:
+                for user_id, user_capacity in group_info.user_capacities.items():
+                    ckan.map.users[user_id].groups[group_info.name] = user_capacity
         for organization_info in ckan.map.organizations.values():
             if organization_info.user_members is not None:
-                for user_id in organization_info.user_members.keys():
-                    ckan.map.users[user_id].organizations.append(organization_info.name)
+                for user_id, user_capacity in organization_info.user_members.items():
+                    ckan.map.users[user_id].organizations[organization_info.name] = user_capacity
 
     def _create_report(self, ckan: CkanApi, *, progress_callback:CkanProgressCallbackABC=None) -> None:
         start = time.time()
@@ -142,15 +150,16 @@ class CkanAdminReport:
         else:
             self.include_policy_messages = False
 
-        report_header = OrderedDict([
-            ("title", "Admin report on packages and resources"),
-            ("date", self._date_format_str(self.report_date)),
-            ("timestamp", self.report_date.isoformat(sep='T')),
-            ("ckan", ckan.url),
-            ("user", self._connected_user.name if self._connected_user is not None else None),
-            ("user_sysadmin", self._connected_user.sysadmin if self._connected_user is not None else None),
-            ("package_selection", self.package_list if self.package_list is not None else "All"),
-        ])
+        report_header = schema.AdminReportHeader(
+            title="Admin report on packages and resources",
+            date=self.report_date,
+            timestamp=self.report_date.isoformat(sep='T'),
+            ckan_url=ckan.url,
+            user=self._connected_user.name if self._connected_user is not None else None,
+            user_sysadmin=self._connected_user.sysadmin if self._connected_user is not None else None,
+            package_selection=self.package_list if self.package_list is not None else "All",
+            public_packages=None,
+        )
         packages_report = {}
         total_policy_errors = ErrorCount([])
         total_filestore_size_mb = 0.
@@ -175,6 +184,9 @@ class CkanAdminReport:
                 # data_format_policy_scores = ErrorCount(package_policy_report.messages)
                 data_format_policy_scores = package_policy_report.error_count
                 total_policy_errors += data_format_policy_scores
+            else:
+                package_policy_report = None
+                data_format_policy_scores = None
             if self.expand_resources:
                 package_size = package_info.package_size  # computed by _update_package_size_fields
                 if package_size.date_last_modified_resource is not None:
@@ -188,70 +200,77 @@ class CkanAdminReport:
                     resource_info = ckan.map.resources[resource_id]
                     resource_modified = resource_info.last_modified if resource_info.last_modified is not None else resource_info.created
                     internal_filestore = ckan.is_url_internal(resource_info.download_url)
-                    resource_report = OrderedDict([
-                        ("resource_name", resource_info.name),
-                        ("id", resource_id),
-                        ("page_url", ckan.get_resource_page_url(resource_id)),
-                        ("state", str(resource_info.state)),
-                        ("external_url", resource_info.download_url if resource_info.download_url and not internal_filestore else None),
-                        ("filestore_size_mb", resource_info.download_size_mb if internal_filestore else None),
-                        ("external_size_mb", resource_info.download_size_mb if not internal_filestore else None),
-                        ("datastore_size_mb", 0),
-                        ("datastore_active", resource_info.datastore_active),
-                        ("datastore_lines", None),
-                        ("date_modified", self._date_format_str(resource_modified) if resource_modified is not None else None),
-                        ("metadata_modified", self._date_format_str(resource_info.metadata_modified) if resource_info.metadata_modified is not None else None),
-                        ("datastore_aliases", None),
-                    ])
+                    resource_report = schema.AdminReportResourceMetadata(
+                        resource_name=resource_info.name,
+                        id=resource_id,
+                        page_url=ckan.get_resource_page_url(resource_id),
+                        state=resource_info.state,
+                        external_url=resource_info.download_url if resource_info.download_url and not internal_filestore else None,
+                        filestore_size_mb=resource_info.download_size_mb if internal_filestore else None,
+                        external_size_mb=resource_info.download_size_mb if not internal_filestore else None,
+                        datastore_size_mb=0,
+                        datastore_active=resource_info.datastore_active,
+                        datastore_lines=None,
+                        date_modified=resource_modified if resource_modified is not None else None,
+                        metadata_modified=resource_info.metadata_modified if resource_info.metadata_modified is not None else None,
+                        datastore_aliases=None,
+                    )
                     if resource_info.datastore_info is not None:
                         datastore_size = round_size(resource_info.datastore_info.table_size_mb + resource_info.datastore_info.index_size_mb)
-                        resource_report["datastore_aliases"] = resource_info.datastore_info.aliases
-                        resource_report["datastore_size_mb"] = datastore_size
-                        resource_report["datastore_lines"] = resource_info.datastore_info.row_count
+                        resource_report.datastore_aliases = resource_info.datastore_info.aliases
+                        resource_report.datastore_size_mb = datastore_size
+                        resource_report.datastore_lines = resource_info.datastore_info.row_count
                     resources_report.append(resource_report)
             else:
                 resources_report = None
+                package_size = None
             license_info = ckan.map.licenses[package_info.license_id] if package_info.license_id and package_info.license_id in ckan.map.licenses.keys() else None
-            package_report = OrderedDict([
-                ("package_title", package_info.title),
-                ("page_url", ckan.get_package_page_url(package_name)),
-                ("state", str(package_info.state)),
-                ("organization", package_info.organization_info.name if package_info.organization_info else None),
-                ("version", package_info.version),
-                ("license", license_info.title if license_info else None),
-                ("license_domain", license_info.domain.to_dict() if license_info else None),
-                ("creator", None),
-                ("author", package_info.author),
-                ("maintainer", package_info.maintainer),
-                ("visibility", str(CkanVisibility.from_bool_is_private(package_info.private))),
-                ("metadata_modified", self._date_format_str(package_info.metadata_modified)),
-            ])
-            if self.expand_resources:
-                package_report["resources_modified"] = self._date_format_str(package_size.date_last_modified_resource) if package_size.date_last_modified_resource is not None else None
-                package_report["resources_metadata_modified"] = self._date_format_str(package_size.date_last_modified_resource_metadata) if package_size.date_last_modified_resource_metadata is not None else None
-                package_report["resource_count"] = package_size.resource_count
-                package_report["among_resources_filestore"] = package_size.filestore_count
-                package_report["among_resources_external"] = package_size.external_resource_count
-                package_report["among_resources_datastore"] = package_size.datastore_count
-                package_report["filestore_total_size_mb"] = round_size(package_size.filestore_size_mb)
-                package_report["external_total_size_mb"] = round_size(package_size.external_size_mb)
-                package_report["datastore_total_size_mb"] = round_size(package_size.datastore_size_mb)
-                package_report["datastore_total_lines"] = package_size.datastore_lines
-            else:
-                package_report["resource_count"] = len(package_info.package_resources)
-            if self.enable_policy_check and self.expand_resources:
-                package_report["data_format_policy_scores"] = data_format_policy_scores.to_dict()
-            package_report["tags"] = package_info.tags
-            for extra_field in self.include_package_extra_fields:
-                package_report[extra_field] = package_info.custom_fields.get(extra_field, None)
-            package_report["users"] = []
-            package_report["groups"] = []
-            if self.include_resources_detail:
-                package_report["resources"] = resources_report
             if package_info.creator_user_id is not None:
                 user_info = ckan.map.users.get(package_info.creator_user_id, None)
-                package_report["creator"] = user_info.name
-            package_info.user_access = package_info.expand_user_access(user_table=ckan.map.users,
+                package_creator_name = user_info.name
+            else:
+                package_creator_name = None
+            package_report = schema.AdminReportPackageSimple(
+                package_name=package_name,
+                package_title=package_info.title,
+                page_url=ckan.get_package_page_url(package_name),
+                state=package_info.state,
+                organization=package_info.organization_info.name if package_info.organization_info else None,
+                version=package_info.version,
+                license=license_info.title if license_info else None,
+                license_domain=license_info.domain.to_dict() if license_info else None,
+                creator=package_creator_name,
+                author=package_info.author,
+                maintainer=package_info.maintainer,
+                visibility=CkanVisibility.from_bool_is_private(package_info.private),
+                metadata_modified=package_info.metadata_modified,
+                resource_count=len(package_info.package_resources),
+                tags=package_info.tags,
+                extras=OrderedDict([(extra_field, package_info.custom_fields.get(extra_field, None)) for extra_field in self.include_package_extra_fields]),
+                users=None,
+                groups=None,
+            )
+            if self.expand_resources:
+                package_report = schema.AdminReportPackageExtended(**package_report.__dict__,
+                    resources_modified=package_size.date_last_modified_resource if package_size.date_last_modified_resource is not None else None,
+                    resources_metadata_modified=package_size.date_last_modified_resource_metadata if package_size.date_last_modified_resource_metadata is not None else None,
+                    among_resources_external=package_size.external_resource_count,
+                    among_resources_filestore=package_size.filestore_count,
+                    among_resources_datastore=package_size.datastore_count,
+                    filestore_total_size_mb=round_size(package_size.filestore_size_mb),
+                    external_total_size_mb=round_size(package_size.external_size_mb),
+                    datastore_total_size_mb=round_size(package_size.datastore_size_mb),
+                    datastore_total_lines=package_size.datastore_lines,
+                    data_format_policy_scores=None,
+                    resources=None,
+                    policy_messages=None,
+                )
+                package_report.resource_count = package_size.resource_count
+            if self.enable_policy_check and self.expand_resources:
+                package_report.data_format_policy_scores = data_format_policy_scores
+            if self.include_resources_detail:
+                package_report.resources = resources_report
+            package_info.user_access = package_expand_user_access(package_info, user_table=ckan.map.users,
                                                                    organization_table=ckan.map.organizations,
                                                                    group_table=ckan.map.groups,
                                                                    expand_groups=self.expand_groups,
@@ -261,15 +280,15 @@ class CkanAdminReport:
                 users_dict = OrderedDict([(ckan.map.users[user_id].name, collaboration.to_dict(user_info=ckan.map.users[user_id],
                                       group_table=ckan.map.groups, organization_table=ckan.map.organizations, date_format=self.date_format))
                               for user_id, collaboration in package_info.user_access.items()])
-                package_report["users"] = OrderedDict(sorted(users_dict.items()))
+                package_report.users = OrderedDict(sorted(users_dict.items()))
             else:
                 # TODO: do all users have write access if package is Public
-                package_report["users"] = "all (Public)"
+                package_report.users = "all (Public)"
                 public_packages[package_name] = ckan.get_package_page_url(package_name)
             assert_or_raise(package_info.groups is not None, UnexpectedError("groups in ckan.map should not be None"))
-            package_report["groups"] = sorted([group_info.name for group_info in package_info.groups])
+            package_report.groups = sorted([group_info.name for group_info in package_info.groups])
             if self.include_policy_messages:
-                package_report["policy_messages"] = [message.to_dict() for message in package_policy_report.messages]
+                package_report.policy_messages = [message.to_dict() for message in package_policy_report.messages]
             if self.expand_resources:
                 total_filestore_size_mb += package_size.filestore_size_mb
                 total_external_size_mb += package_size.external_size_mb
@@ -286,64 +305,82 @@ class CkanAdminReport:
                 progress_callback.update_task(i_package, num_packages, level=CkanCallbackLevel.Packages)
         packages_report = OrderedDict(sorted(packages_report.items()))
         if self.expand_resources:
-            report_totals = OrderedDict([
-                ("total_filestore_size_mb", round_size(total_filestore_size_mb)),
-                ("total_datastore_size_mb", round_size(total_datastore_size_mb)),
-                ("total_external_size_mb", round_size(total_external_size_mb)),
-                ("total_datastore_lines", total_datastore_lines),
-                ("num_packages", len(packages_report)),
-                ("total_resource_count", total_resource_count),
-                ("among_resources_filestore", total_filestore_count),
-                ("among_resources_external", total_external_resource_count),
-                ("among_resources_datastore", total_datastore_count),
-                ("last_modified_data", self._date_format_str(global_last_modified_resources) if global_last_modified_resources else None),
-                ("last_modified_metadata", self._date_format_str(global_last_modified_metadata) if global_last_modified_metadata else None),
-                ("total_policy_errors", total_policy_errors.to_dict()),
-            ])
+            report_totals = schema.AdminReportTotalsExtended(
+                total_filestore_size_mb=round_size(total_filestore_size_mb),
+                total_datastore_size_mb=round_size(total_datastore_size_mb),
+                total_external_size_mb=round_size(total_external_size_mb),
+                total_datastore_lines=total_datastore_lines,
+                num_packages=len(packages_report),
+                total_resource_count=total_resource_count,
+                among_resources_filestore=total_filestore_count,
+                among_resources_external=total_external_resource_count,
+                among_resources_datastore=total_datastore_count,
+                last_modified_data=global_last_modified_resources if global_last_modified_resources else None,
+                last_modified_metadata=global_last_modified_metadata if global_last_modified_metadata else None,
+                total_policy_errors=total_policy_errors,
+            )
         else:
-            report_totals = OrderedDict([
-                ("num_packages", len(packages_report)),
-                ("total_resource_count", total_resource_count),
-                ("last_modified_metadata", self._date_format_str(global_last_modified_metadata) if global_last_modified_metadata else None),
-            ])
-        sysadmin_report = {user_info.name: OrderedDict([
-            ("fullname", user_info.fullname),
-            ("last_active", self._date_format_str(user_info.last_active) if user_info.last_active is not None else None),
-            ("organizations", user_info.organizations),
-        ]) for user_info in ckan.map.users.values() if user_info.sysadmin}
+            report_totals = schema.AdminReportTotalsSimple(
+                num_packages=len(packages_report),
+                total_resource_count=total_resource_count,
+                last_modified_metadata=global_last_modified_metadata if global_last_modified_metadata else None,
+            )
+        sysadmin_report = {user_info.name: schema.AdminReportUserMetadata(
+            user_name=user_info.name,
+            fullname=user_info.fullname,
+            email=user_info.email if self.include_emails else None,
+            last_active=user_info.last_active if user_info.last_active is not None else None,
+            organizations=user_info.organizations,
+            groups=user_info.groups,
+        ) for user_info in ckan.map.users.values() if user_info.sysadmin}
         sysadmin_report = OrderedDict(sorted(sysadmin_report.items()))
-        users_report = {user_info.name: OrderedDict([
-            ("fullname", user_info.fullname),
-            ("last_active", self._date_format_str(user_info.last_active) if user_info.last_active is not None else None),
-            ("organizations", user_info.organizations),
-         ]) for user_info in ckan.map.users.values() if not user_info.sysadmin}
+        users_report = {user_info.name: schema.AdminReportUserMetadata(
+            user_name=user_info.name,
+            fullname=user_info.fullname,
+            email=user_info.email if self.include_emails else None,
+            last_active=user_info.last_active if user_info.last_active is not None else None,
+            organizations=user_info.organizations,
+            groups=user_info.groups,
+         ) for user_info in ckan.map.users.values() if not user_info.sysadmin}
         users_report = OrderedDict(sorted(users_report.items()))
-        groups_report = {group_info.name: OrderedDict([
-            ("group_title", group_info.title),
-            ("package_count", group_info.package_count),
-            ("users_count", len(group_info.user_capacities) if group_info.user_capacities is not None else None),
-            ("users", OrderedDict(sorted({ckan.map.users[user_id].name: str(capacity) for user_id, capacity in group_info.user_capacities.items()}.items())) if group_info.user_capacities is not None else None),
-        ]) for group_info in ckan.map.groups.values()}
+        groups_report = {group_info.name: schema.AdminReportGroupMetadata(
+            group_name=group_info.name,
+            group_title=group_info.title,
+            package_count=group_info.package_count,
+            users_count=len(group_info.user_capacities) if group_info.user_capacities is not None else None,
+            users=OrderedDict(sorted({ckan.map.users[user_id].name: str(capacity) for user_id, capacity in group_info.user_capacities.items()}.items())) if group_info.user_capacities is not None else None,
+        ) for group_info in ckan.map.groups.values()}
         groups_report = OrderedDict(sorted(groups_report.items()))
+        organizations_report = {organization_info.name: schema.AdminReportOrganizationMetadata(
+            organization_name=organization_info.name,
+            organization_title=organization_info.title,
+            package_count=len([package_metadata.package_name for package_metadata in packages_report.values() if package_metadata.organization == organization_info.name]),
+            users_count=len(organization_info.user_members) if organization_info.user_members is not None else None,
+            users=OrderedDict(sorted({ckan.map.users[user_id].name: str(capacity) for user_id, capacity in organization_info.user_members.items()}.items())) if organization_info.user_members is not None else None,
+        ) for organization_info in ckan.map.organizations.values()}
+        organizations_report = OrderedDict(sorted(organizations_report.items()))
         elapsed_time_report_and_updates = time.time() - start
         if self.include_public_packages_in_header:
-            report_header["public_packages"] = public_packages
-        report_footer = OrderedDict([
-            ("requests_count", self._request_count),
-            ("time_elapsed_seconds", self._elapsed_time_requests + elapsed_time_report_and_updates),
-        ])
-        report = OrderedDict([
-            ("header", report_header),
-            ("totals", report_totals),
-            ("packages", packages_report),
-            ("users", OrderedDict([
-                ("sysadmins", sysadmin_report),
-                ("other", users_report),
-            ])),
-        ])
+            report_header.public_packages = public_packages
+        report_footer = schema.AdminReportFooter(
+            requests_count=self._request_count,
+            time_elapsed_seconds=self._elapsed_time_requests + elapsed_time_report_and_updates,
+        )
+        report = schema.AdminReportSchema(
+            header=report_header,
+            totals=report_totals,
+            packages=packages_report,
+            users=schema.AdminReportUsersSection(
+                sysadmins=sysadmin_report,
+                other=users_report,
+            ),
+            groups=None,
+            organizations=None,
+            footer=report_footer,
+        )
         if self.include_group_report:
-            report["groups"] = groups_report
-        report["footer"] = report_footer
+            report.groups = groups_report
+            report.organizations = organizations_report
         self.report = report
         if ckan.params.verbose_extra:
             print(f"Done generating report ({elapsed_time_report_and_updates} seconds, {ckan.debug.ckan_request_counter - request_count_init} requests).")
@@ -368,7 +405,7 @@ class CkanAdminReport:
         return self.report
 
     def to_jsons(self) -> str:
-        return to_jsons_indent_lists_single_line(self.report)
+        return to_jsons_indent_lists_single_line(self.report.to_dict(datetime_fcn=self._date_format_str))
 
     def to_json(self, file_path:str) -> None:
         with open(file_path, "w", encoding="utf8") as f:
@@ -378,23 +415,26 @@ class CkanAdminReport:
 if __name__ == '__main__':
     deauthenticate = False
     ckan = CkanApi()
+    ckan.init_from_environ()
     ckan.initialize_from_cli_args()
     ckan.input_missing_info(input_args_if_necessary=True, input_owner_org=False)
     if deauthenticate:
         ckan.apikey.clear()
 
     package_list = None  # use this argument or no argument to make a full report
-    # package_list = ["builder-example-py"]  # limit to the example package
+    package_list = ["builder-example-py"]  # limit to the example package
 
     ckan.load_default_policy()
     ckan.params.verbose_extra = True
     ckan.set_verbosity(True)
 
-    report = CkanAdminReport(package_list=package_list, ckan=ckan, full_report=True, auto_exec=False)
+    report = CkanAdminReport(package_list=package_list, ckan=ckan, full_report=True, auto_exec=False,
+                             package_extra_fields=["Access Terms"])
     if deauthenticate:
         report.allow_downgraded_queries = True
     # report.expand_resources = False  # temporary: disable requests to obtain detailed info on package resources
     report.execute(ckan)
+    report_dict = report.report.to_dict(datetime_fcn=report._date_format_str)
     print(report.to_jsons())
 
     self_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))

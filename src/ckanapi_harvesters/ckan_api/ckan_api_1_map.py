@@ -17,6 +17,7 @@ from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanLicens
                                                      CkanOrganizationInfo, CkanViewInfo, CkanField, CkanUserInfo,
                                                      CkanGroupInfo, CkanCollaboration, CkanCapacity, CkanStatus,
                                                      ckan_email_hash)
+from ckanapi_harvesters.auxiliary.ckan_rules import package_expand_user_access
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks_abc import CkanProgressCallbackABC, CkanProgressUnits, CkanCallbackLevel
 from ckanapi_harvesters.auxiliary.urls import urlsep, url_join, clean_base_url
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import RequestType, assert_or_raise
@@ -635,7 +636,7 @@ class CkanApiMap(CkanApiBase):
         else:
             return self._api_status_show(params=params)
 
-    def _api_package_search(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
+    def _api_package_search(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None, fq:str=None, fq_list:List[str]=None,
                             include_private:bool=True, include_drafts:bool=True, sort:str=None,
                             facet:bool=None, limit_per_request:int=None, offset:int=None) -> List[CkanPackageInfo]:
         """
@@ -669,8 +670,18 @@ class CkanApiMap(CkanApiBase):
             filter["owner_org"] = owner_org
         if q is not None:
             params["q"] = q
+        if fq_list is None:
+            fq_list = []
         if filter is not None:
-            params["fq"] = '+'.join([f"{key}:{value}" for key, value in filter.items()])
+            fq_filter = '+'.join([f"{key}:{value}" for key, value in filter.items()])
+            if fq is None:
+                fq = fq_filter
+            else:
+                fq_list.insert(0, fq_filter)
+        if fq is not None:
+            params["fq"] = fq
+        if len(fq_list) > 0:
+            params["fq_list"] = fq_list
         if sort is not None:
             params["sort"] = sort
         if facet is not None:
@@ -689,7 +700,7 @@ class CkanApiMap(CkanApiBase):
         else:
             raise response.default_error(self)
 
-    def _api_package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
+    def _api_package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None, fq:str=None, fq_list:List[str]=None,
                                 include_private:bool=True, include_drafts:bool=True, sort:str=None,
                                 facet:bool=None, limit_per_request:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
         """
@@ -711,12 +722,12 @@ class CkanApiMap(CkanApiBase):
         """
         if params is None: params = {}
         responses = self._request_all_results_list(self._api_package_search, params=params, limit_per_request=limit_per_request, offset=offset,
-                                                   owner_org=owner_org, filter=filter, q=q, sort=sort, facet=facet,
+                                                   owner_org=owner_org, filter=filter, q=q, fq=fq, fq_list=fq_list, sort=sort, facet=facet,
                                                    include_private=include_private, include_drafts=include_drafts,
                                                    search_all=search_all)
         return sum(responses, [])
 
-    def package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None,
+    def package_search_all(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None, fq:str=None, fq_list:List[str]=None,
                                 include_private:bool=True, include_drafts:bool=True, sort:str=None,
                                 facet:bool=None, limit_per_request:int=None, offset:int=None, search_all:bool=True) -> List[CkanPackageInfo]:
         """
@@ -741,7 +752,7 @@ class CkanApiMap(CkanApiBase):
         :return:
         """
         # function alias
-        return self._api_package_search_all(params=params, owner_org=owner_org, filter=filter, q=q,
+        return self._api_package_search_all(params=params, owner_org=owner_org, filter=filter, q=q, fq=fq, fq_list=fq_list,
                                             include_private=include_private, include_drafts=include_drafts, sort=sort,
                                             facet=facet, limit_per_request=limit_per_request, offset=offset, search_all=search_all)
 
@@ -1075,7 +1086,7 @@ class CkanApiMap(CkanApiBase):
         return True
 
     def _api_user_show(self, user_name:Union[str,None]=None,
-                       *, email_hash:str=None, params:dict=None) -> Union[CkanUserInfo,None]:
+                       *, params:dict=None) -> Union[CkanUserInfo,None]:
         """
         API call to user_show. With no params, returns the name of the current user logged in.
 
@@ -1084,8 +1095,8 @@ class CkanApiMap(CkanApiBase):
         if params is None: params = {}
         if user_name is not None:
             params["id"] = user_name
-        if email_hash is not None:
-            params["user_obj"] = {"email_hash": email_hash}
+        # if email_hash is not None:  # does not work
+        #     params["user_obj"] = {"email_hash": email_hash}
         response = self._api_action_request("user_show", method=RequestType.Get, params=params, timeout=5)
         if response.success:
             user_info = CkanUserInfo(response.result)
@@ -1096,15 +1107,15 @@ class CkanApiMap(CkanApiBase):
         else:
             raise response.default_error(self)
 
-    def user_show(self, user_name:str, *, params:dict=None, attempt_hash: bool=True) -> Union[CkanUserInfo,None]:
+    def user_show(self, user_name:str, *, params:dict=None) -> Union[CkanUserInfo,None]:
         # function alias
-        try:
-            return self._api_user_show(user_name, params=params)
-        except CkanActionNotFoundError as e:
-            if attempt_hash:
-                return self._api_user_show(email_hash=ckan_email_hash(user_name), params=params)
-            else:
-                raise e from e
+        # try:
+        return self._api_user_show(user_name, params=params)
+        # except CkanActionNotFoundError as e:
+        #     if attempt_hash:
+        #         return self._api_user_show(email_hash=ckan_email_hash(user_name), params=params)
+        #     else:
+        #         raise e from e
 
     def query_current_user(self, *, verbose:bool=None, error_not_found:bool=False) -> Union[CkanUserInfo,None]:
         if verbose is None:
@@ -1220,7 +1231,7 @@ class CkanApiMap(CkanApiBase):
                 user_info = self.map.users[user_id]
             if sysadmin_requests and user_info is None:
                 # direct search possible through API if sysadmin
-                ckan_users = self.user_list(params=dict(email=user_email))
+                ckan_users = self.user_list(email=user_email)
                 if len(ckan_users) > 0:
                     user_info = ckan_users[0]
                     if len(ckan_users) > 1:
@@ -1246,12 +1257,14 @@ class CkanApiMap(CkanApiBase):
         params["id"] = package_id
         response = self._api_action_request(f"package_collaborator_list", method=RequestType.Post, json=params)
         if response.success:
-            package_info = self.get_package_info_or_request(package_id)
-            package_info.collaborators = OrderedDict()
-            for collaborator_dict in response.result:
-                assert (collaborator_dict["package_id"] == package_id)
-                package_info.collaborators[collaborator_dict["user_id"]] = CkanCollaboration(d=collaborator_dict)
-            return package_info.collaborators
+            collaborators_dict = {data["user_id"]: CkanCollaboration(d=data) for data in response.result}
+            # update map, if present
+            package_info = self.map.get_package_info(package_id, error_not_mapped=False)
+            if package_info is not None:
+                for data in response.result:
+                    assert (data["package_id"] == package_info.id)
+                package_info.collaborators = collaborators_dict
+            return collaborators_dict
         else:
             raise response.default_error(self)
 
@@ -1259,6 +1272,26 @@ class CkanApiMap(CkanApiBase):
                                   cancel_if_present:bool=False) -> Dict[str,CkanCollaboration]:
         return self._api_package_collaborator_list(package_id=package_id, params=params,
                                                    cancel_if_present=cancel_if_present)
+
+    def _api_package_collaborator_list_for_user(self, user_id:str, *, params:dict=None) -> Dict[str,CkanCollaboration]:
+        """
+        API call to package_collaborator_list_for_user.
+
+        :param params:
+        :return: Dict associating package ids with user capacity and membership modification date
+        """
+        if params is None: params = {}
+        params["id"] = user_id
+        response = self._api_action_request(f"package_collaborator_list_for_user", method=RequestType.Post, json=params)
+        if response.success:
+            package_dict = {element["package_id"]: CkanCollaboration(d=element) for element in response.result}
+            return package_dict
+        else:
+            raise response.default_error(self)
+
+    def package_collaborator_list_for_user(self, user_name:str, *, params:dict=None) -> Dict[str,CkanCollaboration]:
+        # user_id = self.get_user_id_or_request(user_name)  # not necessary
+        return self._api_package_collaborator_list_for_user(user_id=user_name, params=params)
 
     def _api_group_show(self, group_name:str, *,
                         include_users:bool=True,
@@ -1367,7 +1400,7 @@ class CkanApiMap(CkanApiBase):
                         change_creator:bool=True, expand_groups:bool=True, expand_public:bool=True, expand_excluded:bool=False) -> CkanMap:
         """
         Map user and group access rights to the packages currently mapped by CKAN
-        Calls package_collaborator_list and expand_user_access on each listed package
+        Calls package_collaborator_list and package_expand_user_access on each listed package
         List packages with ckan.package_search
 
         :param cancel_if_present: option to cancel requests when list is already present, using only local image
@@ -1392,11 +1425,11 @@ class CkanApiMap(CkanApiBase):
                 self.package_collaborator_list(package_id, cancel_if_present=cancel_if_present)
             # merge collaborators with groups of the package
             if package_info.collaborators is not None:
-                package_info.user_access = package_info.expand_user_access(user_table=self.map.users,
-                                                                           organization_table=self.map.organizations,
-                                                                           group_table=self.map.groups,
-                                                                           expand_public=expand_public, expand_groups=expand_groups,
-                                                                           change_creator=change_creator, expand_excluded=expand_excluded)
+                package_info.user_access = package_expand_user_access(package_info, user_table=self.map.users,
+                                                                      organization_table=self.map.organizations,
+                                                                      group_table=self.map.groups,
+                                                                      expand_public=expand_public, expand_groups=expand_groups,
+                                                                      change_creator=change_creator, expand_excluded=expand_excluded)
         if progress_callback is not None:
             progress_callback.end_task(num_packages, level=CkanCallbackLevel.Packages)
         return self.map
@@ -1418,7 +1451,7 @@ class CkanApiMap(CkanApiBase):
         if not self.current_user_is_sysadmin():
             msg = "You should be logged as a sysadmin to obtain a complete list of packages for another user"
             warn(msg)
-        # self.map_user_rights(cancel_if_present=True)  # calls expand_user_access with default options
+        # self.map_user_rights(cancel_if_present=True)  # calls package_expand_user_access with default options
         user_id = self.map.get_user_id(user_name, search_hash=search_hash)
         user_packages = {package_id: (package_info.user_access.get(user_id, CkanCollaboration(capacity=CkanCapacity.Excluded)), package_info)
                          for package_id, package_info in self.map.packages.items()
@@ -1438,7 +1471,7 @@ class CkanApiMap(CkanApiBase):
         if not (parsed_url_path[1] == "dataset"): return None
         return parsed_url_path[2]
 
-    def package_follow_reflective_sources(self, package_list:List[str]=None, *, name_re:str=None) \
+    def package_follow_recursive_sources(self, package_list:List[str]=None, *, name_re:str=None) \
             -> Dict[str, List[str]]:
         """
         List packages mentionned as source of currently known packages, if source is internal
@@ -1451,6 +1484,7 @@ class CkanApiMap(CkanApiBase):
         elif isinstance(package_list, str):
             package_list = [package_list]
         extra_package_names = []
+        error_package_urls = []
         error_package_names = []
         for package_name in package_list:
             package_info = self.map.get_package_info(package_name)
@@ -1461,9 +1495,11 @@ class CkanApiMap(CkanApiBase):
                     source_package_name = self.get_package_name_from_url(package_source_url)
                     if source_package_name is not None:
                         extra_package_names.append(source_package_name)
+                    else:
+                        error_package_urls.append(package_source_url)
         for package_name in extra_package_names:
             try:
                 self.package_show(package_name)
             except CkanActionNotFoundError as e:
                 error_package_names.append(package_name)
-        return {"extra": extra_package_names, "error": error_package_names}
+        return {"extra": extra_package_names, "error": error_package_names, "url_error": error_package_urls}

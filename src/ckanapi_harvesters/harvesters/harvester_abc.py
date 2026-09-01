@@ -58,7 +58,7 @@ class HarvesterConnectABC(ABC):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.disconnect()
         self.clear_secrets()
-        return True
+        return False
     # -------------
 
 

@@ -42,9 +42,10 @@ from . import builder
 from . import reports
 
 # usage shortcuts
+from . import errors
 from .auxiliary import (CkanMap, RequestType, CkanField, CkanState, CkanProgressCallback, CkanCallbackLevel,
                         CkanProgressBarType, CkanProgressCallbackEmpty, CkanCapacity,
-                        ckan_email_hash)
+                        ckan_email_hash, CkanPackageInfo, CkanUserInfo)
 from .policies import PackagePolicyReport, CkanPackageDataFormatPolicy
 from .reports import CkanAdminReport
 from .ckan_api import CkanApi, CkanApiParams, CKAN_API_VERSION
