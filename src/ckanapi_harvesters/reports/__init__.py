@@ -4,6 +4,7 @@
 Package to make reports on the CKAN database.
 """
 
+from . import schemas
 from . import admin_report
 
 # usage shortcuts

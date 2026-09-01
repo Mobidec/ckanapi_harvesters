@@ -363,6 +363,7 @@ class CkanUserInfo(CkanIdentifiedObject):
         self.sysadmin: bool = False
         self.state: Union[CkanState,None] = None
         self.email_hash: Union[str,None] = None
+        self.email: Union[str,None] = None  # only available to sysadmin users
         self.created: Union[datetime.datetime, None] = None
         self.last_active: Union[datetime.datetime, None] = None
         if d is not None:
@@ -374,9 +375,11 @@ class CkanUserInfo(CkanIdentifiedObject):
             self.sysadmin = d["sysadmin"]
             self.state = CkanState.from_str(d["state"])
             self.email_hash = d["email_hash"] if "email_hash" in d.keys() else None  # MD5 hash
+            self.email = d.get("email", None)
             self.created = datetime.datetime.fromisoformat(d["created"]) if "created" in d.keys() else None
             self.last_active = datetime.datetime.fromisoformat(d["last_active"]) if "last_active" in d.keys() else None
-        self.organizations: Union[None,List[str]] = None  # used by consolidate (detailed_report)
+        self.groups: Union[None,Dict[str,CkanCapacity]] = None  # used by consolidate (detailed_report)
+        self.organizations: Union[None,Dict[str,CkanCapacity]] = None  # used by consolidate (detailed_report)
         self.details: Union[dict,None] = d
 
     def __str__(self):
@@ -789,8 +792,10 @@ class CkanCollaboration:
             ("full_name", user_info.fullname),
             ("capacity", str(self.capacity)),
         ])
+        if include_user_org and user_info.groups is not None:
+            d["groups"] = OrderedDict(sorted(user_info.groups.items()))
         if include_user_org and user_info.organizations is not None:
-            d["organizations"] = sorted(user_info.organizations)
+            d["organizations"] = OrderedDict(sorted(user_info.organizations.items()))
         if self.modified is not None:
             if date_format is None:
                 d["date_modified"] = self.modified.isoformat()

@@ -263,8 +263,8 @@ class CkanApiKey(ApiKey):
         apikey = os.environ.get(self.CKAN_API_KEY_ENVIRON)            # "CKAN_API_KEY"
         default_apikey_file = CkanApiKey.get_default_apikey_file()
         if apikey is not None:
-            msg = f"It is not recommended to store sensitive information in environment variables such as the API key ({self.CKAN_API_KEY_ENVIRON})"
-            warn(msg)
+            # msg = f"It is not recommended to store sensitive information in environment variables such as the API key ({self.CKAN_API_KEY_ENVIRON})"
+            # warn(msg)
             self.value = apikey
             return True
         elif default_apikey_file is not None:
