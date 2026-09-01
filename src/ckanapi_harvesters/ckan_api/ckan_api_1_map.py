@@ -1231,7 +1231,7 @@ class CkanApiMap(CkanApiBase):
                 user_info = self.map.users[user_id]
             if sysadmin_requests and user_info is None:
                 # direct search possible through API if sysadmin
-                ckan_users = self.user_list(params=dict(email=user_email))
+                ckan_users = self.user_list(email=user_email)
                 if len(ckan_users) > 0:
                     user_info = ckan_users[0]
                     if len(ckan_users) > 1:
