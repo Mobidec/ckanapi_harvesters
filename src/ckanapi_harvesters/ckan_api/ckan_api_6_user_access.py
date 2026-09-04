@@ -18,7 +18,7 @@ from ckanapi_harvesters.ckan_api.ckan_api_5_manage import CkanApiManage
 class CkanApiUserAccess(CkanApiManage):
     """
     CKAN Database API interface to CKAN server with helper functions using pandas DataFrames.
-    This class implements requests to modify user access rights.
+    This extension implements requests to modify user access rights.
     """
 
     def copy(self, new_identifier: str = None, *, dest=None):

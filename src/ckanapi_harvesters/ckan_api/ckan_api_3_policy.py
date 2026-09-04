@@ -40,6 +40,11 @@ class CkanApiPolicyParams(CkanApiReadOnlyParams):
 
 
 class CkanApiPolicy(CkanApiReadOnly):
+    """
+    CKAN Database API interface to CKAN server with helper functions using pandas DataFrames.
+    This extension implements requests to manage metadata policy verification.
+    """
+
     def __init__(self, url: str = None, *, proxies:Union[str,dict,ProxyConfig] = None,
                  apikey: Union[str,CkanApiKey] = None, apikey_file: str = None,
                  owner_org: str = None, params:CkanApiPolicyParams=None,

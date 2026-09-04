@@ -52,7 +52,7 @@ class CkanApiABC(ABC):
 class CkanApiBase(CkanApiABC):
     """
     CKAN Database API interface to CKAN server with helper functions using pandas DataFrames.
-    This class implements the basic parameters and request functions.
+    This base class implements the basic parameters and request functions.
     """
     CKAN_URL_ENVIRON = "CKAN_URL"
 

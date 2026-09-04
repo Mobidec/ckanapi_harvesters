@@ -143,7 +143,7 @@ class CkanApiExtendedParams(CkanApiManageParams):
 class CkanApiManage(CkanApiReadWrite):
     """
     CKAN Database API interface to CKAN server with helper functions using pandas DataFrames.
-    This class implements more advanced requests to manage packages, resources and DataStores on the CKAN server.
+    This extension implements more advanced requests to manage packages, resources and DataStores on the CKAN server.
     """
 
     def __init__(self, url:str=None, *, proxies:Union[str,dict,ProxyConfig]=None,

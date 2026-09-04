@@ -36,7 +36,7 @@ from ckanapi_harvesters.ckan_api.ckan_api_0_base import CkanApiBase, use_ckan_ow
 class CkanApiMap(CkanApiBase):
     """
     CKAN Database API interface to CKAN server with helper functions using pandas DataFrames.
-    This class implements the resource mapping capabilities to obtain resource ids necessary for the requests.
+    This extension implements the resource mapping capabilities to obtain resource ids necessary for the requests.
 
     For API reference:
     - Basic API: https://docs.ckan.org/en/latest/api/
@@ -553,11 +553,11 @@ class CkanApiMap(CkanApiBase):
 
     def get_group_info_or_request(self, group_name:str, *,
                                      request_missing:bool=True, error_not_mapped:bool=False,
-                                     error_not_found:bool=True) -> Union[CkanGroupInfo,None]:
+                                     error_not_found:bool=True, include_users: bool=False) -> Union[CkanGroupInfo,None]:
         group_info = self.map.get_group_info(group_name, error_not_mapped=error_not_mapped)
-        if group_info is None and request_missing:
+        if (group_info is None and request_missing) or (include_users and group_info is not None and group_info.user_capacities is None and request_missing):
             try:
-                group_info = self.group_show(group_name)
+                group_info = self.group_show(group_name, include_users=include_users)
             except CkanActionNotFoundError as e:
                 if error_not_found:
                     raise e from e
@@ -1213,13 +1213,18 @@ class CkanApiMap(CkanApiBase):
         """
         if user_email is None and user_name is None:
             raise ArgumentError("Either user_email or user_name must be specified")
+        elif user_email is not None and user_name is not None:
+            raise ArgumentError("Either name or email is required. Not both.")
         user_info = None
         if sysadmin_requests is None:
             sysadmin_requests = self.current_user_is_sysadmin()
         if user_name is not None:
             user_info = self.map.get_user_info(user_name, error_not_mapped=False)
             if user_info is None:
-                user_info = self.user_show(user_name=user_name)
+                try:
+                    user_info = self.user_show(user_name=user_name)
+                except CkanNotFoundError:
+                    pass
         if user_email is not None:
             email_hash = ckan_email_hash(user_email)
             if not sysadmin_requests:

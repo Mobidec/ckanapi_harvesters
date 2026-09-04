@@ -36,7 +36,8 @@ class UpsertChoice(IntEnum):
 class CkanState(IntEnum):
     Draft = 0
     Active = 1
-    Deleted = 2
+    Pending = 3
+    Deleted = 10
 
     def __str__(self):
         return self.name.lower()

@@ -72,7 +72,7 @@ class CkanApiReadOnlyParams(CkanApiParamsBasic):
 class CkanApiReadOnly(CkanApiMap):
     """
     CKAN Database API interface to CKAN server with helper functions using pandas DataFrames.
-    This class implements requests to read data from the CKAN server resources / DataStores.
+    This extension implements requests to read data from the CKAN server resources / DataStores.
     """
 
     def __init__(self, url:str=None, *, proxies:Union[str,dict,ProxyConfig]=None,
