@@ -140,6 +140,8 @@ class CkanCapacity(IntEnum):
             return CkanCapacity.SysAdmin
         elif s == "public":
             return CkanCapacity.Public
+        elif s == "owner":
+            return CkanCapacity.Owner
         else:
             raise ValueError(s)
 
