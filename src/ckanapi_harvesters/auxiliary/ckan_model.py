@@ -51,6 +51,8 @@ class CkanState(IntEnum):
             return CkanState.Draft
         elif s == "deleted":
             return CkanState.Deleted
+        elif s == "pending":
+            return CkanState.Pending
         else:
             raise ValueError(s)
 

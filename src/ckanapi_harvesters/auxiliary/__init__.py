@@ -30,6 +30,7 @@ from . import ckan_progress_callbacks_tqdm
 from . import ckan_progress_callbacks
 from . import ckan_progress_callbacks_prototypes
 from . import deprecated
+from . import custom
 
 from .ckan_map import CkanMap
 from .ckan_model import CkanPackageInfo, CkanUserInfo, CkanField, CkanState, CkanCapacity, ckan_email_hash
