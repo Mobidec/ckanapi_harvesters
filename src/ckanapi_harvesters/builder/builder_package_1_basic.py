@@ -1491,7 +1491,7 @@ class BuilderPackageBasic:
 
     def setup_sample_package(self, ckan: CkanApi, package_name:str=None, *,
                              sample_url_suffix:str=None, sample_title_suffix:str=None,
-                             sample_groups:List[str]=None,
+                             sample_groups:List[str]=None, sample_tags_remove:Union[List[str],str]=None,
                              sample_df_dict: Dict[str, Union[bytes, pd.DataFrame]]=None, return_sample:bool=False,
                              records_to_file:DataStoreReprFormat=None, **kwargs) \
         -> Union["BuilderPackageBasic", Tuple["BuilderPackageBasic", Dict[str, Union[bytes, pd.DataFrame]]]]:
@@ -1504,6 +1504,7 @@ class BuilderPackageBasic:
         :param sample_url_suffix: Suffix to add to the package_name (default is "-sample")
         :param sample_title_suffix: Suffix to add to the package title (default is " - Sample")
         :param sample_groups: Option to replace the groups from the original package with a new list of group names
+        :param sample_tags_remove: Option to remove tags from sample package
         :param sample_df_dict: Option to transmit the data of each resource to the output of function.
         :param return_sample: Option to return the data of each resource.
         :param kwargs: Optional arguments to pass to the download_sample function.
@@ -1530,6 +1531,10 @@ class BuilderPackageBasic:
         sample_mdl.package_attributes.state = CkanState.Active  # publish at the end of the process
         if sample_groups is not None:
             sample_mdl.package_attributes.groups = [ckan.get_group_info_or_request(group_name) for group_name in sample_groups]
+        if sample_tags_remove is not None and mdl.package_attributes.tags is not None:
+            if isinstance(sample_tags_remove, str):
+                sample_tags_remove = [sample_tags_remove]
+            sample_mdl.package_attributes.tags = [tag for tag in mdl.package_attributes.tags if tag not in sample_tags_remove]
         for resource_builder in sample_mdl.resource_builders.values():
             resource_builder.aliases = []
             if isinstance(resource_builder, BuilderDataStoreABC):

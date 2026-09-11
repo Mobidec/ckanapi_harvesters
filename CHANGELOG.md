@@ -10,6 +10,13 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-09-14
 
 
+## [0.0.40] - 2026-09-11
+
+### Added
+
+- sample_tags_remove in BuilderPackage.setup_sample_package
+
+
 ## [0.0.39] - 2026-09-11
 
 ### Added

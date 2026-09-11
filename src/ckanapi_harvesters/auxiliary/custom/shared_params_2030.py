@@ -5,9 +5,8 @@ Definitions used externally (not used in current package)
 """
 from ckanapi_harvesters.auxiliary.custom.aux_helpers import replace_prefix
 
-
-harvest_group_prefix = "catalogue_"
-private_group_prefix = "private_"
+universe_group_prefix = "universe_"
+no_harvest_tag = "no_harvest"
 
 auth_role_ckan_group_prefix = "CKAN_GROUP_"
 
