@@ -350,7 +350,7 @@ class CkanAliasInfo(CkanIdentifiedObject):
             d["id"] = id
         return d
 
-## Users and groups ------------------
+## Users and groups_info ------------------
 def ckan_email_hash(email:str) -> str:
     """
     Hash function used in CKAN to obfuscate user email addresses.
@@ -852,7 +852,8 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         self.resources_id_index:Dict[str,str] = {}  # resource name -> id
         self.resources_id_index_counts:Dict[str,int] = {}  # resource name -> counter
         self.organization_info: Union[CkanOrganizationInfo, None] = None
-        self.groups:Union[List[CkanGroupInfo],None] = None
+        self.groups:Union[List[str],None] = None
+        self.groups_info:Union[List[CkanGroupInfo],None] = None
         self.license_id:Union[str, None] = None
         self.author:Union[str, None] = None
         self.author_email:Union[str, None] = None
@@ -904,7 +905,8 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
             else:
                 assert_or_raise("owner_org" not in d.keys() or d["owner_org"] == "", IntegrityError("Unexpected: organization is not present but owner_org was found"))
             if "groups" in d.keys():  # may be absent if restored from to_dict output
-                self.groups = [CkanGroupInfo(info) for info in d["groups"]]
+                self.groups_info = [CkanGroupInfo(info) for info in d["groups"]]
+                self.groups = [group_info.name for group_info in self.groups_info]
             self.license_id = d["license_id"]
             if "creator_user_id" in d.keys():
                 self.creator_user_id = d["creator_user_id"]
@@ -955,6 +957,7 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
         self.tags_info = refresh.tags_info
         self.tags = refresh.tags
         self.package_type = refresh.package_type
+        self.groups_info = refresh.groups_info
         self.groups = refresh.groups
 
     def get_resource_index(self, resource_id:str) -> int:
@@ -994,8 +997,8 @@ class CkanPackageInfo(CkanConfigurableObjectABC, CkanIdentifiedObject):
                  "type": self.package_type,
                  "resources": [resource.to_dict(include_details=include_details) for resource in self.package_resources.values()],
                  })
-        if self.groups is not None:
-            d["groups"] = [group.to_dict(include_details=include_details) for group in self.groups]
+        if self.groups_info is not None:
+            d["groups"] = [group.to_dict(include_details=include_details) for group in self.groups_info]
         if self.metadata_created is not None:
             d["metadata_created"] = self.metadata_created.isoformat()
         if self.metadata_modified is not None:

@@ -10,6 +10,21 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-09-14
 
 
+## [0.0.42] - 2026-09-14
+
+### Added
+
+- Support for field __Groups__ in Package builder Excel "package" sheet (additive mode only). 
+
+### Changed
+
+- `CkanPackageInfo.groups` was renamed into `groups_info`. Attribute `groups` now serves as a list of group names.
+
+### Fixed
+
+- Progress bars displayed for virtually chunked DataFrames are now correctly scaled to the file size and not the number of lines read.
+
+
 ## [0.0.41] - 2026-09-14
 
 ### Added

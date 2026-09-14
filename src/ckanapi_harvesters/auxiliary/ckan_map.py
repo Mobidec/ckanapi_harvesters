@@ -385,8 +385,8 @@ class CkanMap(CkanMapABC):
         for pkg_info in package_info:
             if pkg_info.organization_info is not None:
                 self._update_organization_info(pkg_info.organization_info)
-            if pkg_info.groups is not None:
-                self._update_group_info(pkg_info.groups)
+            if pkg_info.groups_info is not None:
+                self._update_group_info(pkg_info.groups_info)
 
 
     def get_license_id(self, license_name: str, *, error_not_mapped: bool = True) -> str:

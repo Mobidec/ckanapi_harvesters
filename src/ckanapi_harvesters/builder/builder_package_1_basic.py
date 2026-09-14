@@ -71,7 +71,7 @@ info_allowed_user_fields: Set[str] = {
 }
 package_base_user_fields: Set[str] = {
     "name in url", "description", "version", "visibility", "state", "url",
-    "tags", "author", "author email", "maintainer", "maintainer email",
+    "tags", "groups", "author", "author email", "maintainer", "maintainer email",
     "organization", "license"
     "known id",
     "attribute",  # reserved name for table header
@@ -479,6 +479,11 @@ class BuilderPackageBasic:
             self._user_fields_used.add("tags")
             if tags_string is not None:
                 self.package_attributes.tags = [label.strip() for label in tags_string.split(ckan_tags_sep)]
+        if "groups" in package_df.columns:
+            groups_string = _string_from_element(package_df.pop("groups"))
+            self._user_fields_used.add("groups")
+            if groups_string is not None:
+                self.package_attributes.groups = [label.strip() for label in groups_string.split(ckan_tags_sep)]
         if "author" in package_df.columns:
             self.package_attributes.author = _string_from_element(package_df.pop("author"))
             self._user_fields_used.add("author")
@@ -536,6 +541,7 @@ class BuilderPackageBasic:
         package_dict["License"] = self.license_name if self.license_name is not None else ""
         package_dict["URL"] = self.package_attributes.url if self.package_attributes.url is not None else ""
         package_dict["Tags"] = ckan_tags_sep.join(self.package_attributes.tags) if self.package_attributes.tags is not None else ""
+        package_dict["Groups"] = ckan_tags_sep.join(self.package_attributes.groups) if self.package_attributes.groups is not None else ""
         package_dict["Author"] = self.package_attributes.author if self.package_attributes.author is not None else ""
         package_dict["Author Email"] = self.package_attributes.author_email if self.package_attributes.author_email is not None else ""
         package_dict["Maintainer"] = self.package_attributes.maintainer if self.package_attributes.maintainer is not None else ""
@@ -564,6 +570,7 @@ class BuilderPackageBasic:
             "License": "License title or ID",
             "URL": "A URL for the dataset's source",
             "Tags": "Comma-separated list of tags (refer to data format policy)",
+            "Groups": "Comma-separated list of groups_info (additive mode only)",
             "Author": "Recommended to specify author/maintainer to communicate on the dataset",
             "Maintainer": "Recommended to specify author/maintainer to communicate on the dataset",
         }
@@ -1530,7 +1537,7 @@ class BuilderPackageBasic:
         sample_mdl.package_attributes.url = ckan.get_package_page_url(mdl.get_or_query_package_id(ckan))  # mark as source
         sample_mdl.package_attributes.state = CkanState.Active  # publish at the end of the process
         if sample_groups is not None:
-            sample_mdl.package_attributes.groups = [ckan.get_group_info_or_request(group_name) for group_name in sample_groups]
+            sample_mdl.package_attributes.groups = sample_groups
         if sample_tags_remove is not None and mdl.package_attributes.tags is not None:
             if isinstance(sample_tags_remove, str):
                 sample_tags_remove = [sample_tags_remove]

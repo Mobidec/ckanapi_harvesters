@@ -118,7 +118,9 @@ Available states are:
 - __Organization__: This field holds the owner organization name, ID or title. It is mandatory to initialize a package. 
 - __License__: This field holds the license title or ID for the package, if required.
 - __URL__: A URL for the dataset's source.
-- __Tags__: A list of comma-separated tags. Please refer to your organization's data format policy to know the pre-defined allowed tags. 
+- __Tags__: A list of comma-separated tags. Please refer to your organization's data format policy to know the pre-defined allowed tags.
+- __Groups__: A list of comma-separated group names (names in group urls). This field is only used in additive mode. 
+It does not remove a dataset from the groups it is linked to. 
 - __Author__: The name of the dataset's author.
 - __Author Email__: The email address of the dataset's author.
 - __Maintainer__: The name of the dataset's maintainer.

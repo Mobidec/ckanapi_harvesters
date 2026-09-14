@@ -1314,7 +1314,8 @@ class CkanApiMap(CkanApiBase):
         if response.success:
             group_info = CkanGroupInfo(response.result)
             self.map._update_group_info(group_info)
-            self.map._update_user_info(list(group_info.user_dict.values()))
+            if group_info.user_dict is not None:
+                self.map._update_user_info(list(group_info.user_dict.values()))
             return group_info.copy()
         elif response.status_code == 404 and response.success_json_loads and response.error_message["__type"] == "Not Found Error":
             raise CkanActionNotFoundError(self, "Package", response)

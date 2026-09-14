@@ -285,8 +285,8 @@ class CkanAdminReport:
                 # TODO: do all users have write access if package is Public
                 package_report.users = "all (Public)"
                 public_packages[package_name] = ckan.get_package_page_url(package_name)
-            assert_or_raise(package_info.groups is not None, UnexpectedError("groups in ckan.map should not be None"))
-            package_report.groups = sorted([group_info.name for group_info in package_info.groups])
+            assert_or_raise(package_info.groups_info is not None, UnexpectedError("groups_info in ckan.map should not be None"))
+            package_report.groups = sorted([group_info.name for group_info in package_info.groups_info])
             if self.include_policy_messages:
                 package_report.policy_messages = [message.to_dict() for message in package_policy_report.messages]
             if self.expand_resources:

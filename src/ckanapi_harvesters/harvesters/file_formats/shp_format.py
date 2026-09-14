@@ -5,6 +5,7 @@ Shapefile format support
 """
 from typing import Union, Dict, Iterable
 import io
+import os
 from warnings import warn
 
 import pandas as pd
@@ -82,7 +83,7 @@ class ShapeFileFormat(FileFormatABC):
                 raise NotImplementedError(f"Field {field_data_type} is not implemented or not compatible with geometric representations.")
         df = gdf.to_wkb(hex=True)  # converts all geometric fields to WKB and returns a standard DataFrame object
         if self.read_by_chunks_enabled(allow_chunks=allow_chunks):
-            return df_as_virtual_chunks(df, self.chunk_size)
+            return df_as_virtual_chunks(df, self.chunk_size, os.path.getsize(file_path))
         else:
             return df
 

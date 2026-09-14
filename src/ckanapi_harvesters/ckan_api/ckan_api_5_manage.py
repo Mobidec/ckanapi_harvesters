@@ -1165,7 +1165,7 @@ class CkanApiManage(CkanApiReadWrite):
                            state:Union[CkanState,str]=None, license_id:str=None, tags:List[str]=None, tags_list_dict:List[Dict[str, str]]=None,
                            url:str=None, version:str=None, custom_fields_update:dict=None, custom_fields:dict=None,
                            author:str=None, author_email:str=None, maintainer:str=None, maintainer_email:str=None,
-                           package_type:str=None, groups:List[Union[dict,str,CkanGroupInfo]]=None,
+                           package_type:str=None, groups:List[Union[dict,str,CkanGroupInfo]]=None, groups_add:List[str]=None,
                            params:dict=None) -> CkanPackageInfo:
         """
         API call to package_patch. Use to change the properties of a package.
@@ -1239,6 +1239,14 @@ class CkanApiManage(CkanApiReadWrite):
             params["license_id"] = license_id
         if package_type is not None:
             params["type"] = package_type
+        if groups is None:
+            if groups_add is not None:
+                if package_info.groups_info is not None:
+                    groups = package_info.groups_info.copy()
+                else:
+                    groups = []
+        if groups_add is not None:
+            groups = groups + groups_add
         if groups is not None:
             if not(isinstance(groups, list)):
                 groups = [groups]
@@ -1265,7 +1273,7 @@ class CkanApiManage(CkanApiReadWrite):
                            state:Union[CkanState,str]=None, license_id:str=None, tags:List[str]=None, tags_list_dict:List[Dict[str, str]]=None,
                            url:str=None, version:str=None, custom_fields_update:dict=None, custom_fields:dict=None,
                            author:str=None, author_email:str=None, maintainer:str=None, maintainer_email:str=None,
-                           package_type:str=None, groups:List[Union[dict,str]]=None,
+                           package_type:str=None, groups:List[Union[dict,str]]=None, groups_add:List[str]=None,
                            params:dict=None) -> CkanPackageInfo:
         # function alias
         return self._api_package_patch(package_id=package_id, package_name=package_name, private=private,
@@ -1273,7 +1281,7 @@ class CkanApiManage(CkanApiReadWrite):
                                        license_id=license_id, tags=tags, tags_list_dict=tags_list_dict, url=url, version=version,
                                        custom_fields_update=custom_fields_update, custom_fields=custom_fields, author=author, author_email=author_email,
                                        maintainer=maintainer, maintainer_email=maintainer_email, package_type=package_type,
-                                       groups=groups, params=params)
+                                       groups=groups, groups_add=groups_add, params=params)
 
     def package_state_change(self, package_id:str, state:CkanState) -> CkanPackageInfo:
         """
@@ -1303,7 +1311,7 @@ class CkanApiManage(CkanApiReadWrite):
         :param state:
         :param license_id:
         :param tags:
-        :param groups: argument to manage groups of a package (user access rights) - list of either group_id, {"id": group_id} or {"name": group_name}
+        :param groups: argument to manage groups_info of a package (user access rights) - list of either group_id, {"id": group_id} or {"name": group_name}
         :param params:
         :return:
         """
@@ -1361,7 +1369,7 @@ class CkanApiManage(CkanApiReadWrite):
                     groups_arg[i] = group_identification
                 else:  # str
                     groups_arg[i] = {"id": group_identification}
-            params["groups"] = groups_arg
+            params["groups_info"] = groups_arg
         response = self._api_action_request(f"package_create", method=RequestType.Post, json=params)
         if response.success:
             # update map
@@ -1376,7 +1384,7 @@ class CkanApiManage(CkanApiReadWrite):
                        url: str = None, version: str = None, custom_fields_update: dict = None, custom_fields: dict = None,
                        author: str = None, author_email: str = None,
                        maintainer: str = None, maintainer_email: str = None, package_type:str=None,
-                       groups:List[Union[dict,str,CkanGroupInfo]]=None,
+                       groups:List[Union[dict,str,CkanGroupInfo]]=None, groups_add:List[str]=None,
                        params:dict=None, cancel_if_exists:bool=True, update_if_exists=True,
                        clear_if_deleted_state:bool=None) -> CkanPackageInfo:
         """
@@ -1420,14 +1428,18 @@ class CkanApiManage(CkanApiReadWrite):
                                               url=url, version=version, custom_fields_update=custom_fields_update, custom_fields=custom_fields,
                                               author=author, author_email=author_email, package_type=package_type,
                                               maintainer=maintainer, maintainer_email=maintainer_email,
-                                              groups=groups, params=params)
+                                              groups=groups, groups_add=groups_add, params=params)
             pkg_info.newly_created = False
             return pkg_info
         else:
-            if custom_fields is None:
-                custom_fields = OrderedDict()
             if custom_fields_update is not None:
+                if custom_fields is None:
+                    custom_fields = OrderedDict()
                 custom_fields.update(custom_fields_update)
+            if groups_add is not None:
+                if groups is None:
+                    groups = []
+                groups = groups + groups_add
             if owner_org is None and use_ckan_owner_org_as_default_package_owner:
                 owner_org = self.owner_org
             pkg_info = self._api_package_create(package_name, private, title=title, notes=notes,

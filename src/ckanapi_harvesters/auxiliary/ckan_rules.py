@@ -14,7 +14,7 @@ def package_expand_user_access(package_info: CkanPackageInfo, *, user_table: Dic
                                expand_excluded: bool = False) -> Union[Dict[str, CkanCollaboration], None]:
     """
     List all users having access to this package with their rights. Users are listed by their ID.
-    Pre-requisites: having mapped all users, necessary groups and organizations and called ckan.map_user_rights.
+    Pre-requisites: having mapped all users, necessary groups_info and organizations and called ckan.map_user_rights.
 
     :param package_info: Package attributes
     :param user_table: Mapped user table
@@ -37,7 +37,7 @@ def package_expand_user_access(package_info: CkanPackageInfo, *, user_table: Dic
         else:
             expanded_user_access[user_info.id] = CkanCollaboration(capacity=CkanCapacity.Owner)
     if expand_groups:
-        for package_group_info in package_info.groups:
+        for package_group_info in package_info.groups_info:
             # obtain full group info from ckan map and add users
             group_info = group_table.get(package_group_info.id, None)
             if group_info.user_capacities is not None:

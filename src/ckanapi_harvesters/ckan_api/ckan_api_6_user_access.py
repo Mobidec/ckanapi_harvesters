@@ -312,8 +312,8 @@ class CkanApiUserAccess(CkanApiManage):
         if not(isinstance(groups, list)):
             groups = [groups]
         package_info = self.get_package_info_or_request(package_id)
-        assert_or_raise(package_info.groups is not None, UnexpectedError("groups in ckan.map should not be None"))
-        current_groups = {group_info.id for group_info in package_info.groups}
+        assert_or_raise(package_info.groups_info is not None, UnexpectedError("groups_info in ckan.map should not be None"))
+        current_groups = {group_info.id for group_info in package_info.groups_info}
         add_group_ids = self._list_groups_extract_ids(groups)
         new_groups = current_groups.copy()
         new_groups = new_groups.union(set(add_group_ids))
@@ -327,8 +327,8 @@ class CkanApiUserAccess(CkanApiManage):
             groups = [groups]
         package_info = self.get_package_info_or_request(package_id)
         remove_group_ids = self._list_groups_extract_ids(groups)
-        assert_or_raise(package_info.groups is not None, UnexpectedError("groups in ckan.map should not be None"))
-        current_groups = {group_info.id for group_info in package_info.groups}
+        assert_or_raise(package_info.groups_info is not None, UnexpectedError("groups_info in ckan.map should not be None"))
+        current_groups = {group_info.id for group_info in package_info.groups_info}
         new_groups = current_groups.copy()
         new_groups = new_groups - set(remove_group_ids)
         update_needed = len(current_groups - new_groups) > 0

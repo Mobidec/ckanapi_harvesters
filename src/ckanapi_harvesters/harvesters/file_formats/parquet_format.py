@@ -5,6 +5,7 @@ Parquet file format support
 """
 from typing import Union, Dict, Iterable
 import io
+import os
 
 import pandas as pd
 
@@ -38,7 +39,7 @@ class ParquetFileFormat(FileFormatABC):
         read_kwargs = self._get_read_kwargs(allow_chunks=allow_chunks)
         df = pd.read_parquet(file_path, **read_kwargs)
         if self.read_by_chunks_enabled(allow_chunks=allow_chunks):
-            return df_as_virtual_chunks(df, self.chunk_size)
+            return df_as_virtual_chunks(df, self.chunk_size, os.path.getsize(file_path))
         else:
             return df
 

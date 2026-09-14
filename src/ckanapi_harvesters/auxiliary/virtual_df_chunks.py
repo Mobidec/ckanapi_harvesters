@@ -15,7 +15,7 @@ class VirtualChunkedDataFrameBuffer:
         self.__parent_generator: "VirtualChunkedDataFrameGenerator" = parent
 
     def tell(self):
-        return self.__parent_generator._start
+        return int(self.__parent_generator._start * self.__parent_generator.size_scale / self.__parent_generator._len)
 
 
 class VirtualChunkedDataFrameHandle:
@@ -32,10 +32,14 @@ class VirtualChunkedDataFrameGenerator(Iterator):
     """
     Emulate a DataFrame used for a file read by chunks, with __next__, __exit__ behaviors and handles reporting the position in the DataFrame
     """
-    def __init__(self, df: GeneralDataFrame, chunk_size:int) -> None:
+    def __init__(self, df: GeneralDataFrame, chunk_size:int, size_scale: int = None) -> None:
         self.df: GeneralDataFrame = df
         self.chunk_size: int = chunk_size
         self._start: int = 0
+        self._len: int = len(df)
+        if size_scale is None:
+            size_scale = self._len
+        self.size_scale: int = size_scale
         self.__handles: VirtualChunkedDataFrameHandles = VirtualChunkedDataFrameHandles(self)
 
     # read-only property
@@ -69,8 +73,8 @@ class VirtualChunkedDataFrameGenerator(Iterator):
         self._start = 0
 
 
-def df_as_virtual_chunks(df: GeneralDataFrame, chunk_size:int) -> Iterator[GeneralDataFrame]:
-    return VirtualChunkedDataFrameGenerator(df, chunk_size)
+def df_as_virtual_chunks(df: GeneralDataFrame, chunk_size:int, size_scale:int) -> Iterator[GeneralDataFrame]:
+    return VirtualChunkedDataFrameGenerator(df, chunk_size, size_scale)
 
 
 if __name__ == '__main__':

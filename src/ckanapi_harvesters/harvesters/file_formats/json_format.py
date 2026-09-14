@@ -5,6 +5,7 @@ The basic file format for DataStore: JSON
 """
 from typing import Union, Dict, Iterable
 import io
+import os
 
 import pandas as pd
 
@@ -51,7 +52,7 @@ class JsonFileFormat(FileFormatABC):
         df = pd.read_json(file_path, typ="frame", **read_kwargs)
         if allow_chunks and self.allow_chunks and not self.read_by_chunks_allowed():
             # particular cases where options are not compatible with chunksize argument
-            return df_as_virtual_chunks(df,self.chunk_size)
+            return df_as_virtual_chunks(df,self.chunk_size, os.path.getsize(file_path))
         else:
             return df
 
