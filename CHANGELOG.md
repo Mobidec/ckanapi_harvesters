@@ -10,6 +10,13 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-09-14
 
 
+## [0.0.41] - 2026-09-14
+
+### Added
+
+- custom values in custom module
+
+
 ## [0.0.40] - 2026-09-11
 
 ### Added

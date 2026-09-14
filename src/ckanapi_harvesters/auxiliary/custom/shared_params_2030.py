@@ -7,6 +7,7 @@ from ckanapi_harvesters.auxiliary.custom.aux_helpers import replace_prefix
 
 universe_group_prefix = "universe_"
 no_harvest_tag = "no_harvest"
+access_validation_manual_tag = "manual_access_validation"
 
 auth_role_ckan_group_prefix = "CKAN_GROUP_"
 
