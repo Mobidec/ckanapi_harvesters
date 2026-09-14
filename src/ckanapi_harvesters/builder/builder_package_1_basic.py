@@ -111,6 +111,7 @@ class BuilderPackageBasic:
     - External Python module (.py) containing DataFrame modification functions for upload/download of a DataStore
     """
     default_to_json_reduced_size:bool = False
+    groups_additive_mode:bool = True
     default_sample_url_suffix:str = "-sample"
     default_sample_title_suffix:str = " - Sample"
     # environment variables (to use in path definitions)
@@ -1083,7 +1084,10 @@ class BuilderPackageBasic:
         if self.package_attributes.groups is not None:
             # package builder is in additive mode for package group membership
             # NB: groups are to be configured programmatically (not managed by Excel file because this concerns user access rights)
-            ckan.package_group_add(package_info.id, self.package_attributes.groups)
+            if self.groups_additive_mode:
+                ckan.package_group_add(package_info.id, self.package_attributes.groups)
+            elif self.package_attributes.groups is not None:
+                ckan.package_patch(package_info.id, groups=self.package_attributes.groups)
         if self.package_attributes.user_access is not None:
             # package builder is in additive mode for package user membership
             # NB: users are to be configured programmatically (not managed by Excel file because this concerns user access rights)
