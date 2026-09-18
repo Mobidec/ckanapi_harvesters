@@ -114,6 +114,7 @@ class BuilderPackageBasic:
     groups_additive_mode:bool = True
     default_sample_url_suffix:str = "-sample"
     default_sample_title_suffix:str = " - Sample"
+    default_sample_records_to_file: DataStoreReprFormat = DataStoreReprFormat.from_resource_format  # export a file representation along datastores for sample datasets by default
     # environment variables (to use in path definitions)
     ENV_CKAN_PACKAGE_NAME = "CKAN_PACKAGE_NAME"
     ENV_CKAN_BUILDER_FILE = "CKAN_BUILDER_FILE"
@@ -1523,7 +1524,7 @@ class BuilderPackageBasic:
             Optionally, the dictionary of resources to transmit
         """
         if records_to_file is None:
-            records_to_file = DataStoreReprFormat.from_resource_format  # export DataStores to a file representation for sample datasets
+            records_to_file = self.default_sample_records_to_file
         if sample_url_suffix is None:
             sample_url_suffix = BuilderPackageBasic.default_sample_url_suffix
         if sample_title_suffix is None:

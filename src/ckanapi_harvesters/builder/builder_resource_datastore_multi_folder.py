@@ -188,6 +188,13 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
         if apply_last_condition is None:
             apply_last_condition = True  # datastore_multi_apply_last_condition_intermediary
         resource_id = self.get_or_query_resource_id(ckan=ckan, error_not_found=True)
+        if self.rows_limit and df_upload is not None:
+            if self.rows_limit-total_lines_read+len(df_upload) > 0:
+                df_upload = df_upload.iloc[:self.rows_limit-total_lines_read+len(df_upload)]
+            else:
+                df_upload = df_upload.iloc[:0]
+            if len(df_upload) == 0:
+                return df_upload.iloc[:0], df_upload.iloc[:0]
         df_upload_local = df_upload
         df_upload_transformed = self.df_mapper.df_upload_alter(df_upload_local, total_lines_read=total_lines_read,
                                                                fields=self._get_fields_info(), file_query=file_name,

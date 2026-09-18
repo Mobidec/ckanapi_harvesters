@@ -10,6 +10,15 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-09-14
 
 
+## [0.0.43] - 2026-09-18
+
+### Added
+
+- Extra resource options for DataStores (___Options___ column of the _resources_ sheet in the Excel workbook):
+  - Option `--rows ROWS` to limit the lines uploaded of a DataStore.
+  - Option `--filestore` to store a file along a DataStore, according to the resource format.
+
+
 ## [0.0.42] - 2026-09-14
 
 ### Added

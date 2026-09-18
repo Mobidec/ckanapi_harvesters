@@ -15,6 +15,9 @@ DataStore resource specific options
 options:
   --data-cleaner DATA_CLEANER
                         Data cleaner to call before uploading data
+  --rows ROWS           Limit the upload to the first specified number of rows
+  --filestore           Option to store a File along the DataStore, according
+                        to the resource format
   --one-frame-per-primary-key
                         Enabling this option makes the upload process expect
                         one DataFrame per primary key combination (except the

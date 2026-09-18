@@ -88,6 +88,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.column_enable_source_file: bool = False
         self.read_line_counter:int = 0
         self.upload_start_line:int = 0
+        self.rows_limit: Union[int,None] = None
         self.records_to_file: DataStoreReprFormat = DataStoreReprFormat.none
 
     def copy(self, *, dest=None, parent=None):
@@ -112,6 +113,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         dest.df_mapper = self.df_mapper.copy()
         dest.mapper_kwargs = self.mapper_kwargs.copy()
         dest.local_file_format = self.local_file_format.copy()
+        dest.rows_limit = self.rows_limit
+        dest.records_to_file = self.records_to_file
         return dest
 
     def _update_metadata(self, ckan: CkanApi, *, base_dir:str=None) -> None:
@@ -127,6 +130,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                                              "- Process one file per primary key combination (first columns of the primary key, except the last one): --one-frame-per-primary-key --no-chunks")
         parser.add_argument("--data-cleaner", type=str,
                             help="Data cleaner to call before uploading data")
+        parser.add_argument("--rows", type=int,
+                            help="Limit the upload to the first specified number of rows")
+        parser.add_argument("--filestore", action="store_true",
+                            help="Option to store a File along the DataStore, according to the resource format")
         parser.add_argument("--one-frame-per-primary-key",
                             help="Enabling this option makes the upload process expect one DataFrame per primary key combination (except the last field of the primary key, which could be an index in the file).\n"
                             "This option should be associated with the file format option --no-chunks to ensure a file is treated at once", action="store_true", default=False)
@@ -166,6 +173,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         elif args.group_by is not None:
             msg = GroupByError("Argument --group-by cannot be used without option --one-frame-per-primary-key")
             warn(str(msg))
+        if args.rows is not None:
+            self.rows_limit = args.rows
+        if args.filestore:
+            self.records_to_file = DataStoreReprFormat.from_resource_format
 
     def setup_default_file_mapper(self, *, primary_key:List[str]=None, file_query_list:Collection[Tuple[str, dict]]=None) -> None:
         if primary_key is None:
@@ -426,6 +437,10 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         :return:
         """
         resource_id = self.get_or_query_resource_id(ckan, error_not_found=True)
+        if self.rows_limit and df_upload is not None:
+            df_upload = df_upload.iloc[:self.rows_limit-total_lines_read+len(df_upload)]
+            if len(df_upload) == 0:
+                return df_upload.iloc[:0], df_upload.iloc[:0]
         df_upload_transformed = self.df_mapper.df_upload_alter(df_upload, total_lines_read=total_lines_read,
                                                                fields=self._get_fields_info(), file_query=file_name,
                                                                mapper_kwargs=self.mapper_kwargs)
@@ -647,6 +662,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         if reupload is None: reupload = self.reupload_on_update
         if df_upload is None:
             df_upload = self.load_sample_df(resources_base_dir=resources_base_dir, upload_alter=True)
+            if df_upload is not None and self.rows_limit:
+                df_upload = df_upload.iloc[:self.rows_limit]
         else:
             pass  # do not alter df_upload because it should already be in the database format
         df_upload, data_cleaner_fields, data_cleaner_index = self._apply_data_cleaner_before_patch(ckan, df_upload, reupload=reupload, override_ckan=override_ckan)

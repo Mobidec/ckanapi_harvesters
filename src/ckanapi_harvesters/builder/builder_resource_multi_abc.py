@@ -8,7 +8,7 @@ This file implements the basic resources. See builder_datastore for specific fun
 from concurrent.futures import ThreadPoolExecutor
 import threading
 from threading import current_thread, Semaphore
-from typing import Any, Generator, List, Dict
+from typing import Any, Generator, List, Dict, Union
 from abc import ABC, abstractmethod
 from warnings import warn
 
@@ -35,6 +35,7 @@ class BuilderMultiABC(ABC):
         self.name:str = ""
         self.enable_download:bool = True
         self.read_line_counter:int = 0
+        self.rows_limit: Union[int, None] = None
 
     def copy(self, *, dest=None):
         dest.progress_callback = self.progress_callback.copy()
@@ -126,6 +127,8 @@ class BuilderMultiABC(ABC):
         :param end_index:
         :return:
         """
+        if self.rows_limit:
+            threads = 1  # no multi-threading with this option to preserve row order
         if threads < 0:
             # cancel large uploads in this case
             return None
@@ -149,6 +152,8 @@ class BuilderMultiABC(ABC):
                 self._unit_upload_apply(ckan=ckan, file_chunk=file_chunk, overall_chunk_index=overall_chunk_index,
                                         start_index=start_index, end_index=end_index, file_count=total,
                                         inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes, **kwargs)
+                if self.rows_limit and file_chunk.read_line_counter > self.rows_limit:
+                    break
             self.progress_callback.end_task(self.get_local_file_total_size(), file_count=total, total_lines_read=self.read_line_counter,
                                          context=f"{ckan.identifier} single-thread upload {self.name}", level=CkanCallbackLevel.ResourceChunks)
             # at last, apply final actions:
