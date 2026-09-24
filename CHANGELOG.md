@@ -10,6 +10,13 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-09-14
 
 
+## [0.0.44] - 2026-09-24
+
+### Added
+
+- definitions for custom usages
+
+
 ## [0.0.43] - 2026-09-18
 
 ### Added
