@@ -13,5 +13,7 @@ auth_role_ckan_group_prefix = "CKAN_GROUP_"
 
 access_terms_field = "Access Terms"
 access_terms_sep_re = r"[;\n]+"
+access_terms_date_field = "Access Terms Timestamp"
 
+access_end_date_field = "Access End Timestamp"
 
