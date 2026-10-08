@@ -608,6 +608,7 @@ class CkanApiManage(CkanApiReadWrite):
     def default_resource_views(self, resource_format:str, is_datastore:bool=True) -> List[Tuple[str,str]]:
         """
         Definition of the default resource view based on the resource format.
+        NB: these views require specific extensions:
 
         :param resource_format:
         :return:
@@ -620,14 +621,15 @@ class CkanApiManage(CkanApiReadWrite):
             if self.check_ckan_version(max_version="2.11.5", strict=True):  # if CKAN version < 2.11.5
                 return [("recline_view", "Table")]
             else:
-                # these views require specific extensions:
                 return [("datatables_view", "Table"), ("charts_builder_view", "Chart Builder")]
         elif resource_format in {"shp", "geoparquet"}:
             if self.check_ckan_version(max_version="2.11.5", strict=True):  # if CKAN version < 2.11.5
                 return [("recline_view", "Table")]
             else:
-                # these views require specific extensions:
-                return [("datatables_view", "Table"), ("charts_builder_view", "Chart Builder"), ("datastore_openlayers", "Map")]
+                views_list = [("datatables_view", "Table"), ("charts_builder_view", "Chart Builder")]
+                if self.check_ckan_ext("datastore_openlayers"):
+                    views_list.append(("datastore_openlayers", "Map"))
+                return views_list
         elif resource_format in {"json", "txt", "py"}:
             return [("text_view", "Text")]
         elif resource_format in {"png", "svg"}:

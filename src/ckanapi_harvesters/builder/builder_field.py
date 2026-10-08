@@ -11,13 +11,14 @@ from collections import OrderedDict
 from warnings import warn
 
 from ckanapi_harvesters.auxiliary.ckan_field_types import CkanFieldType
-from ckanapi_harvesters.auxiliary.ckan_model import CkanField
+from ckanapi_harvesters.auxiliary.ckan_model import CkanField, ckan_use_field_units
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import CkanFieldInternalAttrs
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import _string_from_element, _bool_from_string
 
 
 field_allowed_user_fields: Set[str] = {
     "field name", "type override", "label", "description",
+    "units",
     "index", "unique", "not null",
     "options", "comment",
 }
@@ -31,6 +32,7 @@ class BuilderField:
         self.type_override: Union[CkanFieldType,None] = type_override
         self.label: Union[str,None] = label
         self.description: Union[str,None] = description
+        self.units: Union[str,None] = None  # requires CKAN extension field_units
         self.is_index: Union[bool,None] = None
         self.uniquekey: Union[bool,None] = None
         self.notnull: Union[bool,None] = None
@@ -48,6 +50,8 @@ class BuilderField:
             self.label = other.label
         if self.description is None:
             self.description = other.description
+        if self.units is None:
+            self.units = other.units
         if self.is_index is None:
             self.is_index = other.is_index
         if self.uniquekey is None:
@@ -73,6 +77,7 @@ class BuilderField:
         dest.type_override = self.type_override
         dest.label = self.label
         dest.description = self.description
+        dest.units = self.units
         dest.is_index = self.is_index
         dest.uniquekey = self.uniquekey
         dest.notnull = self.notnull
@@ -107,6 +112,9 @@ class BuilderField:
         if "description" in row.keys():
             self.description = _string_from_element(row["description"])
             self._user_fields_used.add("description")
+        if "units" in row.keys():
+            self.units = _string_from_element(row["units"])
+            self._user_fields_used.add("units")
         if "index" in row.keys():
             self.is_index = _bool_from_string(row["index"], default_value=None)
             self._user_fields_used.add("index")
@@ -132,21 +140,27 @@ class BuilderField:
         return field_builder
 
     def _to_dict(self) -> dict:
-        return OrderedDict([
+        d = OrderedDict([
             ("Field Name", self.name),
             ("Type override", str(self.type_override) if self.type_override is not None else ""),
             ("Label", self.label if self.label else ""),
             ("Description", self.description if self.description else ""),
+        ])
+        if self.units is not None or ckan_use_field_units:
+            d["Units"] = self.units if self.units else ""
+        d2 = OrderedDict([
             ("Index", str(self.is_index) if self.is_index is not None else ""),
             ("Unique", str(self.uniquekey) if self.uniquekey is not None else ""),
             ("Not null", str(self.notnull) if self.notnull is not None else ""),
             ("Options", self.options_string if self.options_string else ""),
             ("Comment", self.comment if self.comment else ""),
         ])
+        d.update(d2)
+        return d
 
     def _to_ckan_field(self) -> CkanField:
         field_info = CkanField(name=self.name, data_type=str(self.type_override) if self.type_override is not None else None,
-                               notes=self.description, label=self.label)
+                               notes=self.description, label=self.label, units=self.units)
         field_info.is_index = self.is_index
         field_info.uniquekey = self.uniquekey
         field_info.notnull = self.notnull
@@ -168,6 +182,7 @@ class BuilderField:
                                "type override": str(field_info.data_type),  # if field_info.type_override else "",
                                "label": field_info.label,
                                "description": field_info.notes,
+                               "units": field_info.units,
                                "index": field_info.is_index,
                                "unique": field_info.uniquekey,
                                "not null": field_info.notnull,

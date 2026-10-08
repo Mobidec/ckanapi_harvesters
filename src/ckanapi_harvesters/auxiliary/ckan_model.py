@@ -164,6 +164,7 @@ class CkanIdentifiedObject:
 
 
 ## Field class ------------------
+ckan_use_field_units: bool = True  # option to activate CKAN field units functionality
 class CkanField(CkanConfigurableObjectABC):
     """
     Object representation of a CKAN Field configuration
@@ -173,7 +174,7 @@ class CkanField(CkanConfigurableObjectABC):
 
     # TODO: implement schema part of dict? e.g. {'index_name': None, 'is_index': False, 'native_type': 'numeric', 'notnull': False, 'uniquekey': False}
     def __init__(self, name:str, data_type:str, *, notes:str=None, native_type:str=None,
-                 type_override:bool=False, label:str=None):
+                 type_override:bool=False, label:str=None, units:str=None):
         if native_type is None:
             native_type = data_type
         self.name:str = name
@@ -181,6 +182,7 @@ class CkanField(CkanConfigurableObjectABC):
         self.type_override:Union[bool,None] = type_override
         self.label:Union[str,None] = label
         self.notes:Union[str,None] = notes
+        self.units:Union[str,None] = units  # requires CKAN extension field_units
         self.is_index:Union[bool,None] = None
         self.uniquekey:Union[bool,None] = None
         self.notnull:Union[bool,None] = None
@@ -208,6 +210,8 @@ class CkanField(CkanConfigurableObjectABC):
             dest.label = new_values.label
         if new_values.notes is not None:
             dest.notes = new_values.notes
+        if new_values.units is not None:
+            dest.units = new_values.units
         if new_values.is_index is not None:
             dest.is_index = new_values.is_index
         if new_values.uniquekey is not None:
@@ -228,6 +232,7 @@ class CkanField(CkanConfigurableObjectABC):
         equality &= self.type_override == other.type_override
         equality &= self.label == other.label
         equality &= self.notes == other.notes
+        equality &= self.units == other.units
         equality &= self.is_index == other.is_index
         equality &= self.uniquekey == other.uniquekey
         equality &= self.notnull == other.notnull
@@ -252,6 +257,8 @@ class CkanField(CkanConfigurableObjectABC):
             field_info["label"] = self.label
         if self.notes is not None:
             field_info["notes"] = self.notes
+        if self.units is not None:
+            field_info["units"] = self.units
         if len(field_info) > 0:
             d["info"] = field_info
         schema_info = self.details["schema"] if include_details and self.details is not None and "schema" in self.details.keys() else {}
@@ -298,6 +305,8 @@ class CkanField(CkanConfigurableObjectABC):
                 obj.label = field_info["label"] if str_is_not_empty(field_info["label"]) else None
             if "notes" in field_info.keys():
                 obj.notes = field_info["notes"] if str_is_not_empty(field_info["notes"]) else None
+            if "units" in field_info.keys():
+                obj.units = field_info["units"] if str_is_not_empty(field_info["units"]) else None
         if "schema" in d.keys():
             schema_info = d["schema"]
             if "is_index" in schema_info.keys():

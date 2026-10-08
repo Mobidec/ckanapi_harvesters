@@ -666,6 +666,12 @@ class CkanApiMap(CkanApiBase):
         else:
             return (min_version is None or min_version <= ckan_version) and (max_version is None or ckan_version <= max_version)
 
+    def check_ckan_ext(self, ext_name: str) -> bool:
+        """
+        Check whether an extension is present or not by name
+        """
+        status = self.status_show()
+        return ext_name in status.extensions
 
     def _api_package_search(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None, fq:str=None, fq_list:List[str]=None,
                             include_private:bool=True, include_drafts:bool=True, sort:str=None,
