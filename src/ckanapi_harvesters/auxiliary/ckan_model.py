@@ -477,9 +477,19 @@ class CkanDataStoreInfo:
             self.table_size_mb = bytes_to_megabytes(d["meta"].get("size", None))
             self.index_size_mb = bytes_to_megabytes(d["meta"].get("idx_size", None))
             if "primary_key" in d.keys():
-                self.primary_key = d["primary_key"].split(ckan_tags_sep)
+                if isinstance(d["primary_key"], str):
+                    self.primary_key = d["primary_key"].split(ckan_tags_sep)
+                else:
+                    self.primary_key = d["primary_key"]
             if "indexes" in d.keys():
-                self.indexes = d["indexes"].split(ckan_tags_sep)
+                if isinstance(d["indexes"], str):
+                    self.indexes = d["indexes"].split(ckan_tags_sep)
+                elif len(d["indexes"]) == 0:
+                    self.indexes = []
+                elif isinstance(d["indexes"][0], str):
+                    self.indexes = d["indexes"]
+                else:
+                    self.indexes = sum([index["column_names"] for index in d["indexes"]], [])
             # what does the field meta.db_size represent?
             if "fields" in d.keys():
                 self.fields_id_list:List[str] = [e["id"] for e in d["fields"]]
@@ -1060,7 +1070,11 @@ class CkanOrganizationInfo(CkanIdentifiedObject):
 class CkanStatus:
     def __init__(self, d:dict):
         self.ckan_version:Version = version.parse(d["ckan_version"])
-        self.extensions:Set[str] = set(d["extensions"].split(' '))
+        self.extensions:Set[str] = set()
+        if isinstance(d["extensions"],str):
+            self.extensions = set(d["extensions"].split(' '))
+        else:
+            self.extensions = set(d["extensions"])
         self.site_url:str = d["site_url"]
         self.site_title:str = d["site_title"]
         self.site_description:str = d["site_description"]

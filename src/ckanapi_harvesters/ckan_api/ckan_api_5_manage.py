@@ -449,7 +449,7 @@ class CkanApiManage(CkanApiReadWrite):
         """
         warn("TODO: untested function")  # TODO
         assert_or_raise(bypass_admin or not self.params.enable_admin, ReadOnlyError())
-        if self.map.status is not None and self.map.status.ckan_version < Version("2.11"):
+        if self.check_ckan_version(max_version="2.11", strict=True):  # if CKAN version < 2.11
             msg = "API datastore_create does not implement option delete_fields. Requires CKAN version >= 2.11"
             warn(msg)
         if isinstance(fields_delete, str):
@@ -605,30 +605,35 @@ class CkanApiManage(CkanApiReadWrite):
 
 
     ## Datastore creation ------------------
-    @staticmethod
-    def default_resource_view(resource_format:str, is_datastore:bool=True) -> Tuple[str,str]:
+    def default_resource_views(self, resource_format:str, is_datastore:bool=True) -> List[Tuple[str,str]]:
         """
         Definition of the default resource view based on the resource format.
 
         :param resource_format:
         :return:
+        List of (view_type, title) tuples
         """
         if resource_format is None:
             resource_format = "unknown"
         resource_format = resource_format.lower()
-        if resource_format in {"csv", "shp", "xls", "parquet", "geoparquet"} or (is_datastore and resource_format == "json"):
-            title = "Table"
-            view_type = "recline_view"  # Data Explorer
+        if resource_format in {"csv", "xls", "parquet"} or (is_datastore and resource_format == "json"):
+            if self.check_ckan_version(max_version="2.11.5", strict=True):  # if CKAN version < 2.11.5
+                return [("recline_view", "Table")]
+            else:
+                # these views require specific extensions:
+                return [("datatables_view", "Table"), ("charts_builder_view", "Chart Builder")]
+        elif resource_format in {"shp", "geoparquet"}:
+            if self.check_ckan_version(max_version="2.11.5", strict=True):  # if CKAN version < 2.11.5
+                return [("recline_view", "Table")]
+            else:
+                # these views require specific extensions:
+                return [("datatables_view", "Table"), ("charts_builder_view", "Chart Builder"), ("datastore_openlayers", "Map")]
         elif resource_format in {"json", "txt", "py"}:
-            title = "Text"
-            view_type = "text_view"
+            return [("text_view", "Text")]
         elif resource_format in {"png", "svg"}:
-            title = "Image"
-            view_type = "image_view"
+            return [("image_view", "Image")]
         else:
-            title = None
-            view_type = None
-        return title, view_type
+            return []
 
     def _api_resource_view_create(self, resource_id:str, title:Union[str,List[str]]=None, *,
                                   view_type:Union[str,List[str]]=None, params:dict=None) -> List[CkanViewInfo]:
@@ -687,16 +692,23 @@ class CkanApiManage(CkanApiReadWrite):
         if title is None and view_type is None:
             resource_info = self.get_resource_info_or_request_of_id(resource_id)
             resource_format = resource_info.format
-            title, view_type = self.default_resource_view(resource_format, is_datastore=is_datastore)
-            if title is None:
-                title = []
-                view_type = []
+            default_views_config = self.default_resource_views(resource_format, is_datastore=is_datastore)
+            if default_views_config is None or len(default_views_config) == 0:
                 msg = NoDefaultView(resource_format)
                 if error_no_default_view_type:
                     raise(msg)
                 else:
                     warn(str(msg))
                     return []
+            created_views = []
+            for view_type, title in default_views_config:
+                assert(title is not None)
+                tmp_views = self.resource_view_create(resource_id, title=title, view_type=view_type, params=params,
+                                                      error_no_default_view_type=error_no_default_view_type,
+                                                      cancel_if_exists=cancel_if_exists,
+                                                      is_datastore=is_datastore)
+                created_views = created_views + tmp_views
+            return created_views
         if isinstance(view_type, str):
             view_type = [view_type]
         if isinstance(title, str):

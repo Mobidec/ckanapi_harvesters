@@ -12,6 +12,8 @@ import copy
 from warnings import warn
 import argparse
 import urllib.parse
+from packaging import version
+from packaging.version import Version
 
 from ckanapi_harvesters.auxiliary.ckan_model import (CkanPackageInfo, CkanLicenseInfo, CkanDataStoreInfo, CkanResourceInfo,
                                                      CkanOrganizationInfo, CkanViewInfo, CkanField, CkanUserInfo,
@@ -635,6 +637,35 @@ class CkanApiMap(CkanApiBase):
             return self.map.status.copy()
         else:
             return self._api_status_show(params=params)
+
+    def get_ckan_version(self) -> Version:
+        """
+        Returns version of CKAN server from API status_show (caches result if called twice)
+        """
+        status = self.status_show()
+        return status.ckan_version
+
+    def check_ckan_version(self, min_version: Union[str,Version,None]=None, max_version: Union[str,Version,None]=None,
+                           strict: bool = False) -> bool:
+        """
+        Return True if the CKAN version is greater than or equal to min_version and less than or equal to max_version, return False otherwise.
+
+        If no min_version is given, just check whether the CKAN version is less than or equal to max_version.
+
+        If no max_version is given, just check whether the CKAN version is greater than or equal to min_version.
+
+        If strict is True, strict comparisons are used.
+        """
+        if isinstance(min_version,str):
+            min_version = version.parse(min_version)
+        if isinstance(max_version,str):
+            max_version = version.parse(max_version)
+        ckan_version = self.get_ckan_version()
+        if strict:
+            return (min_version is None or min_version < ckan_version) and (max_version is None or ckan_version < max_version)
+        else:
+            return (min_version is None or min_version <= ckan_version) and (max_version is None or ckan_version <= max_version)
+
 
     def _api_package_search(self, *, params:dict=None, owner_org:str=None, filter:dict=None, q:str=None, fq:str=None, fq_list:List[str]=None,
                             include_private:bool=True, include_drafts:bool=True, sort:str=None,
