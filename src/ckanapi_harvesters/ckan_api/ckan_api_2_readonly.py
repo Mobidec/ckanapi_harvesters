@@ -584,8 +584,8 @@ class CkanApiReadOnly(CkanApiMap):
 
     ### search_sql method ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     @staticmethod
-    def _datastore_search_sql_apply_default_limit(search_all:bool) -> bool:
-        if search_all:
+    def _datastore_search_sql_apply_default_limit(search_all:bool, sql:str) -> bool:
+        if search_all and not re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
             return CkanApiReadOnlyParams.apply_default_limit_to_sql_when_search_all
         else:
             return False  # do not apply default limits when using datastore_search_sql in mode search_all=False => user can include a LIMIT statement in his query
@@ -608,7 +608,7 @@ class CkanApiReadOnly(CkanApiMap):
         """
         if params is None:
             params = {}
-        if limit_per_request is None and CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=False) and not re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
+        if limit_per_request is None and CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=False, sql=sql) and not re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
             limit_per_request = self.params.default_limit_read_per_request
         if limit_per_request is not None:
             if re.search(r'\bLIMIT\b', sql, re.IGNORECASE):
@@ -678,7 +678,7 @@ class CkanApiReadOnly(CkanApiMap):
         if return_df:
             df = self._request_all_results_df(api_fun=self._api_datastore_search_sql_df, params=params,
                                               limit_per_request=limit_per_request, offset=offset,
-                                              default_limit_per_request=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all),
+                                              default_limit_per_request=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all, sql=sql),
                                               total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback,
                                               search_all=search_all, sql=sql)
             if "fields" in df.attrs.keys():
@@ -690,7 +690,7 @@ class CkanApiReadOnly(CkanApiMap):
         else:
             responses = self._request_all_results_list(api_fun=self._api_datastore_search_sql_raw, params=params,
                                                        limit_per_request=limit_per_request, offset=offset, requests_limit=requests_limit,
-                                                       total_limit=total_limit, default_limit_per_request=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all),
+                                                       total_limit=total_limit, default_limit_per_request=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all, sql=sql),
                                                        progress_callback=progress_callback,
                                                        search_all=search_all, sql=sql)
             # TODO: test
@@ -725,13 +725,13 @@ class CkanApiReadOnly(CkanApiMap):
         if return_df:
             return self._request_all_results_page_generator(api_fun=self._api_datastore_search_sql_df, params=params,
                                                             limit_per_request=limit_per_request, offset=offset, search_all=search_all,
-                                                            default_limit_per_request=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all),
+                                                            default_limit_per_request=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all, sql=sql),
                                                             total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback,
                                                             sql=sql)
         else:
             return self._request_all_results_page_generator(api_fun=self._api_datastore_search_sql_raw, params=params,
                                                             limit_per_request=limit_per_request, offset=offset, search_all=search_all,
-                                                            default_limit_per_request=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all),
+                                                            default_limit_per_request=CkanApiReadOnly._datastore_search_sql_apply_default_limit(search_all=search_all, sql=sql),
                                                             total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback,
                                                             sql=sql)
 
@@ -787,10 +787,10 @@ class CkanApiReadOnly(CkanApiMap):
         :param search_method: API method selection (True=datastore_search, False=datastore_dump)
         :return:
         """
-        if limit is not None:
-            locals_update = _reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request)
-            total_limit = locals_update["total_limit"]
-            limit_per_request = locals_update["limit_per_request"]
+        locals_update = _reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request,
+                                                 default_limit=self.params.default_limit_read_per_request)
+        total_limit = locals_update["total_limit"]
+        limit_per_request = locals_update["limit_per_request"]
         format = CkanApiReadOnly._get_default_format_read(format=format, search_method=search_method,
                                                           return_df=return_df)
         bom = CkanApiReadOnly._get_default_bom_option_read(bom=bom, format=format, search_method=search_method)
@@ -834,10 +834,10 @@ class CkanApiReadOnly(CkanApiMap):
         :param return_df: Return pandas DataFrame (True) or dict (False)
         :return:
         """
-        if limit is not None:
-            locals_update = _reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request)
-            total_limit = locals_update["total_limit"]
-            limit_per_request = locals_update["limit_per_request"]
+        locals_update = _reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request,
+                                                 default_limit=self.params.default_limit_read_per_request)
+        total_limit = locals_update["total_limit"]
+        limit_per_request = locals_update["limit_per_request"]
         format = CkanApiReadOnly._get_default_format_read(format=format, search_method=search_method,
                                                           return_df=return_df)
         bom = CkanApiReadOnly._get_default_bom_option_read(bom=bom, format=format, search_method=search_method)
@@ -948,10 +948,10 @@ class CkanApiReadOnly(CkanApiMap):
         :param return_df: Return pandas DataFrame (True) or dict (False)
         :return:
         """
-        if limit is not None:
-            locals_update = _reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request)
-            total_limit = locals_update["total_limit"]
-            limit_per_request = locals_update["limit_per_request"]
+        locals_update = _reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request,
+                                                 default_limit=self.params.default_limit_read_per_request)
+        total_limit = locals_update["total_limit"]
+        limit_per_request = locals_update["limit_per_request"]
         return self._api_datastore_search_sql_all(sql, params=params, limit_per_request=limit_per_request, offset=offset,
                                                   total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback,
                                                   search_all=search_all, return_df=return_df)
@@ -981,10 +981,10 @@ class CkanApiReadOnly(CkanApiMap):
         :param return_df: Return pandas DataFrame (True) or dict (False)
         :return:
         """
-        if limit is not None:
-            locals_update = _reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request)
-            total_limit = locals_update["total_limit"]
-            limit_per_request = locals_update["limit_per_request"]
+        locals_update = _reassign_limit_argument(limit, total_limit=total_limit, limit_per_request=limit_per_request,
+                                                 default_limit=self.params.default_limit_read_per_request)
+        total_limit = locals_update["total_limit"]
+        limit_per_request = locals_update["limit_per_request"]
         return self._api_datastore_search_sql_all_page_generator(sql, params=params, limit_per_request=limit_per_request, offset=offset,
                                                                  total_limit=total_limit, requests_limit=requests_limit, progress_callback=progress_callback,
                                                                  search_all=search_all, return_df=return_df)
