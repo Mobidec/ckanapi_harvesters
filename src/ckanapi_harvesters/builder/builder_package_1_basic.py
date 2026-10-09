@@ -389,7 +389,10 @@ class BuilderPackageBasic:
                 out_dir = f.readline().strip()
                 f.close()
         self._default_out_dir = sanitize_path(out_dir)
-        os.environ[BuilderPackageBasic.ENV_CKAN_DOWNLOAD_DIR] = self._default_out_dir_src
+        if self._default_out_dir_src:
+            os.environ[BuilderPackageBasic.ENV_CKAN_DOWNLOAD_DIR] = self._default_out_dir_src
+        elif BuilderPackageBasic.ENV_CKAN_DOWNLOAD_DIR in os.environ.keys():
+            os.environ.pop(BuilderPackageBasic.ENV_CKAN_DOWNLOAD_DIR)
 
     def _get_out_dir_src(self, base_dir:str):
         return make_path_relative(self._default_out_dir_src, base_dir)
