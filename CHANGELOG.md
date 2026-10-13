@@ -10,6 +10,20 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-09-14
 
 
+## [0.0.45] - 2026-10-13
+
+### Added
+
+- Compatibility with CKAN 2.11.5
+- Support for DataStore column units metadata in Excel file and CkanField objects
+
+### Fixed
+
+- Limits using SQL queries:
+it is recommend not to use the LIMIT statement in the SQL query but rather use the `total_limit` argument 
+to handle indirectly this statement because the value in the SQL query would not be interpreted.
+
+
 ## [0.0.44] - 2026-09-24
 
 ### Added
