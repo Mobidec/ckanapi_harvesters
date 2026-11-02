@@ -185,7 +185,8 @@ class BuilderDataStoreUrl(BuilderDataStoreFile):  #, BuilderUrlABC):  # multiple
                                              state=initial_resource_building_state if initial_resource_building_state is not None else self.resource_attributes.state,
                                              url=self.url,
                                              datastore_create=False, auto_submit=False, create_default_view=self.create_default_view,
-                                             cancel_if_exists=True, update_if_exists=True, aliases=aliases, reupload=False, data_cleaner=self.data_cleaner_upload,
+                                             cancel_if_exists=True, update_if_exists=True, aliases=aliases, reupload=False,
+                                             data_cleaner=self.data_cleaner_upload, allow_nans=self.allow_nans,
                                              inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
                                              progress_callback=self.progress_callback)
         resource_id = resource_info.id

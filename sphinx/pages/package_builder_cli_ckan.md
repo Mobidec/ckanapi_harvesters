@@ -33,6 +33,9 @@ options:
   --time-between-requests TIME_BETWEEN_REQUESTS
                         Time between upload/download requests (seconds) -
                         recommended: 0.1 seconds
+  --allow-nan           Do not apply replace_na functions and leave NaNs as-is
+                        when transmitting to CKAN (bypasses
+                        ckan.params.replace_na)
   --admin               Option to enable admin mode
   --ckan-postgis        Option to notify that CKAN is compatible with PostGIS
   --ckan-epsg CKAN_EPSG

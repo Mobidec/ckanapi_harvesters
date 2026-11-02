@@ -10,6 +10,7 @@ import io
 import argparse
 
 import pandas as pd
+import numpy as np
 
 from ckanapi_harvesters.auxiliary.ckan_progress_callbacks import CkanProgressCallbackABC, CkanCallbackLevel, CkanProgressUnits
 from ckanapi_harvesters.auxiliary.proxy_config import ProxyConfig
@@ -27,6 +28,8 @@ from ckanapi_harvesters.auxiliary.ckan_errors import (ReadOnlyError, IntegrityEr
 from ckanapi_harvesters.policies.data_format_policy import CkanPackageDataFormatPolicy
 
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
+from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_types import ReplaceNALevel
+from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_helpers import default_replace_na, df_replace_na
 from ckanapi_harvesters.ckan_api.ckan_api_3_policy import CkanApiPolicyParams
 from ckanapi_harvesters.ckan_api.ckan_api_3_policy import CkanApiPolicy
 
@@ -49,6 +52,7 @@ class CkanApiReadWriteParams(CkanApiPolicyParams):
         self.read_only: bool = self.default_readonly
         self.submit_delay: float = 2.0      # delay between requests when running datapusher_submit
         self.submit_timeout: float = 90.0   # maximum wait time after datapusher_submit
+        self.replace_na: ReplaceNALevel = default_replace_na  # Replace NaN values with None
 
     def copy(self, new_identifier:str=None, *, dest=None):
         if dest is None:
@@ -61,6 +65,13 @@ class CkanApiReadWriteParams(CkanApiPolicyParams):
         dest.submit_timeout = self.submit_timeout
         return dest
 
+    def _setup_cli_ckan_parser__params(self, parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
+        # overload adding support to trigger admin mode
+        parser = super()._setup_cli_ckan_parser__params(parser=parser)
+        parser.add_argument("--allow-nan", action="store_true", default=False,
+                            help="Do not apply replace_na functions and leave NaNs as-is when transmitting to CKAN (bypasses ckan.params.replace_na)")
+        return parser
+
     def _cli_ckan_args_apply(self, args: argparse.Namespace, *, base_dir:str=None,
                              error_not_found:bool=True, default_proxies:dict=None, proxy_headers:dict=None,
                              proxies:dict=None, headers:dict=None) -> None:
@@ -69,6 +80,8 @@ class CkanApiReadWriteParams(CkanApiPolicyParams):
                                      default_proxies=default_proxies, proxy_headers=proxy_headers)
         if args.limit is not None:
             self.default_limit_write_per_request = args.limit
+        if args.allow_nan:
+            self.replace_na = ReplaceNALevel.DisableChecks
 
 
 class CkanApiReadWrite(CkanApiPolicy):
@@ -159,10 +172,16 @@ class CkanApiReadWrite(CkanApiPolicy):
         if submit_delay is not None:
             self.params.submit_delay = submit_delay
 
+
+    def _df_replace_na(self, df: pd.DataFrame, *, allow_nans: bool) -> pd.DataFrame:
+        replace_na = self.params.replace_na
+        verbose = self.params.verbose_request_warning
+        return df_replace_na(df, replace_na, verbose=verbose, allow_nans=allow_nans)
+
     ## DataStore insertions ------------------
     def _api_datastore_upsert_raw(self, records:Union[dict, List[dict], pd.DataFrame], resource_id:str, *,
                                   method:Union[UpsertChoice,str], params:dict=None, force:bool=None, dry_run:bool=False,
-                                  last_insertion:bool=True) -> CkanActionResponse:
+                                  last_insertion:bool=True, allow_nans:bool=False) -> CkanActionResponse:
         """
         API call to api_datastore_upsert.
 
@@ -205,6 +224,8 @@ class CkanApiReadWrite(CkanApiPolicy):
             else:
                 assert(isinstance(records, pd.DataFrame))
             n_upsert = len(records)
+            if mode_df:
+                records = self._df_replace_na(records, allow_nans=allow_nans)
             if not mode_df:
                 params["records"] = records
                 format = None
@@ -245,14 +266,14 @@ class CkanApiReadWrite(CkanApiPolicy):
 
     def _api_datastore_upsert(self, records:Union[dict, List[dict], pd.DataFrame], resource_id:str, *,
                               method:Union[UpsertChoice,str], params:dict=None, force:bool=None, dry_run:bool=False,
-                              last_insertion:bool=True, return_df:bool=None) -> Union[pd.DataFrame, List[dict], dict]:
+                              last_insertion:bool=True, allow_nans:bool=False, return_df:bool=None) -> Union[pd.DataFrame, List[dict], dict]:
         mode_df = True
         if isinstance(records, list):
             mode_df = False
         if return_df is None:
             return_df = mode_df
         response = self._api_datastore_upsert_raw(records=records, resource_id=resource_id, method=method,
-                                                  params=params, force=force, dry_run=dry_run,
+                                                  params=params, force=force, dry_run=dry_run, allow_nans=allow_nans,
                                                   last_insertion=last_insertion)
         if method is not None:
             if return_df:
@@ -276,7 +297,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                              force:bool=None,
                              method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                              always_last_condition:bool=None, return_df:bool=None,
-                             data_cleaner:CkanDataCleanerABC=None,
+                             data_cleaner:CkanDataCleanerABC=None, allow_nans:bool=False,
                              progress_callback:CkanProgressCallbackABC=None, params:dict=None,
                              return_documents:bool=True, return_counters:bool=False) \
             -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter], LinesRequestCounter, None]:
@@ -363,7 +384,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                 df_upsert = records[offset:]
             value = self._api_datastore_upsert(df_upsert, return_df=return_df,
                                               method=method_str, dry_run=dry_run, resource_id=resource_id,
-                                              force=force, params=params,
+                                              force=force, params=params, allow_nans=allow_nans,
                                               last_insertion=apply_last_condition or always_last_condition)
             current = time.time()
             if progress_callback is not None:
@@ -409,7 +430,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                 df_upsert = records[offset:i_end_add]
             df_add = self._api_datastore_upsert(df_upsert, return_df=return_df,
                                                 method=method_str, dry_run=dry_run, resource_id=resource_id,
-                                                force=force, params=params,
+                                                force=force, params=params, allow_nans=allow_nans,
                                                 last_insertion=(last_insertion and apply_last_condition) or always_last_condition)
             n_sent += len(df_upsert)
             n_received += len(df_add)
@@ -494,7 +515,8 @@ class CkanApiReadWrite(CkanApiPolicy):
                                     method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                                     always_last_condition:bool=None, return_df:bool=None,
                                     return_documents:bool=False, return_counters:bool=True,
-                                    data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
+                                    data_cleaner:CkanDataCleanerABC=None, allow_nans:bool=False,
+                                    progress_callback:CkanProgressCallbackABC=None,
                                     params:dict=None) \
             -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter], LinesRequestCounter, None]:
         """
@@ -568,7 +590,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                                                                     total_limit=current_total_limit, requests_limit=current_requests_limit,
                                                                     force=force, method=method, params=params,
                                                                     apply_last_condition=False, always_last_condition=always_last_condition,
-                                                                    return_df=return_df, data_cleaner=data_cleaner,
+                                                                    return_df=return_df, data_cleaner=data_cleaner, allow_nans=allow_nans,
                                                                     progress_callback=progress_callback,
                                                                     return_documents=True, return_counters=True)
                 if return_documents:
@@ -603,7 +625,7 @@ class CkanApiReadWrite(CkanApiPolicy):
                                                                 total_limit=current_total_limit, requests_limit=current_requests_limit,
                                                                 force=force, method=method, params=params,
                                                                 apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
-                                                                return_df=return_df, data_cleaner=data_cleaner,
+                                                                return_df=return_df, data_cleaner=data_cleaner, allow_nans=allow_nans,
                                                                 progress_callback=progress_callback,
                                                                 return_documents=True, return_counters=True)
             if return_documents:
@@ -647,7 +669,8 @@ class CkanApiReadWrite(CkanApiPolicy):
                          method:Union[UpsertChoice,str]=UpsertChoice.Upsert, apply_last_condition:bool=True,
                          always_last_condition:bool=None, return_df:bool=None,
                          return_documents:bool=False, return_counters:bool=True,
-                         data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
+                         data_cleaner:CkanDataCleanerABC=None, allow_nans:bool=False,
+                         progress_callback:CkanProgressCallbackABC=None,
                          params:dict=None, limit:int=None, exclude_generator_mode:bool=False,
                          records:Union[pd.DataFrame, List[dict]]=None) \
             -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter], LinesRequestCounter, None]:
@@ -698,7 +721,8 @@ class CkanApiReadWrite(CkanApiPolicy):
                                             limit_per_request=limit_per_request, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
                                             force=force, method=method, params=params,
                                             apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
-                                            return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback,
+                                            return_df=return_df, data_cleaner=data_cleaner, allow_nans=allow_nans,
+                                            progress_callback=progress_callback,
                                             return_documents=return_documents, return_counters=return_counters)
         else:
             if exclude_generator_mode:
@@ -710,7 +734,8 @@ class CkanApiReadWrite(CkanApiPolicy):
                                                    limit_per_request=limit_per_request, offset=offset, total_limit=total_limit, requests_limit=requests_limit,
                                                    force=force, request_threshold=request_threshold, method=method, params=params,
                                                    apply_last_condition=apply_last_condition, always_last_condition=always_last_condition,
-                                                   return_df=return_df, data_cleaner=data_cleaner, progress_callback=progress_callback,
+                                                   return_df=return_df, data_cleaner=data_cleaner, allow_nans=allow_nans,
+                                                   progress_callback=progress_callback,
                                                    return_documents=return_documents, return_counters=return_counters)
         if progress_callback is not None:
             progress_callback.remove_context(level=CkanCallbackLevel.Requests)

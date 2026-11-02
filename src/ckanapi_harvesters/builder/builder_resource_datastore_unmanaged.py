@@ -133,6 +133,7 @@ class BuilderDataStoreUnmanaged(BuilderDataStoreFile):  # , BuilderResourceUnman
                                              create_default_view=self.create_default_view,
                                              cancel_if_exists=True, update_if_exists=True, reupload=reupload and df_upload is not None,
                                              datastore_create=execute_datastore_create, records=df_upload, fields=fields,
+                                             data_cleaner=self.data_cleaner_upload, allow_nans=self.allow_nans,
                                              primary_key=primary_key, indexes=indexes, aliases=aliases,
                                              inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
                                              progress_callback=self.progress_callback,

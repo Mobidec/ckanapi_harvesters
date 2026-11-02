@@ -211,7 +211,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
             ret_df = ckan.datastore_upsert(df_upload_transformed.iloc[i_restart:], resource_id, method=method,
                                            apply_last_condition=apply_last_condition,
                                            always_last_condition=always_last_condition,
-                                           data_cleaner=self.data_cleaner_upload,
+                                           data_cleaner=self.data_cleaner_upload, allow_nans=self.allow_nans,
                                            progress_callback=self.progress_callback,
                                            return_documents=True, return_counters=False, exclude_generator_mode=True)
         elif (0 <= row_count) and (row_count < len(df_row)):
@@ -220,7 +220,7 @@ class BuilderDataStoreFolder(BuilderDataStoreMultiABC):
             ret_df = ckan.datastore_upsert(df_upload_transformed, resource_id, method=method,
                                            apply_last_condition=apply_last_condition,
                                            always_last_condition=always_last_condition,
-                                           data_cleaner=self.data_cleaner_upload,
+                                           data_cleaner=self.data_cleaner_upload, allow_nans=self.allow_nans,
                                            progress_callback=self.progress_callback,
                                            return_documents=True, return_counters=False, exclude_generator_mode=True)
         else:

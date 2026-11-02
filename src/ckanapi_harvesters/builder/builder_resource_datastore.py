@@ -86,6 +86,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         self.local_file_format: Union[FileFormatABC,None] = None
         self.column_enable_upload_index: bool = True
         self.column_enable_source_file: bool = False
+        self.allow_nans: bool = False
         self.read_line_counter:int = 0
         self.upload_start_line:int = 0
         self.rows_limit: Union[int,None] = None
@@ -108,6 +109,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         dest.reupload_on_update = self.reupload_on_update
         dest.reupload_if_needed = self.reupload_if_needed
         dest.reupload_needed = self.reupload_needed
+        dest.allow_nans = self.allow_nans
         dest.column_enable_upload_index = self.column_enable_upload_index
         dest.column_enable_source_file = self.column_enable_source_file
         dest.df_mapper = self.df_mapper.copy()
@@ -145,6 +147,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                             help="Add a column for the file name of the original data (named " + datastore_default_source_file_col_name + ")", action="store_true", default=False)
         parser.add_argument("--no-upload-index",
                             help="Disable the generation of an upload index column in case no primary key was given (named " + datastore_default_upload_index_col_name + ")", action="store_true", default=False)
+        parser.add_argument("--allow-nan",
+                            help="Do not apply replace_na functions and leave NaNs as-is when transmitting to CKAN (bypasses ckan.params.replace_na)", action="store_true", default=False)
         return parser
 
     def _setup_cli_parser_external(self, parser:argparse.ArgumentParser=None) -> argparse.ArgumentParser:
@@ -167,6 +171,8 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
             self.column_enable_upload_index = False
         if args.include_source_file:
             self.column_enable_source_file = True
+        if args.allow_nan:
+            self.allow_nans = True
         self.setup_default_file_mapper()
         if args.one_frame_per_primary_key is not None and args.one_frame_per_primary_key:
             self.apply_one_frame_per_primary_key(args.group_by)
@@ -447,7 +453,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
         ret_df = ckan.datastore_upsert(df_upload_transformed, resource_id, method=method,
                                        apply_last_condition=apply_last_condition,
                                        always_last_condition=always_last_condition,
-                                       data_cleaner=self.data_cleaner_upload,
+                                       data_cleaner=self.data_cleaner_upload, allow_nans=self.allow_nans,
                                        progress_callback=self.progress_callback,
                                        return_documents=True, return_counters=False, exclude_generator_mode=True)
         return df_upload_transformed, ret_df
@@ -683,6 +689,7 @@ class BuilderDataStoreABC(BuilderResourceABC, ABC):
                                              create_default_view=self.create_default_view,
                                              cancel_if_exists=True, update_if_exists=True, reupload=reupload,
                                              datastore_create=True, records=df_upload, fields=fields,
+                                             data_cleaner=self.data_cleaner_upload, allow_nans=self.allow_nans,
                                              primary_key=primary_key, indexes=indexes, aliases=aliases,
                                              inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes,
                                              progress_callback=self.progress_callback,

@@ -825,7 +825,7 @@ class CkanApiManage(CkanApiReadWrite):
                         datastore_create:bool=False, records:Union[dict, List[dict], pd.DataFrame]=None, fields:List[dict]=None,
                             primary_key: Union[str, List[str]] = None, indexes: Union[str, List[str]] = None,
                             aliases: Union[str, List[str]] = None, inhibit_datastore_patch_indexes:bool=False,
-                            data_cleaner:CkanDataCleanerABC=None, records_to_file:DataStoreReprFormat=None,
+                            data_cleaner:CkanDataCleanerABC=None, allow_nans:bool=False, records_to_file:DataStoreReprFormat=None,
                         progress_callback:CkanProgressCallbackABC=None) -> CkanResourceInfo:
         """
         Proxy to API call resource_create verifying if a resource with the same name already exists and adding the default view.
@@ -918,7 +918,7 @@ class CkanApiManage(CkanApiReadWrite):
                             # remove data which was uploaded by datapusher
                             self.datastore_clear(resource_id, error_not_found=False, bypass_admin=True)
                         info = self.datastore_create(resource_info.id, records=records, fields=fields, primary_key=primary_key,
-                                                     indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner,
+                                                     indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner, allow_nans=allow_nans,
                                                      progress_callback=progress_callback, inhibit_datastore_patch_indexes=inhibit_datastore_patch_indexes)
                     return resource_info
                 else:
@@ -945,15 +945,16 @@ class CkanApiManage(CkanApiReadWrite):
                 # remove data which was uploaded by datapusher
                 self.datastore_clear(resource_info.id, error_not_found=False, bypass_admin=True)
             info = self.datastore_create(resource_info.id, records=records, fields=fields, primary_key=primary_key,
-                                         indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner,
+                                         indexes=indexes, aliases=aliases, delete_previous=False, data_cleaner=data_cleaner, allow_nans=allow_nans,
                                          progress_callback=progress_callback, inhibit_datastore_patch_indexes=False)
         return resource_info
 
     def _api_datastore_create(self, resource_id:str, *, records:Union[dict, List[dict], pd.DataFrame]=None,
-                             fields:List[Union[dict, CkanField]]=None, delete_fields:bool=None,
-                             primary_key:Union[str, List[str]]=None, indexes:Union[str, List[str]]=None,
-                             aliases: Union[str, List[str]]=None, calculate_record_count:bool=None,
-                             params:dict=None,force:bool=None) -> dict:
+                              fields:List[Union[dict, CkanField]]=None, delete_fields:bool=None,
+                              primary_key:Union[str, List[str]]=None, indexes:Union[str, List[str]]=None,
+                              aliases: Union[str, List[str]]=None, calculate_record_count:bool=None,
+                              allow_nans:bool=False,
+                              params:dict=None,force:bool=None) -> dict:
         """
         API call to datastore_create.
         This endpoint also supports altering tables, aliases and indexes and bulk insertion.
@@ -987,6 +988,7 @@ class CkanApiManage(CkanApiReadWrite):
             params["aliases"] = aliases
         if records is not None:
             if isinstance(records, pd.DataFrame):
+                records = self._df_replace_na(records, allow_nans=allow_nans)
                 params["records"] = records.to_dict(orient='records')
             else:
                 params["records"] = records
@@ -1016,7 +1018,7 @@ class CkanApiManage(CkanApiReadWrite):
                          primary_key:Union[str, List[str]]=None, indexes:Union[str, List[str]]=None,
                          aliases: Union[str, List[str]]=None,
                          params:dict=None,force:bool=None, data_cleaner:CkanDataCleanerABC=None,
-                         inhibit_datastore_patch_indexes:bool=False,
+                         allow_nans: bool=False, inhibit_datastore_patch_indexes:bool=False,
                          progress_callback:CkanProgressCallbackABC=None) -> dict:
         """
         Encapsulation of the datastore_create API call.
@@ -1107,13 +1109,13 @@ class CkanApiManage(CkanApiReadWrite):
             progress_callback.add_context(f"datastore_create resource_id={resource_id} ({resource_name})", level=CkanCallbackLevel.Requests)
         info = self._api_datastore_create(resource_id, records=df_upload_partial, fields=fields,
                                           primary_key=primary_key, indexes=indexes, aliases=aliases,
-                                          params=params, force=force)
+                                          params=params, force=force, allow_nans=allow_nans)
         if df_upload_partial is not None and progress_callback is not None:
             progress_callback.end_task(len(df_upload_partial), level=CkanCallbackLevel.Requests, context="datastore_create")
             progress_callback.remove_context(level=CkanCallbackLevel.Requests)
         if df_upload_upsert is not None:
             self.datastore_upsert(df_upload_upsert, resource_id, method=UpsertChoice.Insert,
-                                  always_last_condition=None, data_cleaner=self.data_cleaner_upload,
+                                  always_last_condition=None, data_cleaner=self.data_cleaner_upload, allow_nans=allow_nans,
                                   progress_callback=progress_callback,
                                   exclude_generator_mode=True)
             # # case where a reupload was needed but is not permitted by self.reupload_if_needed

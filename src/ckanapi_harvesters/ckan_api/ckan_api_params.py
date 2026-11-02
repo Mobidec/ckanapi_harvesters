@@ -60,6 +60,7 @@ class CkanApiParamsBasic:
         self.verbose_multi_requests:bool = False
         self.verbose_request:bool = False
         self.verbose_request_error:bool = True
+        self.verbose_request_warning:bool = False
         self.verbose_extra:bool = True
 
     def copy(self, *, dest=None):

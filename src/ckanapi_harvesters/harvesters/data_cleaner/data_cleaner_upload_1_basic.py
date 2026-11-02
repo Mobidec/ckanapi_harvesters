@@ -28,9 +28,9 @@ from ckanapi_harvesters.auxiliary.ckan_auxiliary import assert_or_raise
 from ckanapi_harvesters.auxiliary.ckan_auxiliary import datastore_id_col
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_errors import CleanError, CleanerRequirementError
 from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_abc import CkanDataCleanerABC
+from ckanapi_harvesters.harvesters.data_cleaner.data_cleaner_helpers import non_finite_authorized_types
 from ckanapi_harvesters.auxiliary.ckan_field_types import field_type_synonyms
 
-non_finite_authorized_types = field_type_synonyms["double precision"].union({"numeric", "float", "float4", "float2"})
 real_number_types = non_finite_authorized_types
 int_types = field_type_synonyms["integer"].union(field_type_synonyms["bigint"]).union({"int2"})
 numeric_types = real_number_types.union(int_types)

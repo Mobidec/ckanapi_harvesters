@@ -6,6 +6,8 @@ This is linked to the data harvesters.
 """
 
 from . import data_cleaner_errors
+from . import data_cleaner_types
+from . import data_cleaner_helpers
 from . import data_cleaner_abc
 from . import data_cleaner_upload_1_basic
 from . import data_cleaner_upload_2_geom

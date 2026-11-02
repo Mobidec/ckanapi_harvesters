@@ -36,6 +36,9 @@ options:
                         (named py_source_file)
   --no-upload-index     Disable the generation of an upload index column in
                         case no primary key was given (named py_upload_index)
+  --allow-nan           Do not apply replace_na functions and leave NaNs as-is
+                        when transmitting to CKAN (bypasses
+                        ckan.params.replace_na)
 
 Examples: 
 - Selecting a Data Cleaner: --data-cleaner GeoJSON 

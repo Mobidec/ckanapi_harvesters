@@ -117,7 +117,8 @@ class CkanApiDeprecated(CkanApiManage):
                          dry_run:bool=False, limit_per_request:int=None, offset:int=0,
                          total_limit:int=None, requests_limit:int=None, force:bool=None,
                          apply_last_condition:bool=True, always_last_condition:bool=None, return_df:bool=None,
-                         data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
+                         data_cleaner:CkanDataCleanerABC=None, allow_nans:bool=False,
+                         progress_callback:CkanProgressCallbackABC=None,
                          params:dict=None, records:Union[pd.DataFrame, List[dict]]=None,
                          return_documents:bool=True, return_counters:bool=False, limit:int=None) \
             -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter], LinesRequestCounter, None]:
@@ -147,7 +148,7 @@ class CkanApiDeprecated(CkanApiManage):
                                      total_limit=total_limit, requests_limit=requests_limit,
                                      method=UpsertChoice.Insert, apply_last_condition=apply_last_condition, return_df=return_df,
                                      return_documents=return_documents, return_counters=return_counters,
-                                     always_last_condition=always_last_condition, data_cleaner=data_cleaner,
+                                     always_last_condition=always_last_condition, data_cleaner=data_cleaner, allow_nans=allow_nans,
                                      progress_callback=progress_callback,
                                      force=force, params=params, limit=limit, records=records)
 
@@ -155,7 +156,8 @@ class CkanApiDeprecated(CkanApiManage):
                          dry_run:bool=False, limit_per_request:int=None, offset:int=0,
                          total_limit:int=None, requests_limit:int=None, force:bool=None,
                          apply_last_condition:bool=True, always_last_condition:bool=None, return_df:bool=None,
-                         data_cleaner:CkanDataCleanerABC=None, progress_callback:CkanProgressCallbackABC=None,
+                         data_cleaner:CkanDataCleanerABC=None, allow_nans:bool=False,
+                         progress_callback:CkanProgressCallbackABC=None,
                          params:dict=None, records:Union[pd.DataFrame, List[dict]]=None,
                          return_documents:bool=True, return_counters:bool=False, limit:int=None) \
             -> Union[Union[pd.DataFrame, List[dict]], Tuple[Union[pd.DataFrame, List[dict]], LinesRequestCounter], LinesRequestCounter, None]:
@@ -186,7 +188,7 @@ class CkanApiDeprecated(CkanApiManage):
                                      total_limit=total_limit, requests_limit=requests_limit,
                                      method=UpsertChoice.Update, apply_last_condition=apply_last_condition, return_df=return_df,
                                      return_documents=return_documents, return_counters=return_counters,
-                                     always_last_condition=always_last_condition, data_cleaner=data_cleaner,
+                                     always_last_condition=always_last_condition, data_cleaner=data_cleaner, allow_nans=allow_nans,
                                      progress_callback=progress_callback,
                                      force=force, params=params, limit=limit, records=records)
 
