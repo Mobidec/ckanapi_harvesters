@@ -10,7 +10,7 @@ When publishing a new release, copy the relevant section on the [Github release 
 ## [Unreleased] - 2026-09-14
 
 
-## [0.0.46] - 2026-11-02
+## [0.0.47] - 2026-11-02
 
 ### Changed
 
@@ -20,6 +20,11 @@ This check can be time-consuming but is such a hassle that it must be run.
 ### Added
 
 - Option `--allow-nan` to bypass these checks for DataStore builders or at the CKAN instance level.
+
+
+## [0.0.46] - 2026-11-02
+
+Identical to 0.0.45 (versionning error).
 
 
 ## [0.0.45] - 2026-10-13
